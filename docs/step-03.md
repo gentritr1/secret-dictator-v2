@@ -9,6 +9,7 @@ machine.**
 npm run dev             # http://localhost:5173/walk.html
 npm run test:controller # the controller's own node tests
 npm test                # the engine suite, untouched
+npm run verify          # all of the above plus parity and a production build
 ```
 
 The bot playground at `index.html` is unchanged. The only edit outside
@@ -291,6 +292,30 @@ ray from the boom anchor along the boom, and the camera sits at the hit minus
 0.20 m of padding. No shake, no bob, no FOV kick, no motion blur — this step is
 for reading the movement honestly, and every one of those makes it harder.
 
+### The one bug no harness could have caught
+
+The camera also owns the ground-plane basis the keyboard is mapped through:
+forward is the camera's forward flattened onto the floor, and right is
+`forward × up = (−f_z, 0, f_x)`. The first version had those signs inverted, so
+it computed *left*: **A and D were swapped.** It was found by a human holding a
+key, and every automated check stayed green while it was wrong.
+
+That is worth naming rather than quietly fixing, because the reason is
+structural. The controller tests inject a world-space input vector. The scripted
+review API injects a world-space input vector — deliberately, so a scenario does
+not change meaning when the camera moves. Both therefore enter the system
+*after* the keyboard-to-camera seam, and nothing on either side of that seam had
+a test on the seam itself. A green suite is evidence about the paths the suite
+crosses and about nothing else.
+
+The mitigation is small and is the honest one available: `__walk.basis()` reports
+the basis the render loop last computed, so the seam can at least be read back
+instead of argued about. At the default yaw it returns forward `(0, 0, 1)`,
+right `(−1, 0, 0)` and camera position `(0, 1.80, −3.50)` — which doubles as the
+cheapest confirmation that "3.5 m behind, 1.8 m above" is what ships rather than
+what was intended. It is a readback, not a test; only hands on a keyboard prove
+that D goes the way the screen calls right.
+
 ## Tuning values as shipped
 
 Movement (`defaultTuning()` in `src/walk/controller.js`):
@@ -405,6 +430,11 @@ passed*, with the measured values printed rather than merely asserted.
 `grep -rn "rng(\|Math.random" src/walk/ walk.html` returns nothing, including
 out of comments.
 
+**Both entry points build.** `npm run build` emits `dist/index.html` +
+`playground-*.js` and `dist/walk.html` + `walk-*.js`, sharing one three.js
+chunk. `npm run verify` chains the engine suite, the controller suite, parity
+and that build into a single gate.
+
 **Scripted scenarios in the browser**, each run through `__walk.run(mark, s)`:
 
 | scenario | observed | expected |
@@ -435,6 +465,9 @@ errors.
   measurement, and a measurement cannot tell you whether 0.25 s of acceleration
   feels right. That is the point of the sliders and it is the next thing that
   has to happen.
+- **The keyboard-to-camera seam is still only read back, not tested.** The A/D
+  bug above lived entirely inside it. `__walk.basis()` makes it inspectable;
+  nothing yet makes it fail loudly.
 - **Only one browser, one machine, one display.** Everything was run in a
   Chromium tab on this Mac. Frame-rate independence is *argued* by construction
   and *tested* by driving different dt values through the same code — it has

@@ -63,6 +63,7 @@ npm run build                              # production bundle into dist/ (both 
 npm test                                   # 50 bot-vs-bot games + targeted rule tests
 npm run test:controller                    # the character controller, headless
 npm run parity                             # driver.js vs the self-test's exact numbers
+npm run verify                             # all of the above, plus the production build
 npm run simulate                           # 500 games, default seed
 npm run simulate -- --seed 42 --games 200  # explicit seed and count
 ```
