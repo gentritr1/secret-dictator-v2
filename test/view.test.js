@@ -306,33 +306,96 @@ say('permutation   ' + permutationsRun + ' role permutations left the view byte-
 say('sweep         ' + sweepsRun + ' single-knowledge seats carried exactly their own role token');
 say('peek          ' + peekedSeatsSeen + ' seat-states held a private Peek result');
 
+/* --------------------------------------- POSITIVE disclosure, by the rule
+ *
+ * Everything above is negative: it proves the view says too little nowhere. On
+ * its own that is only half a test, and the wrong half to be confident about —
+ * a viewFor() that returned `known: {}` for everybody would sail through every
+ * leak check in this file while making the Rebel role unplayable, because a
+ * Rebel who cannot see their team-mates or the Dictator has no game to play.
+ *
+ * So the same rule is asserted from the other side: every seat's `known` must
+ * be exactly SD.knownRoles for that seat — no more, and no less.
+ */
+
+var positiveSeats = 0;
+var rebelViewsChecked = 0;
+
+for (var n = 5; n <= 10; n++) {
+  for (var trial = 0; trial < 4; trial++) {
+    var PG = SD.createGame({
+      names: NAMES.slice(0, n), humanIndex: 0, seed: 20260809 + n * 31 + trial
+    });
+
+    for (var seat = 0; seat < n; seat++) {
+      positiveSeats++;
+      var pv = View.viewFor(PG, seat);
+      var expectKnown = SD.knownRoles(PG, seat);
+
+      /* Exact equality, both directions. */
+      check(JSON.stringify(pv.known) === JSON.stringify(expectKnown),
+        n + 'p seat ' + seat + ': known is ' + JSON.stringify(pv.known) +
+        ', the engine says ' + JSON.stringify(expectKnown));
+      check(pv.known[seat] === PG.players[seat].role,
+        n + 'p seat ' + seat + ': the view does not tell you your own role');
+      check(pv.you.role === PG.players[seat].role && pv.you.team === PG.players[seat].team,
+        n + 'p seat ' + seat + ': you.role/you.team wrong');
+
+      var role = PG.players[seat].role;
+
+      if (role === SD.ROLE.REBEL) {
+        rebelViewsChecked++;
+        /* Every other Rebel, by name, and the Dictator. This is the assertion
+         * that would fail if the projection were tightened into uselessness. */
+        var mates = PG.players.filter(function (p) {
+          return p.role === SD.ROLE.REBEL && p.id !== seat;
+        });
+        mates.forEach(function (m) {
+          check(pv.known[m.id] === SD.ROLE.REBEL,
+            n + 'p: Rebel ' + seat + ' cannot see fellow Rebel ' + m.id);
+        });
+        check(pv.known[SD.dictator(PG).id] === SD.ROLE.DICTATOR,
+          n + 'p: Rebel ' + seat + ' cannot see the Dictator');
+        check(Object.keys(pv.known).length === mates.length + 2,
+          n + 'p: Rebel ' + seat + ' sees ' + Object.keys(pv.known).length +
+          ' roles, expected ' + (mates.length + 2) + ' (self + mates + Dictator)');
+        /* And the names are resolvable from the same view, or the role card
+         * cannot be drawn from it. */
+        Object.keys(pv.known).map(Number).forEach(function (id) {
+          check(!!pv.players.find(function (q) { return q.id === id; }),
+            n + 'p: known names seat ' + id + ' that players[] does not list');
+        });
+      }
+
+      if (role === SD.ROLE.DICTATOR) {
+        var sees = Object.keys(pv.known).length > 1;
+        check(sees === (n <= SD.DICTATOR_SEES_REBELS_UP_TO),
+          n + 'p: the Dictator ' + (sees ? 'sees' : 'does not see') +
+          ' the Rebels, which is wrong for this table size');
+        if (n <= SD.DICTATOR_SEES_REBELS_UP_TO) {
+          var rebels = PG.players.filter(function (p) { return p.role === SD.ROLE.REBEL; });
+          rebels.forEach(function (r) {
+            check(pv.known[r.id] === SD.ROLE.REBEL,
+              n + 'p: the Dictator cannot see Rebel ' + r.id + ' at a small table');
+          });
+        }
+      }
+
+      if (role === SD.ROLE.LOYALIST) {
+        check(Object.keys(pv.known).length === 1,
+          n + 'p: Loyalist ' + seat + ' sees ' + Object.keys(pv.known).length + ' roles');
+      }
+    }
+  }
+}
+
+check(rebelViewsChecked > 0, 'no Rebel view was ever checked');
+say('disclosure    ' + positiveSeats + ' seats across 5-10 players: known === SD.knownRoles exactly,');
+say('              ' + rebelViewsChecked + ' Rebel views named every mate and the Dictator');
+
 /* ----------------------------------------- the disclosure rules, by name */
 
 (function () {
-  /* Rebels know each other and the Dictator, at every table size. */
-  [5, 7, 10].forEach(function (n) {
-    var G = SD.createGame({ names: NAMES.slice(0, n), humanIndex: 0, seed: 20260809 + n });
-    var rebel = G.players.find(function (p) { return p.role === SD.ROLE.REBEL; });
-    var loyalist = G.players.find(function (p) { return p.role === SD.ROLE.LOYALIST; });
-    var dict = SD.dictator(G);
-
-    var rv = View.viewFor(G, rebel.id);
-    check(rv.known[dict.id] === SD.ROLE.DICTATOR,
-      n + 'p: a Rebel cannot see the Dictator');
-    check(rv.known[loyalist.id] === undefined,
-      n + 'p: a Rebel can see a Loyalist');
-
-    var lv = View.viewFor(G, loyalist.id);
-    check(Object.keys(lv.known).length === 1 && lv.known[loyalist.id] === SD.ROLE.LOYALIST,
-      n + 'p: a Loyalist sees somebody other than themselves');
-
-    /* The Dictator sees the Rebels at five and six, and nowhere above. */
-    var dv = View.viewFor(G, dict.id);
-    var seesRebels = Object.keys(dv.known).length > 1;
-    check(seesRebels === (n <= SD.DICTATOR_SEES_REBELS_UP_TO),
-      n + 'p: the Dictator ' + (seesRebels ? 'sees' : 'does not see') +
-      ' the Rebels, which is wrong for this table size');
-  });
 
   /* A Peek result reaches the holder and nobody else — including the target.
    * beginPower() is internal to the engine (not exported, and the engine is
@@ -424,13 +487,108 @@ say('peek          ' + peekedSeatsSeen + ' seat-states held a private Peek resul
   say('              Foresight, both legislative hands, and the game-over reveal');
 })();
 
+/* ------------------------------------------- and the panel actually draws it
+ *
+ * A projection that carries the Rebels' knowledge and a role card that never
+ * renders it are the same thing from the player's chair. src/play/panels.js
+ * holds no engine import and reaches the DOM through exactly five elements, so
+ * a stub document is enough to drive the real render path in node — the same
+ * code the browser runs, not a re-description of it.
+ */
+function stubDocument() {
+  var made = {};
+  function el() {
+    return {
+      innerHTML: '', textContent: '', scrollTop: 0, scrollHeight: 0,
+      classList: { add: function () {}, remove: function () {}, toggle: function () {} },
+      querySelectorAll: function () { return []; },
+      querySelector: function () { return null; },
+      addEventListener: function () {}
+    };
+  }
+  return {
+    made: made,
+    getElementById: function (id) {
+      if (!made[id]) made[id] = el();
+      return made[id];
+    }
+  };
+}
+
+async function renderCheck() {
+  var mod = await import('../src/play/panels.js');
+  var doc = stubDocument();
+  var panels = mod.createPanels(doc, {});
+
+  /* A table where the human is a Rebel, so there is something to render. */
+  var G = null;
+  for (var s = 1; s < 400 && !G; s++) {
+    var cand = SD.createGame({ names: NAMES.slice(0, 7), humanIndex: 0, seed: s });
+    if (cand.players[0].role === SD.ROLE.REBEL) G = cand;
+  }
+  if (!check(!!G, 'could not deal a Rebel human in 400 seeds')) return;
+
+  var v = View.viewFor(G, 0);
+  panels.renderHud(v);
+  var card = doc.made.role.innerHTML;
+
+  /* Matched against the markup, not the prose: the Loyalist blurb contains the
+   * literal words "You know nobody", so a /you know/i probe passes on the one
+   * card that must NOT have the line. Wrong assertion, not wrong code — but a
+   * test that green-lights the opposite of what it claims is worth naming. */
+  check(card.indexOf('class="known"') !== -1,
+    'the role card does not render the allies line at all');
+  check(card.indexOf('>rebel<') !== -1, 'the role card does not show the viewer their own role');
+
+  var allies = Object.keys(v.known).map(Number).filter(function (id) { return id !== 0; });
+  check(allies.length > 0, 'the Rebel view carried no allies to render');
+  allies.forEach(function (id) {
+    var name = v.players.find(function (p) { return p.id === id; }).name;
+    check(card.indexOf(name) !== -1,
+      'the role card omits ally ' + name + ' (seat ' + id + ')');
+    check(card.indexOf(v.known[id]) !== -1,
+      'the role card omits ally ' + name + '\'s role (' + v.known[id] + ')');
+  });
+  check(card.indexOf(v.known[SD.dictator(G).id]) !== -1 &&
+        card.indexOf(G.players[SD.dictator(G).id].name) !== -1,
+    'the role card does not name the Dictator to a Rebel');
+
+  /* The mirror image: a Loyalist's card must name nobody but themselves. */
+  var LG = null;
+  for (var t = 1; t < 400 && !LG; t++) {
+    var c2 = SD.createGame({ names: NAMES.slice(0, 7), humanIndex: 0, seed: t });
+    if (c2.players[0].role === SD.ROLE.LOYALIST) LG = c2;
+  }
+  if (check(!!LG, 'could not deal a Loyalist human in 400 seeds')) {
+    panels.renderHud(View.viewFor(LG, 0));
+    var lcard = doc.made.role.innerHTML;
+    check(lcard.indexOf('class="known"') === -1,
+      'a Loyalist\'s role card renders an allies line');
+    check(lcard.indexOf('>loyalist<') !== -1,
+      'a Loyalist\'s role card does not show their own role');
+    LG.players.forEach(function (p) {
+      if (p.id === 0) return;
+      check(lcard.indexOf(p.name) === -1,
+        'a Loyalist\'s role card names ' + p.name);
+    });
+  }
+
+  say('role card     rendered through the real panels.js: a Rebel\'s card names every ally and');
+  say('              the Dictator with their roles; a Loyalist\'s names nobody but themselves');
+}
+
 /* ------------------------------------------------------------------- out */
 
-console.log(lines.join('\n'));
-console.log('');
-if (failures.length) {
-  console.error('FAILED — ' + failures.length + ' of ' + checks + ' checks:');
-  failures.slice(0, 12).forEach(function (f) { console.error('  - ' + f); });
+renderCheck().then(function () {
+  console.log(lines.join('\n'));
+  console.log('');
+  if (failures.length) {
+    console.error('FAILED — ' + failures.length + ' of ' + checks + ' checks:');
+    failures.slice(0, 12).forEach(function (f) { console.error('  - ' + f); });
+    process.exit(1);
+  }
+  console.log('OK — ' + checks + ' checks passed.');
+}, function (err) {
+  console.error(err);
   process.exit(1);
-}
-console.log('OK — ' + checks + ' checks passed.');
+});
