@@ -22,6 +22,15 @@ All four square concepts share one content brief (platform + gavel stand,
 lanterns, half-timbered facades, well, tree, 7 gathered citizens, dusk) so the
 choice between them isolates *treatment*, not content.
 
+### Style-bible round (direction locked: B base + D staging + woodcut citizens)
+
+| file | model | job id | prompt theme |
+| --- | --- | --- | --- |
+| design/concepts/mood-day-discussion.png | soul_location | d539cd8a-ae90-4ef3-ab20-d264a5d13cf0 | B-style square, overcast day, discussion |
+| design/concepts/mood-dusk-gathering.png | soul_location | ed21fad8-0e8b-48f0-9911-91027a865eab | B-style square, golden dusk, gathering |
+| design/concepts/mood-night-trial.png | soul_location | 02b209ac-5b5a-4da1-8efd-3d0543966e8e | B-style square, night trial, stage beam (hero) |
+| design/concepts/citizens-sculpt-reference.png | recraft_v4_1 | 373ecc9e-65c2-4730-adb2-0e8d8b2174b6 | carved-figurine citizen lineup, 3D sculpt target (hero) |
+
 ## Code dependencies
 
 | package | license | used for |
