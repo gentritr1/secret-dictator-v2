@@ -31,6 +31,12 @@ choice between them isolates *treatment*, not content.
 | design/concepts/mood-night-trial.png | soul_location | 02b209ac-5b5a-4da1-8efd-3d0543966e8e | B-style square, night trial, stage beam (hero) |
 | design/concepts/citizens-sculpt-reference.png | recraft_v4_1 | 373ecc9e-65c2-4730-adb2-0e8d8b2174b6 | carved-figurine citizen lineup, 3D sculpt target (hero) |
 
+## Pipeline test artifacts
+
+| file | source | license | used for |
+| --- | --- | --- | --- |
+| design/pipeline-test/podium-test.glb | authored in Blender 5.2 via MCP, 2026-08-09 | ours | Blender→glTF→three.js round-trip proof (2 hex meshes, TimberOchre + SlateStone materials from the style-bible palette, 0.42 m tall at meter scale); loaded successfully via GLTFLoader through the Vite dev server — not a shipped asset |
+
 ## Code dependencies
 
 | package | license | used for |
