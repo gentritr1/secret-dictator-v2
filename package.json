@@ -9,6 +9,7 @@
     "build": "vite build",
     "preview": "vite preview",
     "test": "node test/engine.test.js 50",
+    "test:controller": "node test/controller.test.js",
     "parity": "node scripts/driver-parity.js",
     "simulate": "node scripts/simulate.js"
   },

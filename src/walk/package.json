@@ -1,0 +1,4 @@
+{
+  "//": "Scopes src/walk to ESM. The repo root is \"type\": \"commonjs\" because the engine, the test and the scripts are plain CommonJS for Node; this one nested manifest lets Node load src/walk/*.js as real ES modules (so test/controller.test.js can dynamic-import the controller) without renaming anything to .mjs and without touching the engine's module type.",
+  "type": "module"
+}
