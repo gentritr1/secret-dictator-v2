@@ -234,6 +234,11 @@ function applyToScene(view) {
 
   for (const c of citizens) {
     const p = view.players[c.id];
+    /* The cast and the view can disagree for one instant during a restart, and
+     * a ten-seat cast against a five-seat view used to throw here and leave the
+     * page dead. The ordering in restart() makes it not happen; this makes it
+     * not matter. */
+    if (!p) continue;
 
     if (!p.alive) {
       if (!c.toppled && !c.isYou) {
@@ -287,6 +292,8 @@ let waiting = null;
 let seated = false;
 let speed = 1;
 let timer = null;
+/* Continuous auto-answering, off unless __play.autopilot(true) turns it on. */
+let autopilotOn = false;
 /* The result screen opens itself, so without this it also *re*opens itself the
  * moment it is dismissed: Esc closed it, refresh() put it straight back, and it
  * read as a locked screen. Found by pressing Esc, not by reading the code. */
@@ -333,16 +340,21 @@ function restart(seed = DEFAULT_SEED, playerCount = DEFAULT_PLAYERS, humanIndex 
   });
   session = Human.createSession({ G, minds: AI.create(G), humanId: human });
 
-  panels.close();
-  panels.resetLog();
   gameOverShown = false;
+  autopilotOn = false;      // a new match is played by hand until asked otherwise
   seated = false;
   controller.teleport(SPAWN.x, SPAWN.y, SPAWN.z);
   smoothPrimed = false;
   rig.reset();
 
+  /* Roster before panels. Closing a panel calls back into refresh(), which
+   * draws the scene — so the cast has to match the new view before anything is
+   * allowed to close. Written the other way round, restarting from ten seats to
+   * five threw inside the redraw and left the page dead. */
   view = View.viewFor(G, human, { waitingFor: session.waitingFor() });
   setRoster(view);
+  panels.resetLog();
+  panels.close();
   refresh();
   syncControls(G.seed, count, human);
   startLoop();
@@ -365,12 +377,13 @@ function stopLoop() {
  * restart or a submission is noticed without the match ever advancing itself.
  */
 function schedule() {
-  const idle = session.over || !!session.waitingFor();
+  const idle = session.over || (!!session.waitingFor() && !autopilotOn);
   timer = setTimeout(() => {
     timer = null;
-    if (!session.over && !session.waitingFor()) {
-      session.advanceBots();
-      refresh();
+    if (!session.over) {
+      const w = session.waitingFor();
+      if (!w) { session.advanceBots(); refresh(); }
+      else if (autopilotOn) { session.submit(w.options[0]); refresh(); }
     }
     schedule();
   }, idle ? IDLE_INTERVAL : BASE_INTERVAL / speed);
@@ -634,7 +647,13 @@ window.__play = {
     return ev;
   },
 
-  /** One bot action, now, ignoring the timer. Null while you are owed one. */
+  /**
+   * ONE bot action, now, ignoring the timer.
+   *
+   * Returns null while the human is owed a decision, and never answers on
+   * their behalf — an observer loop of `if (waitingFor()) …; else step();`
+   * cannot lose a turn through this call.
+   */
   step() {
     if (!session) return null;
     const ev = session.advanceBots();
@@ -643,21 +662,56 @@ window.__play = {
   },
 
   /**
-   * Play the rest of the match, answering every decision with its first legal
-   * option. Deterministic (option 0 is not a choice, it is an index) and the
-   * fastest way to reach a game-over screen for review.
+   * Answer EXACTLY ONE pending decision, with its first advertised option.
+   *
+   * One call, one decision. The first version of this ran the whole rest of the
+   * match, so a reviewer's `if (waitingFor()) { count++; auto(); }` loop counted
+   * one decision in a complete game and it looked as though the human had been
+   * skipped. It had not been — all 36 decisions were recorded — but a call named
+   * `auto` that silently consumes the thing you are trying to observe is a trap,
+   * and the fix is the name matching the scope. For continuous play use
+   * `autopilot(true)`; to fast-forward, `runToEnd()`.
    */
-  auto(limit = 4000) {
+  auto() {
+    if (!session) return null;
+    const w = session.waitingFor();
+    if (!w) return null;
+    const ev = session.submit(w.options[0]);
+    refresh();
+    return { answered: w.kind, gate: w.gate, with: w.options[0], event: ev };
+  },
+
+  /**
+   * Continuous mode: while this is on, the match loop answers the human's
+   * decisions too, at the same pace the bots act. Explicitly named, explicitly
+   * a mode, and off unless somebody turns it on.
+   */
+  autopilot(on = true) {
+    autopilotOn = !!on;
+    return autopilotOn;
+  },
+  get autopiloting() { return autopilotOn; },
+
+  /**
+   * Fast-forward to game over, answering every decision with its first
+   * advertised option. Deterministic — index 0 is not a choice — and the
+   * quickest way to a result screen. Does not touch the autopilot flag.
+   */
+  runToEnd(limit = 4000) {
     if (!session) return null;
     let guard = 0;
+    let answered = 0;
     while (!session.over && guard++ < limit) {
       const w = session.waitingFor();
       if (!w) { if (!session.advanceBots()) break; continue; }
-      if (w.kind === 'deputy_discard') session.submit({ discard: w.options[0] });
-      else session.submit(w.options[0]);
+      session.submit(w.options[0]);
+      answered++;
     }
     refresh();
-    return { steps: session.steps, over: session.over, winner: this.state().winner };
+    return {
+      steps: session.steps, humanDecisions: answered,
+      over: session.over, winner: this.state().winner
+    };
   },
 
   get eventLog() { return session ? session.events : []; },
@@ -714,6 +768,8 @@ window.__play = {
 };
 
 console.info(
-  '[play] window.__play ready — state(), waitingFor(), submit(a), step(), auto(), ' +
-  'restart(seed, players, humanIndex), eventLog, teleport(x,y,z), face(x,z), look(), use().'
+  '[play] window.__play ready — state(), waitingFor(), submit(a), step() [bots only], ' +
+  'auto() [one decision], autopilot(on), runToEnd(), eventLog, ' +
+  'restart(seed, players, humanIndex), teleport(x,y,z), face(x,z), look(), use(). ' +
+  'submit(waitingFor().options[0]) is always legal.'
 );
