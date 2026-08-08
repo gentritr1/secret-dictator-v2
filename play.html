@@ -1,0 +1,62 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Secret Dictator — the square</title>
+  <link rel="stylesheet" href="/src/play/style.css" />
+</head>
+<body>
+  <!-- The WebGL canvas is appended here; CSS2D name labels go in #labels,
+       which sits on top of it and ignores the pointer so a drag still orbits. -->
+  <div id="stage"></div>
+  <div id="labels"></div>
+
+  <!-- The HUD is a v0 instrument, not a screen of the finished game. Everything
+       in it is filled from the player-safe view model in src/engine/view.js;
+       nothing on this page can see the game object. -->
+  <aside id="hud">
+    <h1>Secret Dictator <span class="sub">the square</span></h1>
+    <div id="role"></div>
+    <h2>the board</h2>
+    <div id="status"></div>
+    <h2>what the square has heard</h2>
+    <ol id="log"></ol>
+  </aside>
+
+  <div id="controls">
+    <label for="c-seed">seed</label>
+    <input id="c-seed" type="number" min="0" step="1" value="1000" />
+    <label for="c-players">citizens</label>
+    <select id="c-players">
+      <option>5</option><option>6</option><option selected>7</option>
+      <option>8</option><option>9</option><option>10</option>
+    </select>
+    <label for="c-human">you are</label>
+    <select id="c-human"></select>
+    <button id="c-restart" type="button">Restart</button>
+    <label for="c-speed">bot pace</label>
+    <select id="c-speed">
+      <option value="0.5">0.5&times;</option>
+      <option value="1" selected>1&times;</option>
+      <option value="2">2&times;</option>
+      <option value="4">4&times;</option>
+    </select>
+  </div>
+
+  <!-- Interaction prompt. One key does everything; which thing it does is
+       decided by what you are standing in front of. -->
+  <div id="prompt" class="hidden"></div>
+
+  <p id="help">
+    WASD or arrows to walk · drag to orbit · wheel to zoom · <b>E</b> to use
+    what you are facing · in a panel: 1–9 pick, A/Y aye, N nay, ↵ continue, Esc close
+  </p>
+
+  <!-- Whichever decision the rules are waiting on. Opened by walking up to
+       something and pressing E, never by the game deciding you should look. -->
+  <div id="panel" class="hidden"></div>
+
+  <script type="module" src="/src/play/main.js"></script>
+</body>
+</html>

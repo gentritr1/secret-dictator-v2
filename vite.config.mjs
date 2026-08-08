@@ -22,16 +22,19 @@ export default {
      *
      *   index.html  the bot playground — the engine's window
      *   walk.html   the movement workbench — the character controller's window
+     *   play.html   the square — the first human-playable match
      *
-     * Vite only walks the HTML files it is told about, so without this the
-     * workbench would work in dev (where every file is served on demand) and
-     * silently vanish from a production build. They share no code beyond three,
-     * and keeping them as separate inputs keeps it that way.
+     * Vite only walks the HTML files it is told about, so without this a page
+     * would work in dev (where every file is served on demand) and silently
+     * vanish from a production build. The playground and the workbench share no
+     * code beyond three; play.html is the first page that pulls both the engine
+     * and the controller in, which is exactly what Step 4 is.
      */
     rollupOptions: {
       input: {
         playground: resolve(here, 'index.html'),
-        walk: resolve(here, 'walk.html')
+        walk: resolve(here, 'walk.html'),
+        play: resolve(here, 'play.html')
       }
     }
   }
