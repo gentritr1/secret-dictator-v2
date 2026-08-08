@@ -25,6 +25,24 @@
  * through this driver and must reproduce the test's numbers exactly. If it ever
  * disagrees, the bug is here, not in the engine.
  *
+ * One human seat (Step 4)
+ * -----------------------
+ * `step(G, minds, opts)` takes an optional third argument, `{ humanId, action }`.
+ * Every place the switch below asks the AI for a decision, it first asks whether
+ * that decision belongs to `humanId`; if it does, `opts.action` is used and the
+ * AI is not called for that seat. Nothing else changes:
+ *
+ *   - `humanId` defaults to -1, and no player id is ever negative, so with no
+ *     opts every comparison is false and the all-bot path is the code it always
+ *     was, calling the same AI hooks in the same order. That is what
+ *     scripts/driver-parity.js keeps honest.
+ *   - The human draws nothing from the seeded stream — their decision arrives
+ *     from outside it — so with a human seated the bots simply consume the
+ *     stream in the same order minus that seat's draws, exactly as v1 did.
+ *
+ * `humanTurn(G, humanId)` reports what the human owes right now (or null), so a
+ * caller can stop and wait instead of guessing. It is a pure read.
+ *
  * UMD, like engine.js and ai.js: CommonJS under Node, `self.SDDriver` in a
  * browser (where engine.js and ai.js must already have been loaded).
  */
@@ -78,25 +96,135 @@
   }
 
   /**
+   * What the human seat owes right now, or null if it is the bots' business.
+   *
+   * A pure read: it calls nothing that draws from the seeded stream and changes
+   * nothing. `kind` names the decision; `options` is the complete set of legal
+   * answers, so a caller can validate a submission without knowing the rules.
+   *
+   * `detail` may carry information that is private to THIS seat (the tiles in
+   * its own hand, the three tiles Foresight showed it). That is safe because
+   * the function is only ever asked about one seat at a time and answers only
+   * about that seat — but it is also why the projection in view.js embeds this
+   * verbatim only for the seat it is building a view for.
+   *
+   * `acknowledge` is a decision with one legal answer: it is the beat where a
+   * result is on the table and the human has to look at it before the match
+   * moves on. It consumes nothing from the stream, which is precisely why it
+   * can exist at all.
+   *
+   * @param {object} G
+   * @param {number} humanId  the human's seat, or -1 for an all-bot match
+   * @returns {object|null} { playerId, phase, kind, options, detail }
+   */
+  function humanTurn(G, humanId) {
+    if (humanId == null || humanId < 0) return null;
+    if (G.phase === SD.PHASE.GAME_OVER) return null;
+    var me = G.players[humanId];
+    if (!me) return null;
+
+    function turn(kind, options, detail, gate) {
+      return {
+        playerId: humanId,
+        phase: G.phase,
+        kind: kind,
+        gate: gate || null,
+        options: options,
+        detail: detail || {}
+      };
+    }
+
+    switch (G.phase) {
+      case SD.PHASE.NOMINATION:
+        if (G.speaker !== humanId) return null;
+        return turn('nominate',
+          SD.eligibleDeputies(G).map(function (p) { return p.id; }),
+          { termLimited: SD.termLimited(G) });
+
+      case SD.PHASE.VOTE:
+        /* The dead do not vote — the engine throws on it — so a purged human
+         * simply watches the ballots close. */
+        if (!me.alive) return null;
+        return turn('vote', [true, false], { speaker: G.speaker, nominee: G.nominee });
+
+      case SD.PHASE.VOTE_RESULT:
+        return turn('acknowledge', [null], {
+          aye: G.lastVote.aye.slice(),
+          nay: G.lastVote.nay.slice(),
+          passed: !!G.lastVote.passed,
+          speaker: G.lastVote.speaker,
+          nominee: G.lastVote.nominee
+        }, 'vote_result');
+
+      case SD.PHASE.LEGISLATIVE_SPEAKER:
+        if (G.speaker !== humanId) return null;
+        return turn('speaker_discard',
+          G.hand.map(function (_, i) { return i; }),
+          { tiles: G.hand.slice() });
+
+      case SD.PHASE.LEGISLATIVE_DEPUTY:
+        if (G.deputy !== humanId) return null;
+        return turn('deputy_discard',
+          G.deputyHand.map(function (_, i) { return i; }),
+          { tiles: G.deputyHand.slice(), canBlock: SD.canProposeBlock(G) });
+
+      case SD.PHASE.BLOCK_RESPONSE:
+        if (G.speaker !== humanId) return null;
+        return turn('block_response', [true, false], { deputy: G.deputy });
+
+      case SD.PHASE.CHAOS:
+        return turn('acknowledge', [null], { tile: G.chaosTile }, 'chaos');
+
+      case SD.PHASE.POWER: {
+        var pp = G.pendingPower;
+        if (!pp || pp.holder !== humanId) return null;
+        if (pp.kind === 'foresight') {
+          return turn('power_ack', [null], {
+            power: pp.kind,
+            label: SD.POWER_LABEL[pp.kind],
+            tiles: pp.result && pp.result.tiles ? pp.result.tiles.slice() : []
+          }, 'foresight');
+        }
+        return turn('power_target',
+          SD.powerTargets(G).map(function (p) { return p.id; }),
+          { power: pp.kind, label: SD.POWER_LABEL[pp.kind] });
+      }
+
+      default:
+        return null;
+    }
+  }
+
+  /**
    * Advance `G` by one action.
    *
    * @param {object} G     a game from SD.createGame
    * @param {object} minds the bot minds from AI.create(G)
+   * @param {object} [opts] { humanId, action } — see humanTurn() above. Omitted
+   *                        (or humanId < 0) means an all-bot match, and then
+   *                        this function behaves exactly as it always has.
    * @returns {object|null} the event, or null if the game is already over
    *
    * The switch below mirrors test/engine.test.js case for case, hook for hook.
    * Do not reorder a call without changing the test to match — the order is the
    * seed's meaning.
    */
-  function step(G, minds) {
+  function step(G, minds, opts) {
     if (G.phase === SD.PHASE.GAME_OVER) return null;
+
+    /* No seat id is ever negative, so -1 makes every "is this the human's
+     * decision" test below false and the all-bot path untouched. */
+    var humanId = (opts && opts.humanId != null) ? opts.humanId : -1;
+    var action = opts ? opts.action : undefined;
 
     var ev;
 
     switch (G.phase) {
       case SD.PHASE.NOMINATION: {
         var pool = SD.eligibleDeputies(G);
-        var pickId = AI.chooseNominee(G, minds, G.speaker);
+        var pickId = G.speaker === humanId
+          ? action
+          : AI.chooseNominee(G, minds, G.speaker);
         ev = makeEvent(G, 'nominate', G.speaker);
         ev.detail = {
           nominee: pickId,
@@ -113,7 +241,10 @@
         ev = makeEvent(G, 'vote', null);
         var ballots = [];
         SD.alivePlayers(G).forEach(function (p) {
-          var aye = AI.chooseVote(G, minds, p.id);
+          /* The human's ballot replaces their own AI call and nothing else, so
+           * the bots draw from the stream in the same order they always did —
+           * v1 sealed the bot ballots in exactly this order too. */
+          var aye = p.id === humanId ? action : AI.chooseVote(G, minds, p.id);
           ballots.push({ id: p.id, name: p.name, aye: !!aye });
           SD.castVote(G, p.id, aye);
         });
@@ -156,7 +287,9 @@
 
       case SD.PHASE.LEGISLATIVE_SPEAKER: {
         var handBefore = G.hand.slice();
-        var si = AI.chooseSpeakerDiscard(G, minds, G.speaker);
+        var si = G.speaker === humanId
+          ? action
+          : AI.chooseSpeakerDiscard(G, minds, G.speaker);
         ev = makeEvent(G, 'speaker_discard', G.speaker);
         ev.detail = {
           index: si,
@@ -170,7 +303,13 @@
       }
 
       case SD.PHASE.LEGISLATIVE_DEPUTY: {
-        if (AI.chooseProposeBlock(G, minds, G.deputy)) {
+        var humanDeputy = G.deputy === humanId;
+        /* A human Deputy answers both questions at once: the action is either
+         * { block: true } or { discard: index }. */
+        var movesBlock = humanDeputy
+          ? !!(action && action.block)
+          : AI.chooseProposeBlock(G, minds, G.deputy);
+        if (movesBlock) {
           ev = makeEvent(G, 'propose_block', G.deputy);
           ev.detail = { hand: G.deputyHand.slice() };
           ev.text = nameOf(G, G.deputy) + ' moves the Block.';
@@ -179,7 +318,9 @@
         }
         var gov = { speaker: G.speaker, deputy: G.deputy, aye: G.lastVote.aye };
         var depHand = G.deputyHand.slice();
-        var di = AI.chooseDeputyDiscard(G, minds, G.deputy);
+        var di = humanDeputy
+          ? (action && action.discard)
+          : AI.chooseDeputyDiscard(G, minds, G.deputy);
         ev = makeEvent(G, 'deputy_discard', G.deputy);
         SD.deputyDiscard(G, di);
         ev.detail = {
@@ -198,7 +339,9 @@
       }
 
       case SD.PHASE.BLOCK_RESPONSE: {
-        var accepted = AI.chooseRespondBlock(G, minds, G.speaker);
+        var accepted = G.speaker === humanId
+          ? action
+          : AI.chooseRespondBlock(G, minds, G.speaker);
         ev = makeEvent(G, 'block_response', G.speaker);
         ev.detail = { accepted: !!accepted };
         ev.text = nameOf(G, G.speaker) + (accepted ? ' seconds the Block.' : ' refuses the Block.');
@@ -231,7 +374,9 @@
           SD.usePower(G, null);
         } else {
           var targets = SD.powerTargets(G);
-          var tId = AI.choosePowerTarget(G, minds, pp.holder);
+          var tId = pp.holder === humanId
+            ? action
+            : AI.choosePowerTarget(G, minds, pp.holder);
           SD.usePower(G, tId);
           ev.detail = {
             kind: pp.kind,
@@ -277,6 +422,10 @@
    * Convenience for headless callers: step until the game ends (or the step
    * limit trips) and return every event. Identical, action for action, to
    * calling step() from a timer — only faster.
+   *
+   * All-bot only, deliberately: it passes no opts, so a game with a human seat
+   * would have that seat's decisions come back undefined. human-driver.js is
+   * the loop for those.
    */
   function playOut(G, minds, limit) {
     var cap = limit || STEP_LIMIT;
@@ -304,6 +453,7 @@
   return {
     STEP_LIMIT: STEP_LIMIT,
     step: step,
+    humanTurn: humanTurn,
     playOut: playOut,
     endingOf: endingOf,
     snapshotAfter: snapshotAfter
