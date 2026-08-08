@@ -5,7 +5,17 @@
   "description": "Secret Dictator v2 — single-player social deduction against AI opponents.",
   "type": "commonjs",
   "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview",
     "test": "node test/engine.test.js 50",
+    "parity": "node scripts/driver-parity.js",
     "simulate": "node scripts/simulate.js"
+  },
+  "devDependencies": {
+    "vite": "^8.2.1"
+  },
+  "dependencies": {
+    "three": "^0.185.1"
   }
 }

@@ -16,3 +16,6 @@ yarn-error.log*
 .idea/
 .vscode/
 *.swp
+
+# local agent/editor launch config, not project source
+.claude/
