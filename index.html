@@ -1,0 +1,71 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Secret Dictator — 3D playground</title>
+  <link rel="stylesheet" href="/src/app/style.css" />
+</head>
+<body>
+  <!-- The WebGL canvas is appended here; CSS2D name labels go in #labels,
+       which sits on top of it and ignores the pointer so OrbitControls still
+       gets every drag. -->
+  <div id="stage"></div>
+  <div id="labels"></div>
+
+  <!-- Debug overlay. Plain DOM, deliberately unstyled beyond legibility: this
+       is an instrument, not a screen of the finished game. -->
+  <aside id="panel">
+    <h1>Secret Dictator <span class="sub">playground</span></h1>
+
+    <div id="readout" class="grid">
+      <div><span class="k">phase</span><span class="v" id="r-phase">—</span></div>
+      <div><span class="k">round</span><span class="v" id="r-day">—</span></div>
+      <div><span class="k">reform</span><span class="v" id="r-reform">—</span></div>
+      <div><span class="k">seize</span><span class="v" id="r-seize">—</span></div>
+      <div><span class="k">chaos</span><span class="v" id="r-chaos">—</span></div>
+      <div><span class="k">step</span><span class="v" id="r-step">—</span></div>
+      <div><span class="k">seed</span><span class="v" id="r-seed">—</span></div>
+      <div><span class="k">speaker</span><span class="v" id="r-speaker">—</span></div>
+      <div><span class="k">deputy</span><span class="v" id="r-deputy">—</span></div>
+    </div>
+
+    <p id="r-winner" class="winner hidden"></p>
+
+    <div class="controls">
+      <button id="c-play" type="button">Play</button>
+      <button id="c-step" type="button">Step</button>
+      <button id="c-end" type="button" title="Run to the end with no delay">Fast-forward</button>
+      <button id="c-restart" type="button">Restart</button>
+    </div>
+
+    <div class="controls">
+      <label for="c-speed">speed</label>
+      <select id="c-speed">
+        <option value="0.25">0.25&times;</option>
+        <option value="0.5">0.5&times;</option>
+        <option value="1" selected>1&times;</option>
+        <option value="2">2&times;</option>
+        <option value="4">4&times;</option>
+      </select>
+
+      <label for="c-players">citizens</label>
+      <select id="c-players">
+        <option>5</option><option>6</option><option selected>7</option>
+        <option>8</option><option>9</option><option>10</option>
+      </select>
+    </div>
+
+    <div class="controls">
+      <label for="c-seed">seed</label>
+      <input id="c-seed" type="number" min="0" step="1" value="1000" />
+      <button id="c-seedgo" type="button">Restart with seed</button>
+    </div>
+
+    <h2>event log</h2>
+    <ol id="log"></ol>
+  </aside>
+
+  <script type="module" src="/src/app/main.js"></script>
+</body>
+</html>

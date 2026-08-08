@@ -1,0 +1,166 @@
+/* Debug-instrument styling: readable, dense, no more. */
+
+:root {
+  --bg: #0e1014;
+  --panel: #171a20e6;
+  --line: #2c313b;
+  --text: #dfe4ec;
+  --dim: #8b93a2;
+  --aye: #6ddd8c;
+  --nay: #e0645c;
+  --hot: #ffb454;
+}
+
+* { box-sizing: border-box; }
+
+html, body {
+  margin: 0;
+  height: 100%;
+  background: var(--bg);
+  color: var(--text);
+  font: 13px/1.45 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  overflow: hidden;
+}
+
+#stage, #labels {
+  position: fixed;
+  inset: 0;
+}
+
+#stage canvas { display: block; }
+
+/* Labels must not eat drags, or OrbitControls stops working over a name. */
+#labels { pointer-events: none; }
+
+/* ------------------------------------------------------------ 3D labels */
+
+.tag {
+  padding: 1px 6px;
+  border-radius: 3px;
+  background: #0e1014b3;
+  border: 1px solid var(--line);
+  color: var(--text);
+  font: 12px/1.4 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  white-space: nowrap;
+}
+
+.tag.dead {
+  color: #6c727e;
+  text-decoration: line-through;
+  border-color: #23262d;
+}
+
+.badge {
+  padding: 1px 6px;
+  border-radius: 3px;
+  font: 11px/1.4 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  white-space: nowrap;
+  color: #0e1014;
+}
+
+.badge.aye { background: var(--aye); }
+.badge.nay { background: var(--nay); }
+.badge.power { background: var(--hot); }
+.badge.hidden { display: none; }
+
+/* -------------------------------------------------------------- overlay */
+
+#panel {
+  position: fixed;
+  top: 12px;
+  left: 12px;
+  width: 330px;
+  max-height: calc(100vh - 24px);
+  display: flex;
+  flex-direction: column;
+  padding: 12px 14px;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  backdrop-filter: blur(6px);
+}
+
+#panel h1 {
+  margin: 0 0 10px;
+  font-size: 14px;
+  letter-spacing: 0.02em;
+}
+
+#panel h1 .sub { color: var(--dim); font-weight: 400; }
+
+#panel h2 {
+  margin: 12px 0 6px;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--dim);
+}
+
+.grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 2px 12px;
+}
+
+.grid > div { display: flex; justify-content: space-between; gap: 8px; }
+.k { color: var(--dim); }
+.v { color: var(--text); }
+
+.winner {
+  margin: 10px 0 0;
+  padding: 6px 8px;
+  border: 1px solid var(--hot);
+  border-radius: 4px;
+  color: var(--hot);
+}
+
+.winner.hidden { display: none; }
+
+.controls {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  margin-top: 10px;
+}
+
+.controls label { color: var(--dim); }
+
+button, select, input {
+  font: inherit;
+  color: var(--text);
+  background: #21252d;
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  padding: 4px 8px;
+}
+
+button { cursor: pointer; }
+button:hover { background: #2b303a; }
+button:disabled { opacity: 0.45; cursor: default; }
+
+#c-seed { width: 96px; }
+
+/* ------------------------------------------------------------ event log */
+
+#log {
+  flex: 1;
+  overflow-y: auto;
+  margin: 0;
+  padding: 0 0 0 4px;
+  list-style: none;
+  min-height: 120px;
+  border-top: 1px solid var(--line);
+}
+
+#log li {
+  padding: 3px 2px;
+  border-bottom: 1px solid #1d2027;
+  color: var(--text);
+}
+
+#log li .n { color: #5c6270; margin-right: 6px; }
+#log li .ph { color: var(--dim); margin-right: 6px; }
+#log li.over { color: var(--hot); }
