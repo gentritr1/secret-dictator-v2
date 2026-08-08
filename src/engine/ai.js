@@ -365,7 +365,10 @@
   }
 
   function fill(text, ctx) {
-    return text.replace(/\{(\w+)\}/g, function (_, k) { return ctx[k] == null ? '' : ctx[k]; });
+    var out = text.replace(/\{(\w+)\}/g, function (_, k) { return ctx[k] == null ? '' : ctx[k]; });
+    /* A line whose name slot was empty reads as "talk first, ." — tidy the
+       leftover punctuation rather than shipping the seam. */
+    return out.replace(/[,:]\s*([.?!])/g, '$1').replace(/\s{2,}/g, ' ').trim();
   }
 
   /**
@@ -381,6 +384,7 @@
     var n = G.rng() < 0.45 ? 2 : 1;
     var out = [];
     var used = {};
+    var saidLines = {};
     for (var i = 0; i < n && i < speakers.length; i++) {
       var p;
       var guard = 0;
@@ -394,7 +398,13 @@
       if (beat === 'seizeEnacted' && G.seize === SD.SEIZE_TO_WIN - 1 && G.rng() < 0.6) {
         pool = LINES.danger;
       }
-      out.push({ playerId: p.id, text: fill(pick(G, pool), ctx || {}) });
+      /* Two citizens must not say the same sentence in the same breath. */
+      var text, tries = 0;
+      do { text = fill(pick(G, pool), ctx || {}); tries++; }
+      while (saidLines[text] && tries < 8);
+      if (saidLines[text]) continue;
+      saidLines[text] = true;
+      out.push({ playerId: p.id, text: text });
     }
     return out;
   }
