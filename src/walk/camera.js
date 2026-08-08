@@ -121,7 +121,10 @@ export function createCameraRig(options = {}) {
      * the camera's own forward flattened onto the floor, so "up" on the
      * keyboard means "away from the camera" no matter where it is pointing. */
     flatForward.set(-Math.sin(yaw), 0, -Math.cos(yaw));
-    flatRight.set(flatForward.z, 0, -flatForward.x);
+    /* right = forward × up. The first version had the signs flipped, which
+     * swapped A/D — caught by hand, not by tests, because the scripted review
+     * API feeds the sim directly and never crosses this keyboard→camera seam. */
+    flatRight.set(-flatForward.z, 0, flatForward.x);
   }
 
   function resize(width, height) {

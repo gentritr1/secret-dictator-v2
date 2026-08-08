@@ -316,6 +316,27 @@ window.__walk = {
 
   get mode() { return mode; },
 
+  /*
+   * The ground-plane basis the keyboard is mapped through, as the render loop
+   * last computed it. Scripted input deliberately bypasses this seam, so it is
+   * the one part of the input path no scripted scenario can check — reading it
+   * back is how "does D go the way the screen calls right" becomes an
+   * observation instead of an argument. At the default yaw of PI the camera
+   * sits on -Z looking along +Z, so forward is (0, 0, 1) and right is
+   * (-1, 0, 0): world +X is on the left of the screen.
+   */
+  basis() {
+    return {
+      yaw: rig.yaw,
+      pitch: rig.pitch,
+      forward: { x: rig.forward.x, y: rig.forward.y, z: rig.forward.z },
+      right: { x: rig.right.x, y: rig.right.y, z: rig.right.z },
+      cameraPosition: {
+        x: rig.camera.position.x, y: rig.camera.position.y, z: rig.camera.position.z
+      }
+    };
+  },
+
   /* Named places on the course, with the input that exercises each. */
   marks: MARKS,
   facts: COURSE_FACTS,

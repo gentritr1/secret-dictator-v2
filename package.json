@@ -11,7 +11,8 @@
     "test": "node test/engine.test.js 50",
     "test:controller": "node test/controller.test.js",
     "parity": "node scripts/driver-parity.js",
-    "simulate": "node scripts/simulate.js"
+    "simulate": "node scripts/simulate.js",
+    "verify": "npm test && npm run test:controller && npm run parity && npm run build"
   },
   "devDependencies": {
     "vite": "^8.2.1"
