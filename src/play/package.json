@@ -1,0 +1,4 @@
+{
+  "//": "Scopes src/play to ESM, exactly as src/walk does. The repo root is \"type\": \"commonjs\" because the engine, the tests and the scripts are plain CommonJS for Node; this one nested manifest lets Node load src/play/*.js as real ES modules, so test/interact.test.js can dynamic-import interact.js and drive the same targeting code the browser runs.",
+  "type": "module"
+}
