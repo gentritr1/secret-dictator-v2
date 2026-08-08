@@ -1,0 +1,42 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Secret Dictator — movement workbench</title>
+  <link rel="stylesheet" href="/src/walk/style.css" />
+</head>
+<body>
+  <div id="stage"></div>
+
+  <!-- Live readout. Rows are created by hud.js so the labels live next to the
+       code that fills them. -->
+  <aside id="panel">
+    <h1>movement <span class="sub">workbench</span></h1>
+    <div id="readout"></div>
+
+    <h2>course</h2>
+    <div id="legend">
+      <div><i style="background:#4f7f5a"></i>15° ramp — walkable</div>
+      <div><i style="background:#8a4a49"></i>35° ramp — too steep</div>
+      <div><i style="background:#4a6a86"></i>steps, 0.17 m risers</div>
+      <div><i style="background:#9a7a3c"></i>0.40 m block — must stop you</div>
+      <div><i style="background:#596274"></i>walls, 1.2 m passage</div>
+      <div><i style="background:#6a5a80"></i>platform, 1.50 m, open edges</div>
+    </div>
+
+    <p id="help">
+      WASD or arrows to walk. Drag to orbit, wheel to zoom.<br />
+      No jump, no sprint — neither is in the design.
+    </p>
+  </aside>
+
+  <!-- Tuning. Every control writes straight into the object the sim reads, so a
+       change is live on the next fixed substep. -->
+  <aside id="tuning">
+    <div id="sliders"></div>
+  </aside>
+
+  <script type="module" src="/src/walk/main.js"></script>
+</body>
+</html>
