@@ -1,0 +1,11 @@
+{
+  "name": "secret-dictator",
+  "version": "2.0.0",
+  "private": true,
+  "description": "Secret Dictator v2 — single-player social deduction against AI opponents.",
+  "type": "commonjs",
+  "scripts": {
+    "test": "node test/engine.test.js 50",
+    "simulate": "node scripts/simulate.js"
+  }
+}
