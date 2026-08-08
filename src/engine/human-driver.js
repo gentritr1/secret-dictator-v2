@@ -101,7 +101,15 @@
       return Driver.humanTurn(G, humanId);
     }
 
-    /** Is `action` one of the legal answers to `w`? */
+    /**
+     * Is `action` one of the legal answers to `w`?
+     *
+     * The contract every branch below has to satisfy: anything `w.options`
+     * advertises is accepted verbatim. The `{discard}` / `{block}` object forms
+     * are aliases kept because action logs recorded before the options list
+     * carried the Block still have to replay; they are not the canonical shape
+     * and nothing new should emit them.
+     */
     function legal(w, action) {
       switch (w.kind) {
         case 'acknowledge':
@@ -111,7 +119,10 @@
         case 'block_response':
           return action === true || action === false;
         case 'deputy_discard':
-          if (action && action.block) return !!w.detail.canBlock;
+          if (action === Driver.BLOCK_OPTION || (action && action.block === true)) {
+            return !!w.detail.canBlock;
+          }
+          if (typeof action === 'number') return w.options.indexOf(action) !== -1;
           return !!action && w.options.indexOf(action.discard) !== -1;
         default:
           return w.options.indexOf(action) !== -1;
@@ -146,7 +157,16 @@
       return record(Driver.step(G, minds, { humanId: humanId, action: action }));
     }
 
-    /** One bot action. Returns null while the human is being waited on. */
+    /**
+     * One bot action. Returns null while the human is being waited on.
+     *
+     * It must never answer for the human, and the guard above is the whole
+     * mechanism: no path through this function reaches Driver.step with an
+     * action in it. test/contract.test.js checks the consequence rather than
+     * the code — an alive seat's recorded `vote` decisions must equal the
+     * number of elections held while it was alive, so a bot step that voted on
+     * its behalf would show up as a missing ballot.
+     */
     function advanceBots() {
       if (over()) return null;
       if (waitingFor()) return null;
@@ -163,7 +183,13 @@
       get over() { return over(); },
       waitingFor: waitingFor,
       submit: submit,
-      advanceBots: advanceBots
+      advanceBots: advanceBots,
+      /* Ask whether an action would be accepted, without submitting it. The
+       * contract test walks every advertised option through this. */
+      isLegal: function (action, w) {
+        var pending = w || waitingFor();
+        return pending ? legal(pending, action) : false;
+      }
     };
   }
 

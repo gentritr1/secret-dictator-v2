@@ -227,7 +227,12 @@ export function createPanels(doc, { onSubmit, onClose } = {}) {
             button(`Throw ${TILE_LABEL[t]} <kbd>${i + 1}</kbd>`, i, 't-' + t)).join('')
         };
 
-      case 'deputy_discard':
+      case 'deputy_discard': {
+        /* The Block's option value is taken straight out of what waitingFor()
+         * advertised — the one choice that is not a tile index. Read from the
+         * data rather than duplicated as a constant here, because this module
+         * imports no engine module and a copied literal would drift silently. */
+        const blockValue = w.options.find((o) => typeof o !== 'number');
         return {
           kicker: 'Passed to you — throw one, enact the other',
           title: 'The square sees only what you enact.',
@@ -235,11 +240,16 @@ export function createPanels(doc, { onSubmit, onClose } = {}) {
             (w.detail.canBlock
               ? '<p class="lede">Five Seize are down — you may ask the Speaker to burn both.</p>'
               : '<p class="lede">The discard is never revealed to the square.</p>'),
+          /* The values submitted here are the ones waitingFor() advertised —
+           * a tile index, or the Block option. The panel does not get to
+           * invent a shape the scripted API cannot also use. */
           actions: w.detail.tiles.map((t, i) =>
             button(`Enact ${TILE_LABEL[w.detail.tiles[1 - i]] || '?'} <kbd>${i + 1}</kbd>`,
-              { discard: i }, 't-' + w.detail.tiles[1 - i])).join('') +
-            (w.detail.canBlock ? button('Move to Block <kbd>B</kbd>', { block: true }, 'block') : '')
+              i, 't-' + w.detail.tiles[1 - i])).join('') +
+            (blockValue !== undefined
+              ? button('Move to Block <kbd>B</kbd>', blockValue, 'block') : '')
         };
+      }
 
       case 'block_response':
         return {
@@ -278,10 +288,14 @@ export function createPanels(doc, { onSubmit, onClose } = {}) {
   }
 
   function close() {
+    const wasOpen = openKind !== null;
     openKind = null;
     el.panel.classList.add('hidden');
     el.panel.innerHTML = '';
-    if (onClose) onClose();
+    /* Only tell the page something changed if something changed. Firing the
+     * callback on a close-that-closed-nothing is how a restart ended up
+     * redrawing the scene halfway through rebuilding it. */
+    if (wasOpen && onClose) onClose();
   }
 
   /** Draw (or redraw) the modal for the pending decision. */
@@ -336,10 +350,12 @@ export function createPanels(doc, { onSubmit, onClose } = {}) {
         if (digit === 0) { submit(true); return true; }
         if (digit === 1) { submit(false); return true; }
         return false;
-      case 'deputy_discard':
-        if (/^b$/i.test(e.key) && w.detail.canBlock) { submit({ block: true }); return true; }
-        if (digit >= 0 && digit < w.detail.tiles.length) { submit({ discard: digit }); return true; }
+      case 'deputy_discard': {
+        const blockValue = w.options.find((o) => typeof o !== 'number');
+        if (/^b$/i.test(e.key) && blockValue !== undefined) { submit(blockValue); return true; }
+        if (digit >= 0 && digit < w.detail.tiles.length) { submit(digit); return true; }
         return false;
+      }
       case 'speaker_discard':
         if (digit >= 0 && digit < w.detail.tiles.length) { submit(digit); return true; }
         return false;

@@ -58,6 +58,19 @@
 
   var STEP_LIMIT = 4000;
 
+  /*
+   * The Deputy's move-to-Block, as an option value.
+   *
+   * A Deputy is really being asked one question with three possible answers at
+   * five Seize — throw the first, throw the second, or ask the Speaker to burn
+   * both — so all three are advertised in `options` and a caller can take any
+   * of them verbatim. The first version hid the Block in `detail.canBlock` and
+   * required a `{block: true}` object that appeared nowhere in `options`, which
+   * made `submit(waitingFor().options[0])` throw for this one kind. See
+   * test/contract.test.js: every advertised option must be accepted as-is.
+   */
+  var BLOCK_OPTION = 'block';
+
   function nameOf(G, id) {
     return id == null ? null : G.players[id].name;
   }
@@ -101,6 +114,15 @@
    * A pure read: it calls nothing that draws from the seeded stream and changes
    * nothing. `kind` names the decision; `options` is the complete set of legal
    * answers, so a caller can validate a submission without knowing the rules.
+   *
+   * THE INVARIANT, and it is load-bearing: **every value in `options` must be
+   * accepted by submit() verbatim.** `submit(waitingFor().options[0])` is
+   * always a legal move, for every kind, with no special cases — that is the
+   * seam every script, test and future front end drives, and the one place it
+   * was not true (the Deputy's Block, which lived in `detail` and demanded a
+   * shape `options` never mentioned) was a real defect that the panel happened
+   * to paper over. test/contract.test.js walks every option of every decision
+   * of complete matches and refuses to let it come back.
    *
    * `detail` may carry information that is private to THIS seat (the tiles in
    * its own hand, the three tiles Foresight showed it). That is safe because
@@ -162,11 +184,14 @@
           G.hand.map(function (_, i) { return i; }),
           { tiles: G.hand.slice() });
 
-      case SD.PHASE.LEGISLATIVE_DEPUTY:
+      case SD.PHASE.LEGISLATIVE_DEPUTY: {
         if (G.deputy !== humanId) return null;
-        return turn('deputy_discard',
-          G.deputyHand.map(function (_, i) { return i; }),
-          { tiles: G.deputyHand.slice(), canBlock: SD.canProposeBlock(G) });
+        var canBlock = SD.canProposeBlock(G);
+        var choices = G.deputyHand.map(function (_, i) { return i; });
+        if (canBlock) choices.push(BLOCK_OPTION);
+        return turn('deputy_discard', choices,
+          { tiles: G.deputyHand.slice(), canBlock: canBlock });
+      }
 
       case SD.PHASE.BLOCK_RESPONSE:
         if (G.speaker !== humanId) return null;
@@ -304,10 +329,12 @@
 
       case SD.PHASE.LEGISLATIVE_DEPUTY: {
         var humanDeputy = G.deputy === humanId;
-        /* A human Deputy answers both questions at once: the action is either
-         * { block: true } or { discard: index }. */
+        /* A human Deputy answers one question with three possible answers. The
+         * canonical action is whatever `humanTurn` advertised — a tile index or
+         * BLOCK_OPTION. `{ block: true }` / `{ discard: i }` stay accepted as an
+         * alias so action logs recorded before that was fixed still replay. */
         var movesBlock = humanDeputy
-          ? !!(action && action.block)
+          ? (action === BLOCK_OPTION || !!(action && action.block))
           : AI.chooseProposeBlock(G, minds, G.deputy);
         if (movesBlock) {
           ev = makeEvent(G, 'propose_block', G.deputy);
@@ -319,7 +346,7 @@
         var gov = { speaker: G.speaker, deputy: G.deputy, aye: G.lastVote.aye };
         var depHand = G.deputyHand.slice();
         var di = humanDeputy
-          ? (action && action.discard)
+          ? (typeof action === 'number' ? action : (action && action.discard))
           : AI.chooseDeputyDiscard(G, minds, G.deputy);
         ev = makeEvent(G, 'deputy_discard', G.deputy);
         SD.deputyDiscard(G, di);
@@ -452,6 +479,7 @@
 
   return {
     STEP_LIMIT: STEP_LIMIT,
+    BLOCK_OPTION: BLOCK_OPTION,
     step: step,
     humanTurn: humanTurn,
     playOut: playOut,

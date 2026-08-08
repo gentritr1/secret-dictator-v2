@@ -11,11 +11,12 @@
     "test": "node test/engine.test.js 50",
     "test:controller": "node test/controller.test.js",
     "test:human": "node test/human-driver.test.js",
+    "test:contract": "node test/contract.test.js",
     "test:view": "node test/view.test.js",
     "test:interact": "node test/interact.test.js",
     "parity": "node scripts/driver-parity.js",
     "simulate": "node scripts/simulate.js",
-    "verify": "npm test && npm run test:controller && npm run test:human && npm run test:view && npm run test:interact && npm run parity && npm run build"
+    "verify": "npm test && npm run test:controller && npm run test:human && npm run test:contract && npm run test:view && npm run test:interact && npm run parity && npm run build"
   },
   "devDependencies": {
     "vite": "^8.2.1"
