@@ -13,7 +13,8 @@ step is about three seams and nothing else:
 ```
 npm run dev              # http://localhost:5173/play.html
 npm run test:human       # replay determinism with a human seated
-npm run test:view        # the leak sweep
+npm run test:contract    # the options -> submit round trip
+npm run test:view        # the leak sweep, and positive disclosure
 npm run test:interact    # the targeting contract
 npm run verify           # all of it, plus the engine suite, parity and a build
 ```
@@ -125,6 +126,95 @@ browser events 61 chars 25810 hash 758b16b0
 MATCH — the browser played the match node replays from the same script
 ```
 
+## The handshake nobody tested (found in review)
+
+Two suites, both thorough, both testing one side of a seam — and the seam
+itself was broken. `humanTurn()` advertised `options: [0, 1]` for a Deputy's
+draft; the session's legality check demanded `{ discard: 0 }`. So the single
+most obvious call anybody would write
+
+```js
+submit(waitingFor().options[0])          // threw, for this one kind
+```
+
+failed with `illegal deputy_discard: 0 (legal: [0,1])` — an error message that
+prints the rejected value inside the list of legal ones. The UI never noticed,
+because the panel built the object by hand; every script would.
+
+That is the same shape as Step 3's A/D swap, one layer up. The replay suite fed
+the session actions it had itself recorded, so it round-tripped its own shape.
+The leak suite read `options` and never submitted anything. Nothing crossed
+from *what the driver advertises* to *what the session accepts*.
+
+**The invariant now, and it is stated in `humanTurn`'s own doc comment: every
+value in `options` is accepted by `submit()` verbatim.** A Deputy at five Seize
+is really being asked one question with three answers, so all three are
+advertised — `[0, 1, 'block']` — instead of two being advertised and the third
+hidden in `detail.canBlock`. `{discard}` / `{block}` stay accepted as aliases,
+because the recorded action logs quoted later in this document contain them and
+a fix that silently invalidated them would make the document a lie.
+
+`test/contract.test.js` walks **every option of every decision** of complete
+matches through the session's own legality check, then submits `options[0]`
+with no shape translation for any kind:
+
+```
+round trip    3228 advertised options across 2062 decisions in 60 complete matches
+              — all accepted verbatim; options[0] submitted every time
+block         the Block appeared in options exactly when canBlock said it could
+              be moved; all three answers verified on a constructed position
+no skipping   608 ballots asked for 608 elections the human was alive for
+bots only     pass A: 200 advanceBots() calls, all refused at the opening gate
+              pass B: acknowledges answered, 40 bot actions ran, then stalled on
+              `vote` for 538 calls; state frozen, no decision invented
+observer      seed 777: 36 decisions observed one at a time, all 36 recorded
+```
+
+Mutation-tested, like the leak suite:
+
+| injected fault | caught by | how it reads |
+| --- | --- | --- |
+| `legal()` rejects the raw index (the original defect) | the round trip | exit 1, `illegal deputy_discard: 0 (legal: [0,1])` |
+| the Block hidden in `detail` again | the Deputy section | "should advertise three answers, got [0,1]" |
+| the Block advertised when locked | the round trip | "advertised option "block" is rejected by the session" |
+| `advanceBots()` answers for the human | the bots-only probe | "advanceBots() finished the match — it answered for the human" |
+
+The last one needed the probe rewriting twice. The first version submitted
+whenever it was asked, so `advanceBots` was only ever *called* in states where
+nothing was pending — it could not have caught a bot step that answered. The
+second stalled on the opening gate having taken zero bot actions, which proves
+nothing about bot steps either. The version that works answers only the
+acknowledge beats (presentation gates a bot could never make for you) and
+refuses everything else, so the bots genuinely run and the match must then stall
+for good. **A probe that cannot reach the code it is aimed at is worse than no
+probe, because it reports green.**
+
+## `auto()` was a run-to-end wearing a one-shot's name
+
+The review ran this and saw the human asked **once** in a complete match:
+
+```js
+while (!over) { if (waitingFor()) { count++; auto(); } else step(); }
+```
+
+Nothing was skipped — the session had recorded all 36 decisions, 11 ballots for
+11 elections. The mechanism was that `auto()` played the *entire rest of the
+match*, so the loop never got to look again. That was its documented behaviour
+and it was still a trap: a call named `auto` that silently consumes the thing
+you are trying to observe will mislead every time.
+
+Scope now matches name:
+
+- `step()` — one **bot** action. Never answers for the human, ever.
+- `auto()` — answers **exactly one** pending decision.
+- `autopilot(true/false)` — continuous mode, explicitly a mode, off after every
+  restart.
+- `runToEnd(limit)` — fast-forward to the result screen.
+
+The same loop now reports 36 hits for 36 recorded decisions. VERIFIED in the
+browser, seed 777: `waitingForHits: 36, recordedDecisions: 36, votesAsked: 11,
+elections: 11, humanAlive: true`.
+
 ## The view model: a trust boundary, tested like one
 
 `src/engine/view.js` is one function, `viewFor(G, playerId)`, returning plain
@@ -204,6 +294,59 @@ Five were added to `view.js` one at a time and the file restored after each:
 The fourth is the one that matters. It carries no role string, no tile string
 and no name; a blacklist would never have found it, and it tells you whether the
 Dictator is still standing.
+
+### And the other half: it must say ENOUGH
+
+Everything above is negative — it proves the view says too little nowhere. On
+its own that is the wrong half to be confident about. A `viewFor()` that
+returned `known: {}` for everybody would sail through every leak check in the
+file while making the Rebel role unplayable: a Rebel who cannot see their
+team-mates or the Dictator has no game to play. The permutation test would
+*pass*, because a view that depends on no hidden state is exactly what it asks
+for.
+
+So the same rule is asserted from the other side. Across 5–10 players, four
+deals each, **every seat's `known` must equal `SD.knownRoles` exactly** — no
+more and no less — and a Rebel's must name every other Rebel *and* the Dictator,
+with every named seat resolvable in `players[]` so a role card can actually be
+drawn from it.
+
+And the card is drawn, in node. `panels.js` imports no engine module and touches
+the DOM through five elements, so a stub document drives the real render path —
+the same code the browser runs, not a re-description of it:
+
+```
+disclosure    180 seats across 5-10 players: known === SD.knownRoles exactly,
+              48 Rebel views named every mate and the Dictator
+role card     rendered through the real panels.js: a Rebel's card names every
+              ally and the Dictator with their roles; a Loyalist's names nobody
+```
+
+Mutation-tested in the same direction:
+
+| injected over-restriction | caught by |
+| --- | --- |
+| `known: {}` for everybody | the token-count sweep (a Loyalist's own role went missing too) |
+| `known` holds only your own seat | exact equality vs `SD.knownRoles`, and the Dictator-at-5 rule by name |
+| the role card stops rendering the allies line | the stub-document render check |
+
+The shape, since it is easy to look in the wrong place: faction knowledge is
+**not** on `you` beyond your own role, and **not** on `players[]` at all — those
+carry `{id, seat, name, alive, isYou}` and nothing else, deliberately. It lives
+in one top-level map. Read back from the running page:
+
+```
+Alice #0, rebel, 7 players
+  you        { id, seat, name, alive, role: "rebel", team: "rebel" }
+  players[0] { id, seat, name, alive, isYou }          <- no faction, by design
+  known      { "0": "rebel", "1": "rebel", "2": "dictator" }
+  role card  "Alice rebel … you know Bo rebel · Chen dictator"
+
+Dara #3, dictator, 5 players      known { "2":"rebel", "3":"dictator" }
+  role card  "Dara dictator … you know Chen rebel"
+Hale #7, dictator, 9 players      known { "7":"dictator" }
+  role card  "Hale dictator …"    (no allies line — correct above six)
+```
 
 One consequence worth stating: the on-screen event log is `view.log`, which is
 `G.log` — the prose the square actually hears. It is **not** the driver's event
@@ -293,11 +436,22 @@ panel owns the keyboard while it is open, first refusal on every key, and the
 body does not move behind it. That also means the match cannot be walked away
 from mid-decision — which is right: the square waits indefinitely either way.
 
-The result screen is the only panel that opens itself. Which is how it became
-the only bug worth recording here: closing it called `refresh()`, which saw
-`phase === 'game_over'` with no panel open and put it straight back. Esc did
-nothing, forever. **Found by pressing Esc, not by reading the code**, and fixed
-with a once-per-match flag.
+The result screen is the only panel that opens itself. Which is how it became a
+bug: closing it called `refresh()`, which saw `phase === 'game_over'` with no
+panel open and put it straight back. Esc did nothing, forever. **Found by
+pressing Esc, not by reading the code**, and fixed with a once-per-match flag.
+
+The same callback caused a worse one, found later and only because a review
+check happened to restart from ten seats to five. `restart()` closed the panel
+*before* rebuilding the cast; `close()` fired its callback unconditionally, even
+when nothing was open; the callback redrew the scene; and the redraw walked a
+ten-capsule cast against a five-seat view and threw, leaving the page dead.
+Three fixes, because any one of them alone leaves the trap armed for the next
+person: the roster is rebuilt before anything is allowed to close, `close()`
+only calls back if something actually closed, and the redraw skips a capsule the
+view has no seat for. Every restart before that check happened to grow the
+roster or keep it the same size, which is exactly why "it worked when I tried
+it" is not a test.
 
 ## Driving it from the console
 
@@ -307,9 +461,11 @@ with a once-per-match flag.
 | --- | --- |
 | `state()` | the view model for your seat — exactly what the UI is allowed to see |
 | `waitingFor()` | the pending decision, or null |
-| `submit(action)` | answer it |
-| `step()` | one bot action now, ignoring the timer |
-| `auto(limit)` | answer everything with its first legal option, to the end |
+| `submit(action)` | answer it. `submit(waitingFor().options[0])` is always legal |
+| `step()` | one **bot** action now, ignoring the timer. Never answers for you |
+| `auto()` | answer **exactly one** pending decision, with `options[0]` |
+| `autopilot(on)` | continuous mode: the match loop answers for you too. Off after every restart |
+| `runToEnd(limit)` | fast-forward to the result screen |
 | `eventLog`, `actions` | the driver's omniscient stream; the recorded human script |
 | `restart(seed, players, humanIndex)` | deal a new match |
 | `teleport(x,y,z)`, `face(x,z)`, `look()`, `use()` | walk up to something and press E, without a keyboard |
@@ -430,16 +586,26 @@ parity and the build.
 - **`interact.js` targeting is horizontal only.** Height is ignored, which is
   fine on a flat square with a 0.22 m dais and wrong the moment there is a
   balcony.
-- **Two panels are unproven on screen**: `block_response` has only ever been
-  driven headlessly (its constructed position is a node test), and no match in
-  the browser reached an Emergency Vote with the human holding it.
+- **One panel is still unproven on screen**: no match in the browser has reached
+  an Emergency Vote with the human holding it. (The Deputy's Block *has* now
+  been driven through the real UI — seed 29, five players, seat 1 — so that gap
+  is closed.)
+- **`applyToScene` is not node-testable.** The restart crash above lived in the
+  three.js layer and no suite could have caught it; it is guarded now, but the
+  guard is only as good as the next person remembering the ordering rule.
 
 ## Notes for later steps
 
 - `humanTurn()` is the whole contract between the rules and any front end. A new
   screen should need `kind`, `options` and `detail` and nothing else; if it
   needs to read `G` to draw itself, that is a missing field in `humanTurn`, not
-  a licence.
+  a licence. **A new decision kind means a new line in `options`, not a new
+  shape in `detail`** — `test/contract.test.js` will refuse anything advertised
+  that `submit()` will not take.
+- When a suite is written, ask which *side of a seam* it sits on. The replay
+  suite and the leak suite were both good and both sat on the same side; the
+  defect lived in the handshake between them. Two thorough tests of one side is
+  not coverage of two sides.
 - The `acknowledge` beats are free to move. They consume nothing, so pacing —
   auto-advance, a timer, dropping the morning report entirely — can be changed
   without touching a single number in the determinism proof.

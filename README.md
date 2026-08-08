@@ -40,6 +40,7 @@ play.html                Vite entry point for the square
 test/engine.test.js      headless self-test: plays full bot-vs-bot games, asserts the rules at every step
 test/controller.test.js  headless movement tests: frame-rate independence, slopes, walls, steps, falls
 test/human-driver.test.js replay determinism with a human seat, plus a divergence control
+test/contract.test.js    the options -> submit round trip: everything advertised must be accepted
 test/view.test.js        the leak sweep: what each seat may see, checked three ways
 test/interact.test.js    the targeting contract: range, facing, liveness, overlap
 scripts/driver-parity.js proves driver.js reproduces the self-test's numbers exactly
@@ -83,6 +84,7 @@ npm run build                              # production bundle into dist/ (all t
 npm test                                   # 50 bot-vs-bot games + targeted rule tests
 npm run test:controller                    # the character controller, headless
 npm run test:human                         # replay determinism with a human seat
+npm run test:contract                      # the options -> submit round trip
 npm run test:view                          # the view model's leak sweep
 npm run test:interact                      # the interaction contract
 npm run parity                             # driver.js vs the self-test's exact numbers
@@ -105,12 +107,25 @@ legal answer and requires the log to *differ*. It also runs 24 all-bot matches
 through the session and through `Driver.playOut` and requires them equal, which
 is how "seating a human changed nothing about the bot path" stops being a claim.
 
+`npm run test:contract` is the gate on the seam between them: every value
+`waitingFor()` advertises in `options` must be accepted by `submit()` verbatim,
+for every decision of complete matches. It exists because that handshake was
+broken and neither of the two suites either side of it could see the break — one
+fed the session its own recorded shape, the other read `options` and never
+submitted. It also holds the promise that a bot step never answers for the
+human, by refusing to answer and requiring the match to stall for ever.
+
 `npm run test:view` is the gate on hidden information, and it is written as a
 security test. Every seat's projection is audited at every step of complete
 matches three ways: an explicit path allowlist for every role and tile token, an
 exact token count for seats that know only themselves, and — the one that cannot
 be fooled by an oversight — a permutation test that rewrites the roles the seat
 is not entitled to know and requires the serialised view to come back identical.
+It checks positive disclosure too, which the leak checks cannot: every seat's
+`known` must equal `SD.knownRoles` exactly, a Rebel's must name every mate and
+the Dictator, and the role card must actually render them — driven through the
+real `panels.js` against a stub document. A projection that told nobody anything
+would pass every leak test ever written and make the Rebel role unplayable.
 
 `npm run test:interact` is the gate on the one key. `src/play/interact.js` holds
 no three.js, no DOM and no clock, so range, the facing cone, which of two
@@ -201,9 +216,16 @@ the Dictator sees the Rebels only at five or six), your own Peek results, your
 own hand while you hold it, and the public board. Everything opens at game over.
 
 For review the page exposes `window.__play`: `state()` (the view model for your
-seat), `waitingFor()`, `submit(action)`, `step()`, `auto(limit)` (answer
-everything with its first legal option, to the end), `eventLog`, `actions`, and
-`restart(seed, players, humanIndex)`. To exercise the interaction system without
+seat), `waitingFor()`, `submit(action)`, `eventLog`, `actions` and
+`restart(seed, players, humanIndex)`.
+
+`submit(waitingFor().options[0])` is always a legal move, for every kind — no
+special shapes. The four ways to advance say what they do: `step()` takes one
+*bot* action and never answers for you, `auto()` answers exactly one pending
+decision, `autopilot(true)` turns on continuous play (off after every restart),
+and `runToEnd()` fast-forwards to the result screen.
+
+To exercise the interaction system without
 a keyboard there is `teleport(x, y, z)`, `face(x, z)`, `look()` and `use()` —
 `look()` re-runs targeting on demand because `requestAnimationFrame` stops in a
 background tab, and a stale `target` reads exactly like a targeting bug. The
