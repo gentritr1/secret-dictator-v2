@@ -672,16 +672,24 @@ function pumpMurmurs() {
   if (murmurs.pump(performance.now(), view)) paintMurmurs();
 }
 
-/** Put what is being said over the heads of whoever is saying it. */
+/**
+ * Put what is being said over the heads of whoever is saying it.
+ *
+ * Two classes, not two elements: an idle murmur and a claim on the floor share
+ * the one bubble each figure owns, exactly as they share one queue and one cap.
+ * `.murmur.floor` is the louder of the two — see style.css for why the
+ * difference is contrast and size rather than colour.
+ */
 function paintMurmurs() {
   const live = new Map();
-  for (const m of murmurs.visible) live.set(m.playerId, m.text);
+  for (const m of murmurs.visible) live.set(m.playerId, m);
   for (const c of citizens) {
     if (!c.murmurEl) continue;
-    const text = live.get(c.id) || null;
-    if (text) {
-      if (c.murmurEl.textContent !== text) c.murmurEl.textContent = text;
-      c.murmurEl.className = 'murmur';
+    const said = live.get(c.id) || null;
+    if (said) {
+      const cls = said.floor ? 'murmur floor' : 'murmur';
+      if (c.murmurEl.textContent !== said.text) c.murmurEl.textContent = said.text;
+      if (c.murmurEl.className !== cls) c.murmurEl.className = cls;
     } else if (c.murmurEl.className !== 'murmur hidden') {
       c.murmurEl.className = 'murmur hidden';
       c.murmurEl.textContent = '';
@@ -1685,11 +1693,19 @@ window.__play = {
     const nodes = Array.from(document.querySelectorAll('#labels .murmur'))
       .filter((n) => !n.classList.contains('hidden') && n.style.display !== 'none' &&
         n.textContent.trim());
+    const floorNodes = nodes.filter((n) => n.classList.contains('floor'));
     return {
       visible: murmurs.visible.map((m) => ({
-        id: m.id, seat: m.playerId, beat: m.beat, text: m.text
+        id: m.id, seat: m.playerId, beat: m.beat, floor: m.floor, text: m.text
       })),
+      /* Authored lines refused at the bright line. Must stay zero, and it is a
+       * readback rather than a check so a review can see it is not merely
+       * untested. */
+      barred: murmurs.barred,
       onScreen: nodes.map((n) => n.textContent.trim()),
+      /* Which of them are the floor's, read off the class the renderer actually
+       * put on the element — the distinction is only real if it is in the DOM. */
+      onScreenFloor: floorNodes.map((n) => n.textContent.trim()),
       pending: murmurs.pending,
       draws: murmurs.draws,
       calls: murmurs.calls,

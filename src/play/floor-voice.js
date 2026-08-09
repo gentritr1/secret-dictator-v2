@@ -96,7 +96,7 @@ export function tilePhrase(counts) {
  */
 export const SENTENCES = {
   'claim.speaker.forced': {
-    bubble: (u) => `All three came up ${tilePhrase(u.drawn)}. There was nothing else to pass.`,
+    bubble: () => 'Every tile in my hand was a Seize. There was nothing else to pass on.',
     line: (u, n) => `${n(u.speaker)} says they drew ${tilePhrase(u.drawn)} and had no choice about what went on.`
   },
   'claim.speaker.choice': {

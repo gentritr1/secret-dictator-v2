@@ -29,6 +29,7 @@ src/engine/driver.js     the shared driver: one action per step(), plus a serial
 src/engine/human-driver.js  the session for a match with a person in it: waitingFor / submit / replay
 src/engine/view.js       the player-safe projection — what one seat is allowed to know
 src/engine/floor.js      the floor: the structured claim schema — speech as canonical, replayable data
+src/engine/orator.js     what a citizen chooses to say: a valid utterance from the record, a mind, and a hand
 src/engine/index.js      ESM shim — re-exports the UMD globals for the browser build
 src/app/                 the 3D playground: three.js scene, match runner, debug overlay
 src/walk/                the movement workbench: capsule controller, obstacle course, follow camera
@@ -37,6 +38,8 @@ src/play/                the square: the first human-playable match
 src/play/interact.js     the interaction contract — proximity, facing, one key, no per-object input
 src/play/objective.js    the persistent objective line — a pure function of the player-safe view
 src/play/pace.js         how long the square takes to answer — a clock, and only a clock
+src/play/murmur.js       the square's table-talk, and the queue every bubble shares
+src/play/floor-voice.js  the floor out loud: text_id -> prose, and when each beat lands
 src/play/assets.js       the runtime asset tables: environment rows and the citizen cast, with per-row fallback
 src/play/lighting.js     the lighting director — a pure map from the player-safe view to a named state
 src/play/audio.js        minimal sound: five moments and one bed, off the same public state
@@ -56,6 +59,8 @@ test/pace.test.js        the deliberation clock: timing cannot change a match, a
 test/ambience.test.js    the light and the sound: every state mapped, style laws asserted, nothing leaked
 test/glb.test.js         the GLB contract: the file, the loader, and the player walking up it
 test/floor.test.js       the claim schema: allowlist, permutation, V1-V6, C1-C6, and floor-off invariance
+test/orator.test.js      the orator: invariance, read-only minds, zero refusals, and the re-scoped permutation gate
+test/murmur.test.js      the bubbles: both voices, one queue, one cap, and no role word in any of it
 scripts/driver-parity.js proves driver.js reproduces the self-test's numbers exactly
 scripts/simulate.js      headless batch simulator: statistics instead of assertions
 scripts/capture-reviews.mjs  the seven fixed asset captures, through asset-lab.html
@@ -69,23 +74,32 @@ docs/step-06.md          learning log for Gate 2: the asset loader, the asset la
 docs/step-07.md          learning log for Gate 3: the lighting director, AgX, sound, the asset table
 docs/step-08.md          learning log for the murmur facade and its three-run proof
 docs/step-09.md          learning log for Discussion Gate D1: the structured claim schema
+docs/step-10.md          learning log for Discussion Gate D2: the bots start speaking
 docs/STYLE_BIBLE.md      locked visual direction, palette, light meaning and anti-goals
 docs/BLENDER_PIPELINE.md one-asset-at-a-time Blender/MCP production and acceptance contract
 docs/ASSET_MANIFEST.md   provenance and production status for every visual asset
 ```
 
-The six engine modules are UMD (`module.exports` under Node, `window.SD` /
+The seven engine modules are UMD (`module.exports` under Node, `window.SD` /
 `window.SDAI` / `window.SDDriver` / `window.SDHuman` / `window.SDView` /
-`window.SDFloor` in a browser) and have no dependencies. `engine.js` and `ai.js`
-are byte-identical to v1 and must stay that way; `src/engine/index.js` is the
-ESM adapter that lets a bundler import them without editing them.
+`window.SDFloor` / `window.SDOrator` in a browser) and have no dependencies.
+`engine.js` and `ai.js` are byte-identical to v1 and must stay that way;
+`src/engine/index.js` is the ESM adapter that lets a bundler import them without
+editing them.
 
-`floor.js` is the first deliberate engine *extension* since the port, and the
-only one of the six that nothing in the running game calls yet. It turns speech
-into canonical data — validated claims, contradiction flags, floor scheduling,
-a per-citizen ledger — while reading the game only through a public whitelist
-and drawing no randomness at all. At this stage no bot rules-decision reads it,
-and `npm run test:floor` holds that line by playing every seed twice.
+`floor.js` and `orator.js` are the two deliberate engine *extensions* since the
+port. `floor.js` turns speech into canonical data — validated claims,
+contradiction flags, floor scheduling, a per-citizen ledger — while reading the
+game only through a public whitelist and drawing no randomness at all.
+`orator.js` is what fills it in: given the record, a seat, that seat's own
+memory of its own hands and that seat's mind, it selects one valid utterance for
+one beat. Bots read their minds and may lie about their hands, so **what a
+citizen chooses to say correlates with their role, on purpose** — that is the
+deduction game, and it is a different thing from the rule that no *presentation*
+channel may leak one. What still holds absolutely is that no rules decision
+reads a word anybody said: `npm run test:orator` plays fifty seeds twice, floor
+off and floor on, and requires byte-identical event logs, with a control that
+hands selection the game's own seeded stream and must diverge.
 
 Everything the presentation reads flows one way, with one extra link once a
 human is seated:
@@ -123,6 +137,7 @@ npm run test:pace                          # the deliberation clock cannot chang
 npm run test:ambience                      # the lighting map and the sound cues: mapped, lawful, leak-free
 npm run test:glb                           # the shipping GLB's contract, three layers deep
 npm run test:floor                         # the claim schema: what may be said, and that saying it changes nothing
+npm run test:orator                        # the orator: bots speak, some lie, and the match is unchanged
 npm run parity                             # driver.js vs the self-test's exact numbers
 npm run verify                             # all of the above, plus the production build
 npm run simulate                           # 500 games, default seed
@@ -240,7 +255,10 @@ the four ways that can be wrong. **It says too much:** a field allowlist over 50
 complete matches with synthetic utterance streams, plus the permutation test
 from `test:view` extended to speech — the same match folded twice, once with the
 roles a seat may not know rotated at every observation, and every utterance,
-flag and ledger entry must serialise identically. **It accepts a lie about
+flag and ledger entry must serialise identically. (Its speaker has no mind and
+reads only the public record, which is what makes that last claim testable; the
+version of it that survives real bots with minds is `test:orator` §7, below.)
+**It accepts a lie about
 public fact:** V1–V6 are enforced at construction, so an invalid claim is not
 rejected on append, it is never built; each rule is refused by name and a fuzz
 sweep of 4000 randomised claims accepts none that an independent re-derivation
@@ -253,6 +271,29 @@ seed is played twice, plain and with the whole layer running, and the event logs
 must be identical — with a control that hands the speech layer the game's own
 seeded stream and requires all 50 to diverge, because an invariance result from
 an instrument that cannot see a violation is not a result.
+
+`npm run test:orator` is the gate on bots actually speaking it. It carries the
+same invariance and the same control, one layer up — selection draws from
+`SD.makeRng(seed ^ SALT)` and never from the game's stream — plus three checks
+the schema gate cannot make. **Minds are read, not written:** every mind is
+handed over behind a Proxy that refuses writes and records reads, and the whole
+surface comes back as `id`, `known`, `peeked`, `sus`. **Nothing offered is
+refused:** zero schema rejections over fifty complete matches, with a census of
+which bases were ever constructed, so an unreachable branch is a measured
+finding rather than an assumption. **The human seat is not in the conversation:**
+zero beats taken and zero aimed at them, because the intent strip that gives
+them a way to answer is a later work item.
+
+And it is where **D1's permutation claim is re-scoped rather than kept.** With
+minds informing choice, a seat's utterance stream is no longer independent of
+its role and must not be — so the gate now asserts, in four parts, that the
+public fold is blind, that no utterance field carries a role token, that ledger
+and flags and audit render identically for rotated roles *given the same
+record*, and — as a requirement rather than a deletion — that the argument
+**does** change when the roles are dealt differently. A behavioural tell is a
+citizen's own choice and is what there is to deduce; a presentation channel is
+the renderer telling you something nobody said, and that rule is untouched.
+`docs/step-10.md` is the long version.
 
 `npm run test:controller` is the gate on movement. It runs the same controller
 the browser runs, against a closed-form collision world instead of a mesh, and
@@ -484,7 +525,15 @@ state: the next refresh aims the rig back at whatever the view says, so it
 cannot be used to photograph a lighting story the game never shows.
 `submit()` deliberately runs no beat — it is the scripted seam, and a sweep that
 had to sit through the atmosphere would be measuring the clock instead of the
-game; `beat()` drives that path on purpose.
+game; `beat()` drives that path on purpose. `floor()` is the discussion layer as
+a report — how much has been said, which floors convened and which triggers the
+square declined, the contradiction flags with their rules, refs and who has
+addressed them, the open obligations, and the last dozen utterances rendered in
+the *third* person from the same `text_id` entries the bubbles render in the
+first. `floorLedger()` is the per-citizen fold and `floorAudit()` runs the
+allowlist instrument over the live record; `murmurs.onScreenFloor` reads the
+floor bubbles off the class the renderer actually put on the element, because a
+distinction that is not in the DOM is not a distinction.
 
 `submit(waitingFor().options[0])` is always a legal move, for every kind — no
 special shapes. The four ways to advance say what they do: `step()` takes one
