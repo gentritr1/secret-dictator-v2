@@ -69,9 +69,12 @@ top to ±1 cm, closed outward-facing colliders, and then the real controller
 walked up the step at full speed. A re-export that breaks any of that fails
 `npm run verify` rather than a playtest.
 
-Known limits at `shipping`: palette colours were set as raw linear values in
-Blender, so in-engine colour has still not been calibrated against scene
-lighting. ~~its AgX tone mapping is not what `play.html` currently renders
+~~Palette colours were set as raw linear values in Blender~~ — **closed
+2026-08-09**: the three materials now carry properly sRGB-to-linear converted
+values (e.g. TimberOchre 0.408/0.282/0.157 → 0.138/0.065/0.021), so the
+displayed colour matches the style-bible hex; under the Gate 3 trial beam the
+timber reads warm ochre rather than pale cream (re-verified in the cycle
+captures). ~~its AgX tone mapping is not what `play.html` currently renders
 with~~ — **closed 2026-08-09**: `play.html` renders under `AgXToneMapping` as of
 Gate 3 (`docs/step-07.md`), so the lab and the game are now the same image and a
 colour judgement made in one transfers to the other. What that made visible is
