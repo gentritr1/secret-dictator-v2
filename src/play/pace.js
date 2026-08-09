@@ -13,9 +13,9 @@
  * THE CONSTRAINT, which is the whole reason this is a separate file
  * ----------------------------------------------------------------
  * Timing must never change what happens. The engine's notion of chance is one
- * seeded stream, `G.rng()`, and the bots draw from it; a single extra draw from
- * the presentation layer would desynchronise every later bot decision from the
- * same seed and quietly invalidate every recorded action log in docs/.
+ * seeded stream and the bots draw from it; a single extra draw taken by the
+ * presentation layer would desynchronise every later bot decision from the same
+ * seed and quietly invalidate every recorded action log in docs/.
  *
  * So this module:
  *
@@ -24,12 +24,12 @@
  *     cannot be a draw there even by accident;
  *   - returns numbers that are only ever passed to `setTimeout`.
  *
- * `Math.random` is deliberately not used. It would work — the values only
- * become millisecond delays — but `grep -rn "rng(\|Math.random" src/play/`
- * coming back empty is a gate this project already relies on, and a
- * presentation layer that is reproducible costs one function. A replayed match
- * now has the same rhythm as the original, which also makes a recording of a
- * pacing complaint reproducible.
+ * The platform's built-in unseeded generator is deliberately not used. It would
+ * work — these values only ever become millisecond delays — but src/play/
+ * containing no unseeded randomness at all is a gate this project has relied on
+ * since Step 4, and a reproducible presentation layer costs one function. A
+ * replayed match now has the rhythm of the original too, which is what makes a
+ * recording of a pacing complaint worth anything.
  *
  * test/pace.test.js proves the constraint rather than asserting it: it plays
  * the same seeded match twice with the same human actions, once plainly and
@@ -84,7 +84,7 @@ export const BEAT = {
   deputy_discard: 1500,
   block_response: 1400,
   power_target: 1600,
-  power_ack: 1600
+  'power_ack:foresight': 1600
 };
 
 const DEFAULT_BEAT = 1000;

@@ -59,9 +59,15 @@ function say(s) { lines.push(s); }
 
 /* ------------------------------------------------------------- the rules */
 
-/** Which object a decision opens at — main.js's routing, restated here. */
+/**
+ * Which object a decision opens at, restated independently of the module under
+ * test. Gate 1.5 moved the ballot tally to the podium: the player has just
+ * voted there, and making them walk to the bell and back was the chore the
+ * owner reported. The morning report and the Chaos screen stay at the bell.
+ */
 function expectedObject(w) {
-  return w.kind === 'acknowledge' ? 'bell' : 'podium';
+  if (w.kind !== 'acknowledge') return 'podium';
+  return w.gate === 'vote_result' ? 'podium' : 'bell';
 }
 
 /**
@@ -88,6 +94,7 @@ function publicSeats(view) {
 }
 
 var idsSeen = {};
+var beatIdsSeen = {};
 var linesSeen = 0;
 var permutationsRun = 0;
 
@@ -173,6 +180,45 @@ function audit(objectiveFor, OBJECTIVE_IDS, G, session, where) {
       got.text + '"');
   });
 
+  /*
+   * --- 4c. the deliberation beat ---
+   *
+   * While the page is holding the beat after one of your own submissions, the
+   * decision exists but no object will answer for it. The line MUST stop
+   * pointing at one — a stale instruction next to an inert podium is exactly
+   * the failure Gate 1.5 was told to avoid — and it must still be specific
+   * about what the square is doing, which is what the owner's "intuitive"
+   * verdict was about.
+   */
+  if (w && view.phase !== 'game_over') {
+    var held = objectiveFor(view, { holding: true });
+    beatIdsSeen[held.id] = (beatIdsSeen[held.id] || 0) + 1;
+    check(held.id.indexOf('beat:') === 0,
+      tag + ': holding the beat did not produce a beat line (' + held.id + ')');
+    check(OBJECTIVE_IDS.indexOf(held.id) !== -1,
+      tag + ': beat id ' + held.id + ' is not one this module admits to');
+    check(held.at === null && held.act === false,
+      tag + ': the beat line still points the player at the ' + held.at);
+    check(held.text.indexOf('podium') === -1 && held.text.indexOf('bell') === -1,
+      tag + ': the beat line names an object that will not answer — "' + held.text + '"');
+    check(held.text.trim().length > 0 && held.text !== 'The square is answering.',
+      tag + ': the beat line fell through to the generic sentence');
+    /* The key the pace clock uses to size the pause and the key the line uses
+     * to describe it are the same key, or the two drift. */
+    check('beat:' + (beatKey(w) || '') === held.id,
+      tag + ': pace.beatKey says ' + beatKey(w) + ', the line says ' + held.id);
+    /* Same sweep, same rules. */
+    for (var f = 0; f < FORBIDDEN.length; f++) {
+      check(!new RegExp('\\b' + FORBIDDEN[f] + '\\b', 'i').test(held.text),
+        tag + ': the beat line says "' + FORBIDDEN[f] + '"');
+    }
+    view.players.forEach(function (p) {
+      if (allowed[p.id]) return;
+      check(!new RegExp('\\b' + p.name + '\\b').test(held.text),
+        tag + ': the beat line names ' + p.name + ', who is not publicly involved');
+    });
+  }
+
   /* --- 4b. the permutation --- */
   if (view.phase !== 'game_over') {
     var undo = permuteHidden(G, session.humanId);
@@ -215,6 +261,8 @@ function stubDocument() {
 
 /** The Emergency Vote position, captured for the panel render check below. */
 var emergency = null;
+/** src/play/pace.js's key for a pending decision, bound in main(). */
+var beatKey = null;
 
 function scriptedPlayer(salt) {
   var n = 0;
@@ -236,10 +284,22 @@ async function main() {
   var objectiveFor = mod.objectiveFor;
   var OBJECTIVE_IDS = mod.OBJECTIVE_IDS;
 
-  /* The routing rule this file asserts against is the module's own export, so
-   * a future change to it fails here rather than drifting silently. */
-  check(mod.objectFor('acknowledge') === 'bell' && mod.objectFor('nominate') === 'podium',
-    'objectFor() no longer routes acknowledge to the bell and decisions to the podium');
+  beatKey = (await import('../src/play/pace.js')).beatKey;
+
+  /*
+   * The routing rule, by name. src/play/main.js registers the podium and the
+   * bell by calling objectFor(), so this is an assertion about the running
+   * page, not about a copy of its intent.
+   */
+  check(mod.objectFor('acknowledge', 'morning') === 'bell',
+    'the morning report no longer opens at the bell');
+  check(mod.objectFor('acknowledge', 'chaos') === 'bell',
+    'the Chaos screen no longer opens at the bell');
+  check(mod.objectFor('acknowledge', 'vote_result') === 'podium',
+    'the ballot tally does not open at the podium — Gate 1.5 moved it there');
+  check(mod.objectFor('nominate', null) === 'podium' &&
+        mod.objectFor('power_target', null) === 'podium',
+    'decisions no longer open at the podium');
 
   /* --- complete matches, every table size, the human seat rotated --- */
   var gameOvers = 0;
@@ -399,12 +459,25 @@ async function main() {
   check(!idsSeen.unknown, 'a state fell through to the generic line ' +
     '(' + idsSeen.unknown + ' times) — every kind and phase must map');
 
+  /* The beats, on the same terms: every decision that can follow one of your
+   * own submissions has a sentence of its own. */
+  var REQUIRED_BEATS = [
+    'beat:vote', 'beat:acknowledge:vote_result', 'beat:acknowledge:morning',
+    'beat:nominate', 'beat:speaker_discard', 'beat:deputy_discard',
+    'beat:block_response', 'beat:power_target', 'beat:power_ack:foresight'
+  ];
+  REQUIRED_BEATS.forEach(function (id) {
+    check(beatIdsSeen[id] > 0, 'no state produced the "' + id + '" beat line');
+  });
+
   say('lines         ' + linesSeen + ' objective lines across ' + GAMES +
       ' complete matches (5-10 players, the human seat rotated) plus three constructed beats');
   say('coverage      ' + REQUIRED.length + ' of ' + REQUIRED.length +
       ' reachable states mapped: ' + Object.keys(idsSeen).sort().join(', '));
   say('routing       every line names the bell or the podium, and agrees with the object');
   say('              the interaction system would actually open the panel at');
+  say('beats         ' + Object.keys(beatIdsSeen).length + ' deliberation beats, each specific,');
+  say('              each pointing at no object while no object will answer');
   say('sweep         no role, team or tile token in any line; no name outside the seats');
   say('              the square has publicly been told about');
   say('permutation   ' + permutationsRun + ' hidden-role permutations left the line identical');

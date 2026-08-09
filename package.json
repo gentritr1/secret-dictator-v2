@@ -15,9 +15,10 @@
     "test:view": "node test/view.test.js",
     "test:interact": "node test/interact.test.js",
     "test:objective": "node test/objective.test.js",
+    "test:pace": "node test/pace.test.js",
     "parity": "node scripts/driver-parity.js",
     "simulate": "node scripts/simulate.js",
-    "verify": "npm test && npm run test:controller && npm run test:human && npm run test:contract && npm run test:view && npm run test:interact && npm run test:objective && npm run parity && npm run build"
+    "verify": "npm test && npm run test:controller && npm run test:human && npm run test:contract && npm run test:view && npm run test:interact && npm run test:objective && npm run test:pace && npm run parity && npm run build"
   },
   "devDependencies": {
     "vite": "^8.2.1"
