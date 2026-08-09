@@ -36,7 +36,9 @@ src/play/                the square: the first human-playable match
 src/play/interact.js     the interaction contract — proximity, facing, one key, no per-object input
 src/play/objective.js    the persistent objective line — a pure function of the player-safe view
 src/play/pace.js         how long the square takes to answer — a clock, and only a clock
-src/play/assets.js       the runtime asset loader: one production GLB, graybox fallback
+src/play/assets.js       the runtime asset table: one row per environment GLB, graybox/capsule fallback
+src/play/lighting.js     the lighting director — a pure map from the player-safe view to a named state
+src/play/audio.js        minimal sound: five moments and one bed, off the same public state
 src/lab/                 the asset lab: fixed review cameras, moods, collider overlay, stats
 index.html               Vite entry point for the playground
 walk.html                Vite entry point for the workbench
@@ -50,15 +52,19 @@ test/view.test.js        the leak sweep: what each seat may see, checked three w
 test/interact.test.js    the targeting contract: range, facing, liveness, overlap
 test/objective.test.js   the objective line: every state mapped, right object named, nothing leaked
 test/pace.test.js        the deliberation clock: timing cannot change a match, at any speed
+test/ambience.test.js    the light and the sound: every state mapped, style laws asserted, nothing leaked
 test/glb.test.js         the GLB contract: the file, the loader, and the player walking up it
 scripts/driver-parity.js proves driver.js reproduces the self-test's numbers exactly
 scripts/simulate.js      headless batch simulator: statistics instead of assertions
+scripts/capture-reviews.mjs  the seven fixed asset captures, through asset-lab.html
+scripts/capture-cycle.mjs    the Gate 3 acceptance set: one government cycle, through play.html
 docs/step-01.md          learning log for the port
 docs/step-02.md          learning log for the playground
 docs/step-03.md          learning log for the character controller
 docs/step-04.md          learning log for the first playable match
 docs/step-05.md          learning log for Gate 1: objective line, dialog focus, contrast, framing
 docs/step-06.md          learning log for Gate 2: the asset loader, the asset lab, the GLB gate
+docs/step-07.md          learning log for Gate 3: the lighting director, AgX, sound, the asset table
 docs/STYLE_BIBLE.md      locked visual direction, palette, light meaning and anti-goals
 docs/BLENDER_PIPELINE.md one-asset-at-a-time Blender/MCP production and acceptance contract
 docs/ASSET_MANIFEST.md   provenance and production status for every visual asset
@@ -103,6 +109,7 @@ npm run test:view                          # the view model's leak sweep
 npm run test:interact                      # the interaction contract
 npm run test:objective                     # the objective line: mapping, routing, leaks
 npm run test:pace                          # the deliberation clock cannot change a match
+npm run test:ambience                      # the lighting map and the sound cues: mapped, lawful, leak-free
 npm run test:glb                           # the shipping GLB's contract, three layers deep
 npm run parity                             # driver.js vs the self-test's exact numbers
 npm run verify                             # all of the above, plus the production build
@@ -168,6 +175,25 @@ page offers — and requires byte-identical event logs. It then proves the probe
 can *see* that failure by running the same interleave with a clock that draws
 one `G.rng()` per seam and requiring divergence, because a probe that cannot
 reach the code it is aimed at reports green.
+
+`npm run test:ambience` is the gate on the light and the sound. Both are pure
+functions of the player-safe view — an ambience wired to the driver's omniscient
+event stream would be a *tell*, and "the lamp dips whenever the Speaker discards
+a Reform" is a complete solve of the game delivered through the atmosphere and
+invisible in any diff. So the suite checks the trust boundary twice: the
+permutation test from `test:view` (rewrite the roles this seat may not know, the
+light must be identical) **and** a recording Proxy that writes down every
+property the mapping touches and fails on anything outside eighteen declared
+paths — because the permutation only catches a leak that happens to be
+role-shaped. It also turns `docs/STYLE_BIBLE.md` into assertions: every night
+state declares a warm budget of at most 10%, no night state lights more than one
+lantern-warm source, no colour in the table is pure black, and every reachable
+state of complete matches maps to a rig somebody designed rather than to the
+`unknown` fallthrough. The sound cues are counted against the engine's own
+public prose — one sting per tile enacted, one tally per election held, one
+gavel per nomination made — which is how a real bug surfaced: two consecutive
+elections can produce a byte-identical tally, so an edge keyed on "the tally
+changed" silently missed one.
 
 `npm run test:glb` is the gate on the one source file nobody reads. An art asset
 is authored in another program and arrives as bytes — `Bin 0 -> 89732 bytes` is
@@ -259,23 +285,40 @@ actual `3.5 m` / `1.8 m` / `60°`), four lighting moods (`D`/`U`/`N`/`S`: day,
 dusk, night, and an unlit black silhouette on a light background), a collider
 overlay (`C`) drawn from the same world-baked geometry the game's BVH is built
 from, a tone-mapping toggle (`T`: AgX, which is what the pipeline says to judge
-materials under, versus the linear image `play.html` currently renders), and
+materials under and what `play.html` has rendered under since Gate 3), and
 `renderer.info` on screen. Drag to orbit, wheel to zoom; a camera key snaps back
 to the fixed view, so a capture is always the same capture. It is deliberately
 permissive and imports nothing from the engine or the game: an instrument that
 can only display assets which already pass is useless for working out why one is
 failing.
 
-`src/play/assets.js` is the runtime half. It loads
-`env-dais-a.glb` at match start, places it at `(0, 0, 9)` with yaw π — the
-documented placement transform, never baked into the mesh — renders the `VIS_*`
-nodes in place of the procedural dais and lectern, hides the `COL_*` nodes and
-feeds their world-baked geometry to the collision world, and resolves
-`SOCKET_podium` into the podium interactable's anchor. It never throws: a
-missing file, unreadable bytes or a renamed required node all produce one
-console warning and the full procedural graybox, and the match is playable
-either way. Materials are never patched at runtime — colour is a decision in the
-`.blend`, and `npm run test:glb` fails if the loader touches one.
+`src/play/assets.js` is the runtime half, and from Gate 3 it is a **table**.
+`ENVIRONMENT` is one row per asset — id, category, where it stands, which way it
+faces, which graybox pieces it takes over, which nodes it may not arrive
+without, which sockets the game asks it for, and what to do when it is missing —
+and the URL is derived from the category and the id, because the pipeline fixes
+that path. It ships with one row (`env-dais-a`, placed at `(0, 0, 9)` with yaw π
+— the documented placement transform, never baked into the mesh), and the point
+of the shape is that the lantern, the façade, the ground treatment and the
+citizen base are **one row each and no code**.
+
+The loader renders the `VIS_*` nodes in place of the pieces the row replaces,
+hides the `COL_*` nodes and feeds their world-baked geometry to the collision
+world, and resolves `SOCKET_podium` into the podium interactable's anchor. Every
+row can fail independently and none of them throws: a missing file, unreadable
+bytes or a renamed required node produce one console warning and either the full
+procedural graybox (`fallback: 'graybox'`) or an obvious placeholder capsule at
+the asset's place (`fallback: 'capsule'`, for the assets that have no graybox to
+fall back to) — visual only, so a missing building never becomes a movement bug.
+Materials are never patched at runtime — colour is a decision in the `.blend`,
+and `npm run test:glb` fails if the loader touches one.
+
+`scripts/capture-cycle.mjs` is the other capture pass: where
+`capture-reviews.mjs` photographs an *asset* from fixed cameras, this drives a
+whole *match* through the real page and the real keyboard and photographs the
+nine fixed moments of one government cycle, with the lighting readback and the
+measured warm-pixel fraction printed beside each shot. Output lives in
+`design/reviews/gate-3-cycle/`.
 
 ### The square
 
@@ -325,9 +368,37 @@ Which object owes a decision is one function, `objectFor(kind, gate)` in
 `src/play/objective.js`, and both the interactable and the objective line are
 built from it, so they cannot disagree about where to send you.
 
+**The light tells you what the square is doing.** `src/play/lighting.js` maps
+the player-safe view to one of thirteen named states and crossfades between them
+over about two seconds: soft day for the morning report, an amber dusk while the
+gavel looks for a Deputy, and for the vote the trial look from the hero
+reference — the ambient drops to deep blue and one warm beam pools on the dais,
+with everyone else a silhouette. The result holds that beam and warms or cools
+around it, a draft dims the hall and keeps the dais lit, an enacted tile flashes
+its own colour for a moment, and the match settles into the winning team's
+colour at the end. Phase transitions re-light **before** the crowd changes, per
+the style bible's staging rule. Warm light is information and never decoration:
+the night states are held to under 10% warm pixels, and
+`__play.lighting({ measure: true })` counts them on the real frame rather than
+trusting the rig.
+
+The page renders under **AgX** tone mapping, matching `asset-lab.html`, so a
+colour judged in the instrument is the colour in the game. `?tone=linear` turns
+it off if you want to see the difference.
+
+**Sound** is five moments and one bed: the bell you ring, a gavel when a
+nomination is made, a low seal when your own ballot goes in, a tally when the
+ballots are opened, and a distinct sting for a Reform and for a Seize. Volume
+and mute are in the controls; nothing is constructed until you touch the page,
+so there is no autoplay warning. Every cue is driven by the same public state
+the light is — see `npm run test:ambience`.
+
 Bots deliberate rather than answering instantly: a nomination takes a second or
 three, a legislative draft longer, bookkeeping less, and there is a short beat
 after your own submissions when the rules immediately owe you another decision.
+The beat holds the *ambience* too — casting a ballot resolves the whole election
+in one engine step, so without it the light and the tally sting told you the
+result before you had walked back to the podium to open the ballots.
 The **bot pace** control scales all of it (4× is roughly instant). None of it
 can change what happens — see `npm run test:pace`. When the rules are waiting on
 you the match stops and stays stopped; there is no timeout, by design.
@@ -344,8 +415,15 @@ seat), `waitingFor()`, `submit(action)`, `eventLog`, `actions`,
 *and* as the text actually in the DOM — if those disagree the render is broken,
 not the mapping), `focusOrder` / `focused` for the dialog, `framing` /
 `setFraming(f)` for the camera bias, `holding` / `beat()` / `pace` for the
-deliberation clock, and `environment` for the asset load report (`ok`, the
-reason if not, the placement, the resolved sockets and the live podium anchor).
+deliberation clock, `environment` for the asset load report (`ok`, the reason if
+not, the placement, the resolved sockets and the live podium anchor, plus the
+table's rows and any fallbacks), `lighting()` for the live rig — and
+`lighting({ measure: true })` to render the scene into a small offscreen target
+and count the warm pixels for real — `edges()` for what the ambience last
+noticed, `audio.report()` / `audio.log` for what was played and when, and
+`setLighting(id)` to force a state for a capture. `setLighting` cannot *hold* a
+state: the next refresh aims the rig back at whatever the view says, so it
+cannot be used to photograph a lighting story the game never shows.
 `submit()` deliberately runs no beat — it is the scripted seam, and a sweep that
 had to sit through the atmosphere would be measuring the clock instead of the
 game; `beat()` drives that path on purpose.

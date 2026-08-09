@@ -71,10 +71,53 @@ walked up the step at full speed. A re-export that breaks any of that fails
 
 Known limits at `shipping`: palette colours were set as raw linear values in
 Blender, so in-engine colour has still not been calibrated against scene
-lighting — `asset-lab.html` is the instrument for it, and its AgX tone mapping
-is not what `play.html` currently renders with (Gate 3 owns that). The lectern
-collider is a single box `0.06 m` taller and slightly deeper than the visible
-desk; harmless in play, visible with the lab's collider overlay on.
+lighting. ~~its AgX tone mapping is not what `play.html` currently renders
+with~~ — **closed 2026-08-09**: `play.html` renders under `AgXToneMapping` as of
+Gate 3 (`docs/step-07.md`), so the lab and the game are now the same image and a
+colour judgement made in one transfers to the other. What that made visible is
+the calibration itself: under the trial beam `TimberOchre` reads as a pale cream
+rather than the style bible's `#684828–#783818` warm timber. The runtime beam has
+been pulled as low as it can go while still reading as a stage light, so the
+remaining suspicion is on the material — a `.blend` fix, not a runtime one. The
+lectern collider is a single box `0.06 m` taller and slightly deeper than the
+visible desk; harmless in play, visible with the lab's collider overlay on.
+
+Placement is declared as one row of the `ENVIRONMENT` table in
+`src/play/assets.js` from Gate 3 on. The next environment assets are one row
+each — id, category, position, yaw, required nodes, sockets, and whether a
+missing file falls back to the graybox or to a placeholder capsule. See
+`docs/step-07.md` §5 for the contract.
+
+## Audio
+
+Two sounds are files and the rest are synthesised at runtime. The split is a
+measurement, not a preference: `src/play/audio.js` and `docs/step-07.md` carry
+the band-energy table that decided it. Nothing is hotlinked from v1 — the two
+files below are copies, at their original Kenney names so this row maps one to
+one onto the source pack.
+
+| file | source / license | origin | used by | status |
+| --- | --- | --- | --- | --- |
+| public/assets/sfx/tap-a.ogg | **Kenney UI Pack** (<https://kenney.nl/assets/ui-pack>), **CC0 1.0 Universal**, public domain dedication — no attribution required, given anyway | copied 2026-08-09 from v1 `../secret-dictator/assets/sfx/tap-a.ogg` (see that repo's `assets/CREDITS.md`); unmodified | `play.html` — the `gavel` cue in `src/play/audio.js`, fired when a nomination is made | shipping |
+| public/assets/sfx/tap-b.ogg | **Kenney UI Pack** (<https://kenney.nl/assets/ui-pack>), **CC0 1.0 Universal** | copied 2026-08-09 from v1 `../secret-dictator/assets/sfx/tap-b.ogg`; unmodified | `play.html` — the `seal` cue, layered under a synthesised low press when you submit your own ballot | shipping |
+
+`click-a`, `click-b`, `switch-a` and `switch-b` from the same v1 folder were
+**inspected and skipped**: 85–91% of their energy sits above 800 Hz, which is a
+bright digital UI blip and the wrong register for a hand-carved town square.
+They are not in this repo.
+
+| generated | origin / license | used by | status |
+| --- | --- | --- | --- |
+| bell, tally, `tile:reform`, `tile:seize`, the ambient bed, and the fallback voices for `gavel` and `seal` | authored for this project as WebAudio graphs in `src/play/audio.js`; ours. No file, no download, deterministic (the noise comes from the project's own mulberry32, salted, so a replayed seed sounds identical) | `play.html` | shipping |
+
+No candidate for a bell, a tally or an ambient bed exists in v1's library or in
+this repo, which is why they are synthesised rather than sourced. Daylight has
+**no** bed at all: there is no bird recording to use and a synthesised bird would
+be filler.
+
+Known limit: the two Kenney files were selected on spectral evidence, not by
+listening. Every cue carries a synthesised voice, so swapping either back out is
+one field in `CUES`.
 
 ## Code dependencies
 
