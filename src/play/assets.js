@@ -55,6 +55,7 @@
 
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 
 /**
  * The dais-and-lectern cluster: the first production asset, and the whole of
@@ -112,10 +113,13 @@ export const ENV_DAIS_A = {
  * pipeline fixes that path (`public/assets/models/<category>/<asset-id>.glb`),
  * so writing it out again per row is one more thing that can disagree.
  *
- * IT SHIPS WITH ONE ROW ON PURPOSE. The lantern, the façade, the ground
- * treatment and the citizen base are the reviewer's Blender lane and do not
- * exist yet; inventing rows for them here would be inventing the assets. What
- * this table promises is that each of them costs one row and no code:
+ * IT SHIPS WITH ONE ROW ON PURPOSE — the lantern, the façade and the ground
+ * treatment do not exist yet, and inventing rows for them here would be
+ * inventing the assets. (The citizens DID arrive, and they are the second
+ * table, `CHR_CITIZENS`, further down: a cast is not placed, it is instanced
+ * per seat, so it needs its own shape rather than a `place` it would never
+ * use.) What this table promises is that each of them costs one row and no
+ * code:
  *
  *   { id: 'env-lantern-a', category: 'environment',
  *     place: { x: 5.5, y: 0, z: 5.5, yaw: 0 },
@@ -135,6 +139,265 @@ export const ENVIRONMENT = [ENV_DAIS_A];
 export function assetUrl(row) {
   if (row.url) return row.url;
   return `/assets/models/${row.category || 'environment'}/${row.id}.glb`;
+}
+
+/* -------------------------------------------------------------- the cast */
+
+/**
+ * The citizens. The second table, and it is a different shape on purpose.
+ *
+ * An environment row is *placed*: it has one position in the square and it goes
+ * there once. A cast member is *instanced*: it has no position at all, it is
+ * loaded once and stamped onto however many seats this match happens to have,
+ * and the same file appears two or three times in the ring. Giving it a `place`
+ * it would never read, to make the two tables look alike, would be the kind of
+ * tidiness that hides what the code actually does.
+ *
+ * What a row carries is the same idea as the environment's, minus placement:
+ * id, category, the nodes it may not arrive without, the sockets the game asks
+ * it for. `url` is derived from `category` and `id` exactly as before.
+ *
+ * A fifth variant is one row here and no code anywhere. Nothing in the game
+ * names any of these ids: `variantForSeat` reads the length of the table.
+ */
+export const CHR_CITIZENS = [
+  { id: 'chr-citizen-base', category: 'characters', requiredNodes: ['SOCKET_label'], sockets: { label: 'SOCKET_label' } },
+  { id: 'chr-citizen-stout', category: 'characters', requiredNodes: ['SOCKET_label'], sockets: { label: 'SOCKET_label' } },
+  { id: 'chr-citizen-tall', category: 'characters', requiredNodes: ['SOCKET_label'], sockets: { label: 'SOCKET_label' } },
+  { id: 'chr-citizen-hunched', category: 'characters', requiredNodes: ['SOCKET_label'], sockets: { label: 'SOCKET_label' } }
+];
+
+/**
+ * Which figure stands in which seat.
+ *
+ * ARITHMETIC, NOT CHANCE, and that is the whole of the design. The engine's
+ * randomness is one seeded stream and the bots draw from it; a variant drawn
+ * from that stream would shift every later bot decision, and one drawn from the
+ * platform's own generator would make the same seed deal the same match with a
+ * different crowd. Cycling the table by seat index is stable within a match,
+ * stable across a reload, stable across a replay, and identical no matter which
+ * seat the human is in — so a recorded review of seed 1000 shows the same seven
+ * people to whoever re-runs it.
+ *
+ * It is also the reason there is no shuffle. A shuffle would look better at
+ * seven citizens and would be the first unseeded draw under `src/play/`, which
+ * is a gate this project has relied on since Step 4.
+ *
+ * @param {number} seat   the seat index, 0-based
+ * @param {object[]} [table]
+ * @returns {object} a row of CHR_CITIZENS
+ */
+export function variantForSeat(seat, table = CHR_CITIZENS) {
+  const n = table.length;
+  if (!n) return null;
+  const i = Math.trunc(Number(seat) || 0);
+  return table[((i % n) + n) % n];
+}
+
+/**
+ * Build one cast member from an already-parsed glTF scene.
+ *
+ * Split out from the network for the same reason `buildEnvironment` is:
+ * test/glb.test.js drives this exact function on the real bytes, so the
+ * merging, the socket and the refusals under test are the ones play.html runs.
+ *
+ * Two things it does that the environment loader does not, both because a cast
+ * member is stamped out several times:
+ *
+ *   IT MERGES. The citizens ship eight `VIS_*` meshes each and one material.
+ *   Left as they are, ten of them cost eighty draw calls, and the pipeline's
+ *   envelope wants the whole visible scene under a hundred. Merging per
+ *   material makes it ten. It is done once, at load, into the cache — every
+ *   seat shares the merged geometry.
+ *
+ *   IT KEEPS THE AUTHORED MATERIAL UNTOUCHED. The prototype's material is the
+ *   one the .blend decided and nothing here writes to it. The caller clones it
+ *   per seat, because "grey when purged" is a state overlay and a shared
+ *   material would grey the whole ring the first time anybody died. That is the
+ *   pipeline's own rule: the cache owns shared resources, and a cast member
+ *   must not recolour a material shared by every citizen.
+ *
+ * @param {THREE.Object3D} gltfScene
+ * @param {object} spec  a row of CHR_CITIZENS
+ * @returns {object} `{ ok: true, ... }` or `{ ok: false, reason, detail }`
+ */
+export function buildCastMember(gltfScene, spec) {
+  if (!gltfScene) return fail(spec, 'no-scene', 'the parsed glTF had no scene');
+
+  gltfScene.updateMatrixWorld(true);
+
+  const byName = new Map();
+  const visMeshes = [];
+  const strays = [];
+
+  gltfScene.traverse((node) => {
+    if (node === gltfScene) return;
+    if (node.name) byName.set(node.name, node);
+    if (node.isLight || node.isCamera) { strays.push(node); return; }
+    if (node.name.indexOf('VIS_') === 0 && node.isMesh) visMeshes.push(node);
+    /* A citizen ships no collision — decorative citizens are non-colliding
+     * until gameplay deliberately changes that rule, and one that arrived with
+     * a COL_ volume would silently become a wall in the middle of the ring.
+     * Hidden rather than refused: it is a review problem, not a broken game,
+     * and test/glb.test.js fails the export. */
+    if (node.name.indexOf('COL_') === 0) node.visible = false;
+  });
+
+  for (const stray of strays) if (stray.parent) stray.parent.remove(stray);
+
+  const missing = (spec.requiredNodes || []).filter((n) => !byName.has(n));
+  if (missing.length) {
+    return fail(spec, 'missing-nodes', `required node(s) absent: ${missing.join(', ')}`);
+  }
+  if (!visMeshes.length) return fail(spec, 'no-geometry', 'no VIS_* meshes to render');
+
+  /* ------------------------------------------------ merge, per material */
+
+  const groups = new Map();      // material -> geometries
+  for (const mesh of visMeshes) {
+    const materials = [].concat(mesh.material);
+    /* One primitive per material is what the exporter writes for these; a
+     * multi-material mesh would need per-group splitting, which no citizen has
+     * asked for and which would be guesswork to write blind. */
+    const material = materials[0];
+    const baked = mesh.geometry.clone();
+    baked.applyMatrix4(mesh.matrixWorld);
+    if (!groups.has(material)) groups.set(material, []);
+    groups.get(material).push(baked);
+  }
+
+  const parts = [];
+  let triangles = 0;
+  for (const [material, geometries] of groups) {
+    /* mergeGeometries refuses a set whose attributes do not match — the same
+     * seam that bit the collider harvest in Gate 2. Normalise to the
+     * intersection: uv survives only if every piece has one. */
+    const keep = ['position', 'normal'];
+    if (geometries.every((g) => g.getAttribute('uv'))) keep.push('uv');
+    for (const g of geometries) {
+      for (const attribute of Object.keys(g.attributes)) {
+        if (keep.indexOf(attribute) === -1) g.deleteAttribute(attribute);
+      }
+      g.morphAttributes = {};
+    }
+    const merged = geometries.length === 1
+      ? geometries[0] : mergeGeometries(geometries, false);
+    if (geometries.length > 1) for (const g of geometries) g.dispose();
+    merged.computeBoundingBox();
+    const index = merged.getIndex();
+    const position = merged.getAttribute('position');
+    triangles += (index ? index.count : (position ? position.count : 0)) / 3;
+    parts.push({ geometry: merged, material, name: material.name || 'unnamed' });
+  }
+
+  /* --------------------------------------------------------- the sockets */
+
+  const sockets = {};
+  const world = new THREE.Vector3();
+  for (const [logical, nodeName] of Object.entries(spec.sockets || {})) {
+    const node = byName.get(nodeName);
+    if (!node) return fail(spec, 'missing-socket', `socket ${nodeName} absent`);
+    node.getWorldPosition(world);
+    sockets[logical] = { x: world.x, y: world.y, z: world.z, node: nodeName };
+  }
+
+  /* ---------------------------------------------------------- the bounds */
+
+  const box = new THREE.Box3();
+  const point = new THREE.Vector3();
+  for (const part of parts) {
+    const position = part.geometry.getAttribute('position');
+    for (let i = 0; i < position.count; i++) box.expandByPoint(point.fromBufferAttribute(position, i));
+  }
+
+  return {
+    ok: true,
+    id: spec.id,
+    url: assetUrl(spec),
+    parts,
+    sockets,
+    /* Where the nameplate goes. Read off SOCKET_label rather than assumed,
+     * which is the whole reason the socket exists: these four figures are
+     * 1.48 m to 1.96 m tall and a single hardcoded height either floats over
+     * the short one or sits inside the tall one's hat. */
+    labelY: sockets.label ? sockets.label.y : box.max.y + 0.25,
+    bounds: {
+      min: { x: box.min.x, y: box.min.y, z: box.min.z },
+      max: { x: box.max.x, y: box.max.y, z: box.max.z }
+    },
+    height: box.max.y - box.min.y,
+    /*
+     * How far to lift a toppled figure so it rests on the ground.
+     *
+     * The square topples the dead by rotating -90 degrees about X, which maps
+     * a point's +Y to +Z and its +Z to -Y: the figure falls forward onto its
+     * face and its former DEPTH becomes its height off the floor. So the lift
+     * is the asset's own `max.z`, not a constant — the graybox capsule's 0.34
+     * was its radius, and re-using it would bury the tall citizen and float the
+     * hunched one, whose lean puts its bounding box 0.50 m forward of its feet.
+     */
+    topple: box.max.z,
+    stats: {
+      visMeshes: visMeshes.length,
+      parts: parts.length,
+      triangles,
+      materials: parts.map((p) => p.name).sort(),
+      strays: strays.length
+    }
+  };
+}
+
+/**
+ * Load every citizen variant. Never throws, never rejects.
+ *
+ * Each row fails on its own: a variant that will not load costs the seats that
+ * would have used it and nothing else, and the caller degrades exactly those
+ * seats to a capsule. A cast where every row failed is still `{ ok: false }`
+ * with a full ring of capsules, which is the square as it was before this
+ * change — the same argument as the graybox.
+ *
+ * @param {object[]} [table]  CHR_CITIZENS by default
+ * @param {object} [options]  `{ loader, warn }` — both injectable for tests
+ */
+export async function loadCast(table = CHR_CITIZENS, options = {}) {
+  const warn = options.warn || ((message) => console.warn(message));
+  const rows = table.map((row) => Object.assign({}, row, { url: assetUrl(row) }));
+
+  const variants = await Promise.all(rows.map(async (row) => {
+    let gltf = null;
+    try {
+      const loader = options.loader || new GLTFLoader();
+      gltf = await loader.loadAsync(row.url);
+    } catch (error) {
+      const detail = (error && error.message) ? error.message : String(error);
+      const result = fail(row, 'load-failed', detail);
+      warn(capsuleWarning(row, result));
+      return result;
+    }
+    const built = buildCastMember(gltf.scene, row);
+    if (!built.ok) warn(capsuleWarning(row, built));
+    return built;
+  }));
+
+  const byId = {};
+  for (const v of variants) if (v.ok) byId[v.id] = v;
+
+  return {
+    ok: variants.every((v) => v.ok),
+    rows: rows.map((r) => r.id),
+    variants,
+    byId,
+    loaded: variants.filter((v) => v.ok).map((v) => v.id),
+    fallbacks: variants.filter((v) => !v.ok)
+      .map((v) => ({ id: v.id, reason: v.reason, detail: v.detail, fallback: 'capsule' }))
+  };
+}
+
+/* Same three things the environment's warning says, with the right fallback
+ * named: which asset, what went wrong, and that the game is still playable. */
+function capsuleWarning(spec, result) {
+  return `[cast] ${spec.id} not loaded (${result.reason}: ${result.detail}) — ` +
+    `${assetUrl(spec)} · the seats that would use it fall back to a capsule and the match is playable.`;
 }
 
 /**

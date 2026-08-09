@@ -41,7 +41,7 @@ import { createController, defaultTuning } from '../walk/controller.js';
 import { createCameraRig } from '../walk/camera.js';
 import { createBvhWorld } from '../walk/bvh-world.js';
 import { buildSquare, seatPosition, SPAWN, DAIS, BELL, BENCH } from './square.js';
-import { ENVIRONMENT, loadEnvironment } from './assets.js';
+import { ENVIRONMENT, loadEnvironment, CHR_CITIZENS, loadCast, variantForSeat } from './assets.js';
 import { createInteractions } from './interact.js';
 import { createPanels } from './panels.js';
 import { objectFor } from './objective.js';
@@ -222,23 +222,50 @@ const cast = new THREE.Group();
 scene.add(cast);
 let citizens = [];       // one per seat; the human's entry is a floor marker only
 
+/**
+ * The loaded citizen variants, keyed by id. Null until boot() answers.
+ *
+ * This is a CACHE and the seats are stamped out of it: one merged geometry per
+ * variant, shared by every seat that uses it. Nothing below may dispose it.
+ */
+let castLibrary = null;
+
+/* The capsule the graybox has always used, and now also the per-seat fallback
+ * for a citizen whose GLB did not arrive. Sized to the calibration figure. */
+const CAPSULE_RADIUS = 0.34;
+
 function clearCast() {
   for (const c of citizens) {
     c.group.traverse((o) => {
       if (o.isCSS2DObject && o.element && o.element.parentNode) {
         o.element.parentNode.removeChild(o.element);
       }
-      if (o.geometry) o.geometry.dispose();
-      if (o.material) o.material.dispose();
     });
+    /*
+     * ONLY what this seat owns.
+     *
+     * The old version disposed every geometry and material it could reach,
+     * which was correct when each capsule built its own. It is now a live
+     * hazard: the merged citizen geometry belongs to the cast cache and is
+     * shared by two or three seats and by every future restart, so freeing it
+     * here would empty the square on the second deal — a bug that appears only
+     * after a Restart and looks like a loader failure. Each seat records the
+     * resources it made; nothing else is touched.
+     */
+    for (const g of c.owns.geometries) g.dispose();
+    for (const m of c.owns.materials) m.dispose();
   }
   cast.clear();
   citizens = [];
 }
 
 /**
- * One capsule per bot, plus a floor marker on the human's own spot so the ring
+ * One figure per bot, plus a floor marker on the human's own spot so the ring
  * of seats reads as complete even though you are off walking around in it.
+ *
+ * The human is still a capsule, deliberately: the controller's collider IS a
+ * capsule, and giving the body a silhouette that disagrees with what it collides
+ * with is a decision about the player's own avatar that nobody has made yet.
  */
 function setRoster(view) {
   clearCast();
@@ -248,58 +275,125 @@ function setRoster(view) {
     const at = seatPosition(p.id, n);
     const group = new THREE.Group();
     group.position.set(at.x, 0, at.z);
-    group.lookAt(0, 0, 0);            // +Z of a mesh faces the lookAt target
+    /*
+     * +Z of an object faces the lookAt target, and the World contract makes +Z
+     * a model's front — so this one line already points the citizens' faces at
+     * the middle of the square, exactly as it pointed the capsules' nose cones.
+     * The figures needed no correction; that is what "front = +Z, locked by the
+     * front-marker test" was for.
+     */
+    group.lookAt(0, 0, 0);
 
     const pose = new THREE.Group();
     group.add(pose);
 
-    let material = null;
-    if (!p.isYou) {
-      material = new THREE.MeshLambertMaterial({ color: COLOR.citizen });
-      const body = new THREE.Mesh(
-        new THREE.CapsuleGeometry(0.34, 0.86, 6, 16), material
-      );
-      body.position.y = 0.85;
-      body.castShadow = true;
-      pose.add(body);
+    const owns = { geometries: [], materials: [] };
+    const skins = [];            // this seat's own material clones, for death
+    let variant = null;
+    let labelY = 1.95;
+    let toppleLift = CAPSULE_RADIUS;
 
-      const nose = new THREE.Mesh(
-        new THREE.ConeGeometry(0.11, 0.24, 12),
-        new THREE.MeshLambertMaterial({ color: 0xe8ecf4 })
-      );
-      nose.rotation.x = Math.PI / 2;
-      nose.position.set(0, 1.05, 0.33);
-      pose.add(nose);
+    if (!p.isYou) {
+      variant = castLibrary ? castLibrary.byId[variantForSeat(p.id).id] : null;
+      if (variant) {
+        /*
+         * The figure. Geometry comes from the cache by reference; the material
+         * is cloned per seat, because "grey when purged" writes to it and one
+         * shared material would grey every citizen of that variant the first
+         * time anybody died. Two clones at most per seat, ten seats — cheaper
+         * than the bug.
+         */
+        for (const part of variant.parts) {
+          const material = part.material.clone();
+          owns.materials.push(material);
+          skins.push({ material, authored: material.color.getHex() });
+          const mesh = new THREE.Mesh(part.geometry, material);
+          mesh.castShadow = true;
+          mesh.receiveShadow = true;
+          pose.add(mesh);
+        }
+        labelY = variant.labelY;
+        toppleLift = variant.topple;
+      } else {
+        /* No figure for this seat — the variant's GLB is missing or was
+         * refused. The capsule is the fallback per seat rather than per match,
+         * so one bad file costs two or three faces and not the whole crowd. */
+        const material = new THREE.MeshLambertMaterial({ color: COLOR.citizen });
+        const geometry = new THREE.CapsuleGeometry(CAPSULE_RADIUS, 0.86, 6, 16);
+        owns.materials.push(material);
+        owns.geometries.push(geometry);
+        skins.push({ material, authored: COLOR.citizen });
+        const body = new THREE.Mesh(geometry, material);
+        body.position.y = 0.85;
+        body.castShadow = true;
+        pose.add(body);
+
+        const noseGeometry = new THREE.ConeGeometry(0.11, 0.24, 12);
+        const noseMaterial = new THREE.MeshLambertMaterial({ color: 0xe8ecf4 });
+        owns.geometries.push(noseGeometry);
+        owns.materials.push(noseMaterial);
+        const nose = new THREE.Mesh(noseGeometry, noseMaterial);
+        nose.rotation.x = Math.PI / 2;
+        nose.position.set(0, 1.05, 0.33);
+        pose.add(nose);
+      }
     } else {
       /* Your seat: a dim disc, so the ring is not missing a tooth. */
-      const spot = new THREE.Mesh(
-        new THREE.RingGeometry(0.3, 0.5, 28),
-        new THREE.MeshBasicMaterial({ color: 0x59617a, transparent: true, opacity: 0.5, side: THREE.DoubleSide })
-      );
+      const geometry = new THREE.RingGeometry(0.3, 0.5, 28);
+      const material = new THREE.MeshBasicMaterial({
+        color: 0x59617a, transparent: true, opacity: 0.5, side: THREE.DoubleSide
+      });
+      owns.geometries.push(geometry);
+      owns.materials.push(material);
+      const spot = new THREE.Mesh(geometry, material);
       spot.rotation.x = -Math.PI / 2;
       spot.position.y = 0.015;
       pose.add(spot);
+      labelY = 0.35;
     }
 
     const ring = ringMesh(COLOR.speaker);
+    owns.geometries.push(ring.geometry);
+    owns.materials.push(ring.material);
     group.add(ring);
 
     const nameEl = document.createElement('div');
     nameEl.className = 'tag' + (p.isYou ? ' me' : '');
     nameEl.textContent = p.name + (p.isYou ? ' (you)' : '');
     const nameLabel = new CSS2DObject(nameEl);
-    nameLabel.position.set(0, p.isYou ? 0.35 : 1.95, 0);
+    /*
+     * SOCKET_label, not a constant. The four figures are 1.48 m to 1.96 m tall
+     * and their sockets sit at 1.62 / 1.80 / 1.95 / 2.15 — a single hardcoded
+     * height floats over the hunched one and sits inside the tall one's hat.
+     * The badge keeps its old 0.40 m clearance above whatever the name does.
+     */
+    nameLabel.position.set(0, labelY, 0);
     group.add(nameLabel);
 
     const badgeEl = document.createElement('div');
     badgeEl.className = 'badge hidden';
     const badgeLabel = new CSS2DObject(badgeEl);
-    badgeLabel.position.set(0, 2.35, 0);
+    badgeLabel.position.set(0, labelY + 0.40, 0);
     group.add(badgeLabel);
 
     cast.add(group);
-    citizens.push({ id: p.id, isYou: p.isYou, group, pose, ring, material, nameEl, badgeEl, toppled: false });
+    citizens.push({
+      id: p.id, isYou: p.isYou, group, pose, ring, skins, owns, nameEl, badgeEl,
+      toppled: false, toppleLift,
+      variant: variant ? variant.id : null, labelY
+    });
   }
+}
+
+/** Where this seat's nameplate actually sits, read off the scene graph. */
+function labelHeightOf(c) {
+  let y = null;
+  c.group.traverse((o) => {
+    if (o.isCSS2DObject && o.element && o.element.classList.contains('tag')) {
+      y = Math.round(o.position.y * 1000) / 1000;
+    }
+  });
+  return y;
 }
 
 /** Push the view into the scene. Read-only in `view`, which is already a copy. */
@@ -319,18 +413,25 @@ function applyToScene(view) {
 
     if (!p.alive) {
       if (!c.toppled && !c.isYou) {
+        /* -90 degrees about X maps the body's +Y to +Z: it falls forward, onto
+         * its face, toward the middle of the square. The lift is the figure's
+         * own depth (assets.js `topple`), because after that rotation its
+         * former depth is what holds it off the floor — a shared constant
+         * buried the tall citizen and floated the hunched one. */
         c.pose.rotation.x = -Math.PI / 2;
-        c.pose.position.y = 0.34;
+        c.pose.position.y = c.toppleLift;
         c.toppled = true;
       }
-      if (c.material) c.material.color.setHex(COLOR.dead);
+      for (const skin of c.skins) skin.material.color.setHex(COLOR.dead);
       c.ring.visible = false;
       c.nameEl.classList.add('dead');
       c.badgeEl.className = 'badge hidden';
       continue;
     }
     c.nameEl.classList.remove('dead');
-    if (c.material) c.material.color.setHex(COLOR.citizen);
+    /* Back to whatever the .blend said, not to a constant — the figures are
+     * CarvedWood and the fallback capsules are the graybox grey. */
+    for (const skin of c.skins) skin.material.color.setHex(skin.authored);
 
     let ringColor = null;
     if (c.id === view.speaker && view.phase !== 'game_over') ringColor = COLOR.speaker;
@@ -1124,11 +1225,34 @@ function buildGround(env) {
  * so there is no failure mode here that leaves the page without a square.
  */
 async function boot() {
-  const env = await loadEnvironment(ENVIRONMENT);
+  /*
+   * The square and the crowd are asked for together and waited for together,
+   * for the same reason Gate 2 waited for the dais: `setRoster` runs once per
+   * deal, and a cast that arrived after the deal would mean a ring of capsules
+   * that turned into people a moment later, or a second setRoster with a live
+   * match already running. One code path per boot.
+   *
+   * `loadCast` never rejects. A variant that will not load costs the seats that
+   * would have used it and nothing else.
+   */
+  const [env, castResult] = await Promise.all([
+    loadEnvironment(ENVIRONMENT),
+    loadCast(CHR_CITIZENS)
+  ]);
   environment = env;
+  castLibrary = castResult;
   buildGround(env);
   restart(DEFAULT_SEED, DEFAULT_PLAYERS, DEFAULT_HUMAN);
   requestAnimationFrame(frame);
+  if (castResult.loaded.length) {
+    const shown = castResult.variants.filter((v) => v.ok);
+    console.info(
+      `[cast] ${shown.length} of ${castResult.rows.length} citizen variants loaded — ` +
+      shown.map((v) => `${v.id} (${v.stats.triangles} tris, ${v.stats.parts} part` +
+        `${v.stats.parts === 1 ? '' : 's'}, label ${v.labelY.toFixed(2)} m)`).join(', ') +
+      `; seats take them in order, seat n -> variant n mod ${castResult.rows.length}.`
+    );
+  }
   for (const asset of env.loaded) {
     console.info(
       `[assets] ${asset.id} loaded — ${asset.stats.visMeshes} visual meshes, ` +
@@ -1443,6 +1567,65 @@ window.__play = {
     lighting.setState(id, { instant: !!instant });
     audio.setLighting(id);
     return lighting.target;
+  },
+
+  /*
+   * The crowd, as a report.
+   *
+   * A screenshot shows that somebody is standing in a seat; it cannot show
+   * WHICH figure, whether the nameplate is on that figure's own socket or on a
+   * constant, or whether a seat fell back to a capsule because its GLB was
+   * refused. `cast` answers all three per seat, which is what makes "the
+   * mapping is deterministic" checkable from a scripted review rather than
+   * from the source.
+   */
+  get cast() {
+    return {
+      ok: castLibrary ? castLibrary.ok : false,
+      rows: castLibrary ? castLibrary.rows : [],
+      loaded: castLibrary ? castLibrary.loaded : [],
+      fallbacks: castLibrary ? castLibrary.fallbacks : [],
+      variants: castLibrary ? castLibrary.variants.map((v) => (v.ok ? {
+        id: v.id, ok: true, triangles: v.stats.triangles, parts: v.stats.parts,
+        materials: v.stats.materials, labelY: v.labelY, height: v.height, topple: v.topple
+      } : { id: v.id, ok: false, reason: v.reason, detail: v.detail })) : [],
+      seats: citizens.map((c) => ({
+        id: c.id,
+        isYou: c.isYou,
+        variant: c.variant,                    // null means this seat is a capsule
+        labelY: Math.round(c.labelY * 1000) / 1000,
+        toppled: c.toppled,
+        toppleLift: Math.round(c.toppleLift * 1000) / 1000,
+        /* Read back off the object, not off the record: if the label ever stops
+         * being placed where the record says, this is where it shows. */
+        labelOnScreen: labelHeightOf(c)
+      }))
+    };
+  },
+
+  /** What the mapping says, for any seat, without a match running. */
+  variantForSeat: (seat) => variantForSeat(seat).id,
+
+  /*
+   * `renderer.info` for the last painted frame — the pipeline's performance
+   * envelope, readable from a review instead of off a screenshot.
+   *
+   * The caveat from docs/step-06.md still applies and is the reason this says
+   * "last painted": the counters only update on a render, and
+   * requestAnimationFrame does not run in a hidden pane. A probe that reads
+   * this from a background tab is reading whatever was on screen when it was
+   * last visible, not the frame it thinks it is measuring.
+   */
+  get stats() {
+    const info = renderer.info;
+    return {
+      calls: info.render.calls,
+      triangles: info.render.triangles,
+      lines: info.render.lines,
+      geometries: info.memory.geometries,
+      textures: info.memory.textures,
+      programs: info.programs ? info.programs.length : 0
+    };
   },
 
   /** What the ambience would do for the current view, without doing it. */
