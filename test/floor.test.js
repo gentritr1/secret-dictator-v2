@@ -1441,18 +1441,167 @@ Floor.speak(t6, { kind: 'SILENCE', speaker: 3, prompted_by: 'question',
 check(Floor.speak(t6, { kind: 'SILENCE', speaker: 3, prompted_by: 'floor_open', refs: {},
   explicit: false, text_id: 'silence.floor_open.1' }).seq === 1,
   'an obliged citizen was refused their second beat');
-check(t6.obligations[0].discharged, 'answering a QUESTION did not discharge the obligation');
 
 /* Explicit and timed-out silence are DIFFERENT events, recorded not inferred. */
 var sil = Floor.ledger(t6)[3];
 check(sil.silences.explicit.length === 1 && sil.silences.timeout.length === 1,
   'the ledger does not keep chosen and timed-out silence apart');
 
+/* --- D2, owner-locked: SILENCE DOES NOT DISCHARGE A QUESTION ---------
+ *
+ * D1 discharged an obligation on anything the questioned citizen said next,
+ * silence included. That is now reversed: an obligation persists, floor after
+ * floor, until the obliged citizen actually speaks, and every silence in
+ * between is recorded on the obligation as well as in the stream — so
+ * `basis: silence` accumulates references and the evasion gets more
+ * referencable, not less. */
+
+check(!t6.obligations[0].discharged,
+  'two silences discharged a QUESTION — silence is not an answer (D2 spec)');
+check(t6.obligations[0].silences.length === 2,
+  'the obligation did not record the silences it survived (got ' +
+  t6.obligations[0].silences.length + ')');
+
+/* Floor two: still owed, still prepended, and the trigger still carries it. */
+Floor.closeFloor(t6);
+nextBeat(t6);
+var t6b = Floor.triggers(t6);
+check(t6b.length === 1 && t6b[0].first === 3,
+  'the obligation did not carry to a SECOND floor after a silence');
+check(t6b[0].carried && t6b[0].carried.indexOf('u-0') !== -1,
+  'the second floor does not name the question it is still carrying');
+var t6floorB = Floor.openFloor(t6, t6b[0]);
+check(t6floorB.obliged.indexOf(3) !== -1, 'the second floor does not oblige seat 3');
+Floor.speak(t6, { kind: 'SILENCE', speaker: 3, prompted_by: 'question',
+  refs: { utterance: 'u-0' }, explicit: true, text_id: 'silence.question.2' });
+check(!t6.obligations[0].discharged,
+  'a third silence discharged the QUESTION across two floors');
+check(t6.obligations[0].silences.length === 3,
+  'the third silence was not recorded on the obligation');
+
+/* Three silences on two DIFFERENT floors is exactly what `basis: silence`
+ * needs — the evasion is now constructible evidence, which is the point of
+ * making silence persist rather than discharge. */
+var silenceAccuse = Floor.speak(t6, {
+  kind: 'ACCUSE', speaker: 1, target: 3, basis: 'silence',
+  refs: { floors: [t6floor.id, t6floorB.id] }, text_id: 'accuse.silence.1'
+});
+check(silenceAccuse.basis === 'silence',
+  'two floors of recorded silence did not support basis: silence');
+
+/* And an actual answer discharges it — the fixture that proves the persistence
+ * above is a rule and not a broken discharge. */
+Floor.speak(t6, { kind: 'ACCUSE', speaker: 3, target: 1, basis: 'gut', refs: {},
+  text_id: 'accuse.gut.1' });
+check(t6.obligations[0].discharged,
+  'speaking did not discharge the QUESTION — nothing ever would');
+check(t6.obligations[0].answer !== null,
+  'the obligation does not name the utterance that discharged it');
+Floor.closeFloor(t6);
+nextBeat(t6);
+check(Floor.triggers(t6).every(function (t) { return !t.carried; }),
+  'a discharged obligation is still being carried');
+
+say('obligation    silence does not discharge a QUESTION: 3 silences over 2 floors left it');
+say('              owed and carried, made basis: silence constructible, and an actual');
+say('              answer then discharged it and stopped the carry');
+
 say('scheduling    ' + capFloors + ' floors over ' + GAMES + ' matches ' + JSON.stringify(capT) +
     ': six beats per floor,');
 say('              one floor per phase transition, ' + capDouble + ' second beats and every one ' +
     'of them obliged by a QUESTION');
 say('              never during a vote, drafting, at two alive, or after game over');
+
+/* ===================================================================== */
+/* 9b. FLAGS ARE PERMANENT EVIDENCE (D2, owner-locked)                   */
+/*                                                                       */
+/* A flag never expires. Addressing it changes exactly one thing: it     */
+/* stops LEADING T1's morning ordering. Three fixtures — leads before,   */
+/* stops leading after, still queryable always.                          */
+/* ===================================================================== */
+
+(function () {
+  /* One C3 pair flag, built the same way section 6's C3 fixture builds it. */
+  var R = fixture([gov('g-0', 1, 2, { enacted: 'seize' }),
+                   gov('g-1', 3, 4, { enacted: 'seize' })], { seats: 5 });
+  openSix(R);
+  Floor.speak(R, { kind: 'CLAIM_HAND', speaker: 1, seat_role: 'speaker',
+    refs: { government: 'g-0' }, drawn: { reform: 1, seize: 2 },
+    passed: { reform: 1, seize: 1 }, enacted: 'seize', text_id: 'claim.speaker.choice' });
+  Floor.speak(R, { kind: 'CLAIM_HAND', speaker: 2, seat_role: 'deputy',
+    refs: { government: 'g-0' }, received: { reform: 0, seize: 2 },
+    enacted: 'seize', text_id: 'claim.deputy.no_choice' });
+
+  var f1 = Floor.contradictions(R);
+  check(f1.length === 1 && f1[0].rule === 'C3', 'the flag fixture did not raise its C3');
+  check(f1[0].addressed.length === 0, 'a brand-new flag is already marked addressed');
+
+  /* LEADS BEFORE: T1 turns to a flagged citizen. Seat 1 and seat 2 both carry
+   * the pair flag; mostFlagged picks the lowest-numbered of the tied. */
+  R.day = 3;
+  Floor.closeFloor(R);
+  Floor.acknowledgeMorning(R, 3);
+  var lead = Floor.triggers(R).filter(function (t) { return t.id === 'T1'; })[0];
+  check(!!lead && lead.first === 1, 'T1 did not lead with a flagged citizen (got ' +
+    (lead && lead.first) + ')');
+
+  /* Seat 1 speaks to it — an ACCUSE on the very flag, naming the two utterances
+   * inside it. "One of us is lying, and it is not me" is the whole move. */
+  var lf = Floor.openFloor(R, lead);
+  Floor.speak(R, { kind: 'ACCUSE', speaker: 1, target: 2, basis: 'contradiction',
+    refs: { utterances: ['u-0', 'u-1'], flag: f1[0].id }, text_id: 'accuse.contradiction.1' });
+
+  var f2 = Floor.contradictions(R);
+  /* STILL QUERYABLE ALWAYS: the flag is still in the list, same id, same rule,
+   * same refs, both seats still named. Addressing is not retiring. */
+  check(f2.length >= 1, 'the flag vanished once it was addressed');
+  var same = f2.filter(function (f) { return f.id === f1[0].id; })[0];
+  check(!!same, 'the addressed flag is no longer queryable by its id');
+  check(!!same && same.rule === 'C3' && same.class === 'pair' &&
+    JSON.stringify(same.seats) === JSON.stringify(f1[0].seats) &&
+    JSON.stringify(same.refs) === JSON.stringify(f1[0].refs),
+    'addressing a flag changed its rule, class, seats or refs');
+  check(!!same && same.addressed.indexOf(1) !== -1,
+    'the citizen who spoke to the flag is not recorded as having addressed it');
+  check(!!same && same.addressed.indexOf(2) === -1,
+    'seat 2 was marked as having addressed a flag it never spoke to');
+
+  /* The ledger still carries it for both, addressed or not. */
+  var led = Floor.ledger(R);
+  check(led[1].flags.indexOf(f1[0].id) !== -1 && led[2].flags.indexOf(f1[0].id) !== -1,
+    'the ledger dropped an addressed flag');
+
+  /* STOPS LEADING AFTER: the next morning, T1 turns to seat 2 — who has not
+   * spoken to it — rather than to seat 1 again. */
+  Floor.closeFloor(R);
+  R.day = 4;
+  nextBeat(R);
+  Floor.acknowledgeMorning(R, 4);
+  var lead2 = Floor.triggers(R).filter(function (t) { return t.id === 'T1'; })[0];
+  check(!!lead2 && lead2.first === 2,
+    'an addressed flag is still leading the morning (T1 first = ' +
+    (lead2 && lead2.first) + ', expected 2)');
+
+  /* And when BOTH have spoken to it, T1 has nobody to lead with — the morning
+   * opens on the ring rather than on a citizen who has already answered. */
+  var lf2 = Floor.openFloor(R, lead2);
+  Floor.speak(R, { kind: 'ACCUSE', speaker: 2, target: 1, basis: 'contradiction',
+    refs: { utterances: ['u-0', 'u-1'], flag: f1[0].id }, text_id: 'accuse.contradiction.2' });
+  Floor.closeFloor(R);
+  R.day = 5;
+  nextBeat(R);
+  Floor.acknowledgeMorning(R, 5);
+  var lead3 = Floor.triggers(R).filter(function (t) { return t.id === 'T1'; })[0];
+  check(!!lead3 && lead3.first === null,
+    'T1 still leads with a flag both parties have addressed (first = ' +
+    (lead3 && lead3.first) + ')');
+  check(Floor.contradictions(R).filter(function (f) { return f.id === f1[0].id; }).length === 1,
+    'the flag expired once everybody had addressed it — flags are permanent');
+
+  say('flags         permanent evidence: one C3 led the morning, stopped leading once its');
+  say('              own party spoke to it, and is still queryable by id, still on both');
+  say('              ledger entries and still carrying its rule, class, seats and refs');
+})();
 
 /* ===================================================================== */
 /* 10. THE INTEGRATION SEAM                                              */

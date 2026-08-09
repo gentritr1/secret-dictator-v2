@@ -53,6 +53,21 @@
  * the whole record, every utterance and every ledger entry byte-identical —
  * asserted, not asserted-in-a-comment, in test/floor.test.js.
  *
+ * TWO D2 AMENDMENTS, OWNER-LOCKED
+ * -------------------------------
+ * D1 shipped two behaviours it explicitly flagged as decisions rather than
+ * quotations from the handoff. Both were then decided, against what shipped:
+ *
+ *   1. A QUESTION is NOT discharged by silence. The obligation persists across
+ *      floors — prepended by T6 each time — until the obliged citizen actually
+ *      speaks, and every silence in between is recorded on the obligation, so
+ *      `basis: silence` accumulates references and evasion gets MORE
+ *      referencable rather than quietly settled. See speak() below.
+ *   2. A flag is permanent evidence. It never expires and contradictions()
+ *      keeps returning it for ever. Being "addressed" — pointed at by a later
+ *      utterance of the flagged party's own — changes exactly one thing: the
+ *      flag stops LEADING T1's morning ordering. See addressedBy().
+ *
  * UMD, like the rest of src/engine: CommonJS under Node, `self.SDFloor` in a
  * browser (where engine.js must already have loaded).
  */
@@ -529,7 +544,16 @@
 
   /* ------------------------------------------------------------ triggers */
 
-  /** Flags that name a seat and have not been answered by that seat since. */
+  /**
+   * Flags that name a living seat and that that seat has not yet ADDRESSED.
+   *
+   * Owner-locked spec (D2): a flag is permanent evidence. It never expires and
+   * `contradictions()` keeps returning it forever. What "addressing" it changes
+   * is one thing only — it stops the flag LEADING T1's morning ordering, so the
+   * square does not open every single morning by turning to the same citizen
+   * about the same two utterances they have already spoken to. The flag is still
+   * there, still queryable, still referencable by anybody else.
+   */
   function unansweredFlagsBySeat(record) {
     var out = {};
     var flags = contradictions(record);
@@ -537,6 +561,7 @@
       for (var j = 0; j < flags[i].seats.length; j++) {
         var seat = flags[i].seats[j];
         if (!isAlive(record, seat)) continue;
+        if (flags[i].addressed.indexOf(seat) !== -1) continue;
         out[seat] = (out[seat] || 0) + 1;
       }
     }
@@ -839,23 +864,40 @@
     var f = currentFloor(record);
     f.utterances.push(u.id);
 
-    /* A QUESTION creates an obligation; anything the questioned citizen says
-     * afterwards discharges it, silence included — recorded distinctly. */
+    /*
+     * A QUESTION creates an obligation.
+     *
+     * OWNER-LOCKED SPEC (D2), and a deliberate reversal of what shipped in D1:
+     * **silence does not discharge a question.** D1 discharged the obligation on
+     * anything the questioned citizen said next, silence included, on the
+     * reading that the handoff's "silence after a QUESTION is recorded
+     * distinctly and is the most expensive" implied it still counted as an
+     * answer for scheduling. It does not. An obligation persists across floors —
+     * prepended by T6 each time — until the obliged citizen actually SPEAKS to
+     * it, and every silence in between is recorded on the obligation as well as
+     * in the utterance stream. Each of those silences is a floor on which that
+     * citizen was SILENT, so `basis: silence` accumulates references and the
+     * evasion becomes more referencable the longer it goes on.
+     *
+     * "Speaks to it" is deliberately any non-SILENCE utterance by the obliged
+     * citizen after the question, not one that names the question in its refs.
+     * The narrower reading is unimplementable without inventing a reply field
+     * the schema does not have, and it would let a citizen answer at length
+     * about something else and stay obliged for ever.
+     */
     if (kind === KIND.QUESTION) {
       record.obligations.push({
         id: 'o-' + record.obligations.length,
-        question: u.id, target: u.target, floor: u.floor, discharged: false
+        question: u.id, target: u.target, floor: u.floor,
+        discharged: false, answer: null, silences: []
       });
     }
     record.obligations.forEach(function (o) {
       if (o.discharged || o.target !== speaker) return;
-      if (o.floor === u.floor && u.id !== o.question) {
-        /* Answering inside the same floor as the question also discharges it. */
-        if (u.kind === KIND.SILENCE && u.refs.utterance !== o.question) return;
-        o.discharged = true;
-      } else if (o.floor !== u.floor) {
-        o.discharged = true;
-      }
+      if (u.id === o.question) return;
+      if (u.kind === KIND.SILENCE) { o.silences.push(u.id); return; }
+      o.discharged = true;
+      o.answer = u.id;
     });
 
     return u;
@@ -1108,12 +1150,19 @@
     function flag(rule, cls, seats, refs) {
       var us = (refs.utterances || []).slice();
       var gs = (refs.governments || []).slice();
+      var id = rule + ':' + us.concat(gs).join(':');
+      var named = seats.slice().sort(function (a, b) { return a - b; });
       flags.push({
-        id: rule + ':' + us.concat(gs).join(':'),
+        id: id,
         rule: rule,
         class: cls,
-        seats: seats.slice().sort(function (a, b) { return a - b; }),
-        refs: { utterances: us, governments: gs }
+        seats: named,
+        refs: { utterances: us, governments: gs },
+        /* Permanent evidence, with one scheduling consequence. See
+         * unansweredFlagsBySeat() and addressedBy() below: being addressed does
+         * not retire a flag, remove it from this list, or weaken it. It stops
+         * it LEADING the morning, and nothing else. */
+        addressed: named.filter(function (s) { return addressedBy(record, s, id, us); })
       });
     }
 
@@ -1249,6 +1298,52 @@
 
     flags.sort(function (x, y) { return x.id < y.id ? -1 : x.id > y.id ? 1 : 0; });
     return flags;
+  }
+
+  function ordinalOf(id) {
+    var n = parseInt(String(id).split('-')[1], 10);
+    return isFinite(n) ? n : -1;
+  }
+
+  /** Does this utterance point at any of `ids`, through its refs or `amends`? */
+  function namesAny(u, ids) {
+    if (u.amends && ids.indexOf(u.amends) !== -1) return true;
+    var keys = Object.keys(u.refs);
+    for (var i = 0; i < keys.length; i++) {
+      var v = u.refs[keys[i]];
+      var list = Array.isArray(v) ? v : [v];
+      for (var j = 0; j < list.length; j++) {
+        if (ids.indexOf(list[j]) !== -1) return true;
+      }
+    }
+    return false;
+  }
+
+  /**
+   * Has the flagged citizen SPOKEN TO this flag since it arose?
+   *
+   * "Addressed" is deliberately narrow: an utterance by the flagged party
+   * themselves, later than the last utterance the flag is built from, that
+   * points at the flag (`refs.flag`) or at one of the utterances inside it
+   * (through any `refs` list, or through `amends`). Somebody else answering on
+   * their behalf does not count, and neither does saying something unrelated —
+   * "addressed" has to mean the record can show WHICH later utterance did it,
+   * or it is a feeling rather than a fold.
+   */
+  function addressedBy(record, seat, flagId, utteranceIds) {
+    var after = -1;
+    for (var i = 0; i < utteranceIds.length; i++) {
+      var o = ordinalOf(utteranceIds[i]);
+      if (o > after) after = o;
+    }
+    for (var j = 0; j < record.utterances.length; j++) {
+      var u = record.utterances[j];
+      if (u.speaker !== seat) continue;
+      if (ordinalOf(u.id) <= after) continue;
+      if (u.refs.flag === flagId) return true;
+      if (namesAny(u, utteranceIds)) return true;
+    }
+    return false;
   }
 
   /** Has a later utterance by the same speaker amended this one? */
