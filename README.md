@@ -34,6 +34,7 @@ src/walk/                the movement workbench: capsule controller, obstacle co
 src/walk/controller.js   the kinematic controller — pure logic, no three.js, no DOM, no clock
 src/play/                the square: the first human-playable match
 src/play/interact.js     the interaction contract — proximity, facing, one key, no per-object input
+src/play/objective.js    the persistent objective line — a pure function of the player-safe view
 index.html               Vite entry point for the playground
 walk.html                Vite entry point for the workbench
 play.html                Vite entry point for the square
@@ -43,12 +44,14 @@ test/human-driver.test.js replay determinism with a human seat, plus a divergenc
 test/contract.test.js    the options -> submit round trip: everything advertised must be accepted
 test/view.test.js        the leak sweep: what each seat may see, checked three ways
 test/interact.test.js    the targeting contract: range, facing, liveness, overlap
+test/objective.test.js   the objective line: every state mapped, right object named, nothing leaked
 scripts/driver-parity.js proves driver.js reproduces the self-test's numbers exactly
 scripts/simulate.js      headless batch simulator: statistics instead of assertions
 docs/step-01.md          learning log for the port
 docs/step-02.md          learning log for the playground
 docs/step-03.md          learning log for the character controller
 docs/step-04.md          learning log for the first playable match
+docs/step-05.md          learning log for Gate 1: objective line, dialog focus, contrast, framing
 docs/STYLE_BIBLE.md      locked visual direction, palette, light meaning and anti-goals
 docs/BLENDER_PIPELINE.md one-asset-at-a-time Blender/MCP production and acceptance contract
 docs/ASSET_MANIFEST.md   provenance and production status for every visual asset
@@ -90,6 +93,7 @@ npm run test:human                         # replay determinism with a human sea
 npm run test:contract                      # the options -> submit round trip
 npm run test:view                          # the view model's leak sweep
 npm run test:interact                      # the interaction contract
+npm run test:objective                     # the objective line: mapping, routing, leaks
 npm run parity                             # driver.js vs the self-test's exact numbers
 npm run verify                             # all of the above, plus the production build
 npm run simulate                           # 500 games, default seed
@@ -134,6 +138,15 @@ would pass every leak test ever written and make the Rebel role unplayable.
 no three.js, no DOM and no clock, so range, the facing cone, which of two
 overlapping objects wins, and whether a target that went dead can still fire are
 all checked in node.
+
+`npm run test:objective` is the gate on the one line of text that is always on
+screen. `src/play/objective.js` takes the player-safe view and nothing else, so
+every state of complete matches can be checked headlessly: that a line exists,
+that its mapping id follows from the pending decision, that the object it tells
+you to walk to is the object the interaction system would actually open that
+panel at, and — the leak sweep from `test:view` pointed at a string — that it
+never says a role, a team or a tile, and never names a citizen the square has
+not publicly been told about.
 
 `npm run test:controller` is the gate on movement. It runs the same controller
 the browser runs, against a closed-form collision world instead of a mesh, and
@@ -210,9 +223,25 @@ and controls are not yet responsive, and there is no touch movement/use path;
 mobile support is not claimed for this milestone.
 
 WASD or arrows to walk, drag to orbit, wheel to zoom, **E** to use whatever you
-are facing. In a panel: 1–9 pick, A or Y is Aye, N is Nay, ↵ continues, Esc
-closes. A panel owns the keyboard while it is open — A is "Aye" here and
-"strafe left" everywhere else, and the body does not move behind it.
+are facing. In a panel: 1–9 pick, A or Y is Aye, N is Nay, ↵ continues, **Tab**
+moves between the answers, Esc closes without answering. A panel owns the
+keyboard while it is open — A is "Aye" here and "strafe left" everywhere else,
+and the body does not move behind it.
+
+A **persistent objective line** sits at the top of the scene and always says
+what to do next and which object to do it at ("Day 4 — walk to the bell and ring
+it to open the session", "Waiting: Bo is using Peek Allegiance"). It is warm
+when the square is waiting on you and quiet when it is not, and like every other
+piece of text on the page it is built from `viewFor(G, yourSeat)` alone.
+
+Decision panels are real dialogs: focus moves into them, Tab cycles inside them,
+the HUD and controls go `inert` behind them, and closing returns the keyboard to
+where it was. **Esc never answers anything** — the decision stays pending, so
+walking back and pressing E offers exactly the same choices.
+
+The camera frames you slightly right of centre so the 330 px HUD is not sitting
+on top of the character; it is one tuning value (`screenBias`, recomputed on
+resize) and it defaults to off everywhere else.
 
 Three things share one interaction contract (`src/play/interact.js`), which is
 how it is known to be a contract and not three handlers:
@@ -233,8 +262,11 @@ the Dictator sees the Rebels only at five or six), your own Peek results, your
 own hand while you hold it, and the public board. Everything opens at game over.
 
 For review the page exposes `window.__play`: `state()` (the view model for your
-seat), `waitingFor()`, `submit(action)`, `eventLog`, `actions` and
-`restart(seed, players, humanIndex)`.
+seat), `waitingFor()`, `submit(action)`, `eventLog`, `actions`,
+`restart(seed, players, humanIndex)`, plus `objective` (the line as an object
+*and* as the text actually in the DOM — if those disagree the render is broken,
+not the mapping), `focusOrder` / `focused` for the dialog, and `framing` /
+`setFraming(f)` for the camera bias.
 
 `submit(waitingFor().options[0])` is always a legal move, for every kind — no
 special shapes. The four ways to advance say what they do: `step()` takes one
