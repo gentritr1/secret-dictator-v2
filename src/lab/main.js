@@ -45,7 +45,11 @@ import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
  * is not on this list is still one URL away.
  */
 const KNOWN = [
-  'environment/env-dais-a.glb'
+  'environment/env-dais-a.glb',
+  'characters/chr-citizen-base.glb',
+  'characters/chr-citizen-stout.glb',
+  'characters/chr-citizen-tall.glb',
+  'characters/chr-citizen-hunched.glb'
 ];
 
 const ASSET_ROOT = '/assets/models/';

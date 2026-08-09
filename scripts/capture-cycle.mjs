@@ -41,22 +41,37 @@ await page.waitForFunction(() => window.__play && window.__play.state());
 
 /* Stand west of the dais looking north-east at it, so the body is clear of the
  * platform and the beam pool is not behind the player's own capsule. */
-async function stand() {
-  await page.evaluate(() => {
-    window.__play.teleport(-4.2, 0, 4.6);
-    window.__play.face(0.8, 9.2);
-  });
+async function stand(at) {
+  await page.evaluate((spot) => {
+    window.__play.teleport(spot.x, 0, spot.z);
+    window.__play.face(spot.lx, spot.lz);
+  }, at || { x: -4.2, z: 4.6, lx: 0.8, lz: 9.2 });
   await page.waitForTimeout(160);
 }
 
-async function shot(name) {
-  await stand();
+/* The whole ring, from outside it looking north — the shot that answers "is the
+ * crowd made of people". The dais frames are too close to the platform to show
+ * more than two or three of them. */
+const FROM_THE_SOUTH = { x: 0, z: -11.2, lx: 0, lz: 6 };
+
+async function shot(name, at) {
+  await stand(at);
   const info = await page.evaluate(() => {
       const l = window.__play.lighting({ measure: true });
+      const cast = window.__play.cast;
       return { phase: window.__play.state().phase, state: l.state, target: l.target,
         label: l.label, tone: l.toneMapping,
         warm: +(l.warm.warmFraction * 100).toFixed(2),
         budget: l.warm.budget * 100,
+        /* The crowd, beside the light: how many seats are real figures, how
+         * many fell back to a capsule, and how many are lying down. A
+         * screenshot cannot distinguish "a figure" from "a figure whose
+         * nameplate is on a hardcoded height", and this can. */
+        figures: cast.seats.filter((s) => s.variant).length,
+        capsules: cast.seats.filter((s) => !s.variant && !s.isYou).length,
+        toppled: cast.seats.filter((s) => s.toppled).length,
+        labels: cast.seats.filter((s) => !s.isYou).map((s) => s.labelOnScreen),
+        calls: window.__play.stats.calls, tris: window.__play.stats.triangles,
         objective: window.__play.objective.onScreen };
   });
   await page.screenshot({ path: `${OUT}/${name}.png` });
@@ -138,6 +153,35 @@ await shot('08-settled-next-morning');
 await page.evaluate(() => window.__play.runToEnd());
 await page.waitForTimeout(3200);
 await shot('09-game-over');
+
+/*
+ * The crowd, on its own terms. Two shots from outside the ring:
+ *
+ *   10  the whole square at the end of the match, in daylight, so every seat is
+ *       legible at once — who is standing, who is face-down, and the nameplates
+ *       at four different socket heights.
+ *   11  the same ring under the trial beam, which is the frame the Gate 3
+ *       lighting was built for and the one where the silhouette gate earns its
+ *       keep: the citizens are shapes, and they have to still be different.
+ */
+/* Esc the result screen first — it is a modal in the middle of the frame, and
+ * the whole question these two shots ask is what is behind it. */
+await page.keyboard.press('Escape');
+await page.waitForTimeout(200);
+await page.evaluate(() => window.__play.flushCast());
+await page.evaluate(() => window.__play.setLighting('day', true));
+await page.waitForTimeout(400);
+await shot('10-the-ring', FROM_THE_SOUTH);
+await page.evaluate(() => window.__play.setLighting('trial', true));
+await page.waitForTimeout(400);
+await shot('11-the-ring-at-trial', FROM_THE_SOUTH);
+
+console.log('\ncast', JSON.stringify(await page.evaluate(() => {
+  const c = window.__play.cast;
+  return { ok: c.ok, loaded: c.loaded, fallbacks: c.fallbacks,
+    seats: c.seats.map((s) => `${s.id}:${s.variant || (s.isYou ? 'you(capsule)' : 'capsule')}` +
+      `@${s.labelOnScreen}${s.toppled ? ' toppled' : ''}`) };
+})));
 
 console.log('\nconsole:');
 for (const l of msgs) console.log('  ' + l);
