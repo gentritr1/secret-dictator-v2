@@ -379,6 +379,7 @@ function setRoster(view) {
     cast.add(group);
     citizens.push({
       id: p.id, isYou: p.isYou, group, pose, ring, skins, owns, nameEl, badgeEl,
+      nameLabel, badgeLabel,
       toppled: false, toppleLift,
       variant: variant ? variant.id : null, labelY
     });
@@ -421,6 +422,10 @@ function applyToScene(view) {
         c.pose.rotation.x = -Math.PI / 2;
         c.pose.position.y = c.toppleLift;
         c.toppled = true;
+        /* The nameplate follows the body down: a label hovering at standing
+         * height over a toppled figure reads as a bug, not as a grave. */
+        c.nameLabel.position.y = c.toppleLift + 0.35;
+        c.badgeLabel.position.y = c.toppleLift + 0.75;
       }
       for (const skin of c.skins) skin.material.color.setHex(COLOR.dead);
       c.ring.visible = false;
