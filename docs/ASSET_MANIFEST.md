@@ -87,6 +87,10 @@ visible desk; harmless in play, visible with the lab's collider overlay on.
 
 | chr-citizen-base | art/blender/characters/chr-citizen-base/chr-citizen-base.blend | public/assets/models/characters/chr-citizen-base.glb | authored for this project via Blender MCP; ours | 0.861 × 1.725 × 0.515 m (1.70 body, hat crown +0.025 from the head-lift fix) | 1272 tris / 1 material (CarvedWood) / 0 textures | draft | nothing yet — blockout awaiting owner eyeball; will replace bot capsules via the placement table with capsule fallback | design/reviews/chr-citizen-base/ |
 
+| chr-citizen-stout | art/blender/characters/chr-citizen-stout/chr-citizen-stout.blend | public/assets/models/characters/chr-citizen-stout.glb | parametric variant of chr-citizen-base via Blender MCP; ours | 1.102 × 1.565 × 0.626 m | 1272 tris / 1 material / 0 textures | draft | pending citizen wiring | design/reviews/chr-citizen-stout/ |
+| chr-citizen-tall | art/blender/characters/chr-citizen-tall/chr-citizen-tall.blend | public/assets/models/characters/chr-citizen-tall.glb | parametric variant of chr-citizen-base via Blender MCP; ours | 0.689 × 1.957 × 0.478 m | 1208 tris / 1 material / 0 textures | draft | pending citizen wiring | design/reviews/chr-citizen-tall/ |
+| chr-citizen-hunched | art/blender/characters/chr-citizen-hunched/chr-citizen-hunched.blend | public/assets/models/characters/chr-citizen-hunched.glb | parametric variant of chr-citizen-base via Blender MCP; ours | 0.861 × 1.481 × 0.679 m | 1240 tris / 1 material / 0 textures | draft | pending citizen wiring | design/reviews/chr-citizen-hunched/ |
+
 Placement is declared as one row of the `ENVIRONMENT` table in
 `src/play/assets.js` from Gate 3 on. The next environment assets are one row
 each — id, category, position, yaw, required nodes, sockets, and whether a
