@@ -5,16 +5,33 @@
  * pass, and anything decided here would have to be undecided there. The one
  * thing this file is careful about is that everything stays readable over a
  * 3D scene, because a panel you cannot read is a decision you cannot make.
+ *
+ * Gate 1 contrast pass (docs/step-05.md), inside these tokens and no new ones:
+ *
+ *   - Every piece of text meets WCAG AA (>= 4.5:1) against its own backdrop,
+ *     computed for the WORST case — a fully blown-out white scene behind the
+ *     translucent panel — rather than against --bg, which is only what you see
+ *     when the camera happens to be pointing at the sky. Two greys failed that
+ *     and are now lighter: the log's day column and the panel's footnote, both
+ *     of which were around 3.1:1.
+ *   - The HUD and panel backdrops are less transparent for the same reason: at
+ *     0.78 alpha the right-hand edge of the HUD sat over whatever the sun was
+ *     doing to the graybox, and no foreground colour can fix a backdrop that
+ *     moves.
+ *   - Hierarchy: the objective line and the phase are the two loudest elements
+ *     and everything else steps down. Warm (--gold) means "you must act", which
+ *     is the STYLE_BIBLE rule (warm light is attention) applied to type.
  */
 
 :root {
   --ink: #e6e9f0;
   --dim: #98a0b3;
+  --dimmer: #8a93a8;      /* the quietest text that still passes AA */
   --bg: #11141a;
-  --panel: rgba(18, 21, 28, 0.94);
+  --panel: rgba(18, 21, 28, 0.96);
   --line: #333a48;
-  --reform: #4a90d9;
-  --seize: #d9524a;
+  --reform: #6aa6e6;
+  --seize: #e8695f;
   --chaos: #d9a441;
   --gold: #ffb454;
   --good: #6ddd8c;
@@ -74,7 +91,7 @@ html, body {
   top: 0; left: 0; bottom: 0;
   width: 330px;
   padding: 12px 12px 0;
-  background: linear-gradient(90deg, rgba(10, 12, 16, 0.93), rgba(10, 12, 16, 0.78));
+  background: linear-gradient(90deg, rgba(10, 12, 16, 0.97), rgba(10, 12, 16, 0.93));
   border-right: 1px solid var(--line);
   display: flex;
   flex-direction: column;
@@ -110,7 +127,13 @@ html, body {
 
 #status div { display: flex; gap: 8px; align-items: center; font-size: 11px; }
 #status .k { color: var(--dim); width: 74px; flex: none; }
-#status .v { flex: 1; word-break: break-word; }
+#status .v { flex: 1; word-break: break-word; color: #c6ccd9; }
+/* One of the two loudest things on the page. The other is #objective. */
+#status .loud .k { color: var(--dim); }
+#status .loud .v {
+  color: var(--gold); font-weight: 700; font-size: 13px;
+  letter-spacing: 0.04em;
+}
 #status i {
   display: inline-block; width: 8px; height: 10px; margin-right: 2px;
   border: 1px solid #2e3542; border-radius: 1px; vertical-align: middle;
@@ -124,7 +147,7 @@ html, body {
   overflow-y: auto; flex: 1; font-size: 11px;
 }
 #log li { padding: 3px 0; border-bottom: 1px solid #1c212b; color: #c6ccd9; }
-#log li .d { color: #5d6577; margin-right: 6px; }
+#log li .d { color: var(--dimmer); margin-right: 6px; }
 #log li.k-enact { color: var(--gold); }
 #log li.k-power { color: #b48ce0; }
 #log li.k-result { color: var(--good); }
@@ -145,19 +168,55 @@ html, body {
 #controls button { cursor: pointer; }
 #controls button:hover { background: #262d38; }
 
+/* --------------------------------------------------------- the objective */
+
+/*
+ * Placement: the top of the UNOBSCURED scene region, not the top of the window.
+ * The HUD is a fixed 330 px on the left and the controls sit at top right, so
+ * this bar starts at 346 px and at 52 px down — clear of both, and centred in
+ * what is left. Stating it here because "top-centre" means the centre of what
+ * the player can actually see, which is not the centre of the page.
+ */
+#objective {
+  position: fixed; top: 52px; left: 346px; right: 16px;
+  pointer-events: none;
+  font-size: 14px; line-height: 1.35; letter-spacing: 0.01em;
+  color: var(--ink);
+  /* The chip hugs the sentence instead of spanning the whole bar. */
+  width: fit-content;
+  max-width: min(760px, 100%);
+  margin: 0 auto;
+  padding: 7px 16px;
+  text-align: center;
+  background: rgba(12, 14, 19, 0.92);
+  border: 1px solid var(--line);
+  border-radius: 4px;
+}
+#objective:empty { display: none; }
+/* Warm means "the square is waiting on you" — the STYLE_BIBLE rule that warm
+ * light is attention, spent on type instead of lanterns. */
+#objective.act {
+  color: var(--gold);
+  border-color: #6a5a2a;
+  font-weight: 600;
+}
+
 /* ------------------------------------------------------------ the prompt */
 
 #prompt {
   position: fixed; left: 50%; bottom: 56px; transform: translateX(-50%);
-  background: rgba(12, 14, 19, 0.9); border: 1px solid var(--gold);
+  background: rgba(12, 14, 19, 0.92); border: 1px solid var(--gold);
   color: var(--gold); padding: 6px 14px; border-radius: 4px;
   letter-spacing: 0.04em; pointer-events: none;
 }
 #prompt.hidden { display: none; }
 
+/* The help line sits directly on the 3D scene, so it carries its own backdrop:
+ * a colour cannot meet a contrast ratio against a backdrop that moves. */
 #help {
   position: fixed; left: 50%; bottom: 12px; transform: translateX(-50%);
   color: var(--dim); font-size: 11px; pointer-events: none;
+  background: rgba(12, 14, 19, 0.92); padding: 4px 10px; border-radius: 4px;
 }
 
 /* ------------------------------------------------------------- the panel */
@@ -177,7 +236,10 @@ html, body {
 }
 #panel h2 { margin: 4px 0 10px; font-size: 17px; font-weight: 600; }
 #panel .lede { margin: 4px 0; color: #c6ccd9; }
-#panel .foot { margin-top: 12px; color: #5d6577; font-size: 11px; }
+#panel .foot { margin-top: 12px; color: var(--dimmer); font-size: 11px; }
+/* The dialog itself takes focus when it has no buttons (the result screen). */
+#panel:focus { outline: none; }
+#panel:focus-visible { outline: 2px solid var(--gold); outline-offset: 2px; }
 
 #panel .row { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 14px; }
 #panel button.opt {
@@ -186,8 +248,10 @@ html, body {
 }
 #panel button.opt:hover { background: #2e3745; }
 #panel button.opt:focus-visible { outline: 2px solid var(--gold); }
+/* The number-key hint is half the point of the panel — it is how a player
+ * learns the keyboard shortcuts exist. At 0.55 it read as decoration. */
 #panel button.opt kbd {
-  font: inherit; opacity: 0.55; margin-left: 6px;
+  font: inherit; opacity: 0.8; margin-left: 6px;
   border: 1px solid currentColor; border-radius: 2px; padding: 0 3px;
 }
 #panel button.aye { border-color: #2f7a48; color: #9ff0b8; }
@@ -203,7 +267,7 @@ html, body {
   font-weight: 700; letter-spacing: 0.1em; font-size: 12px;
 }
 #panel .tile b {
-  position: absolute; top: 3px; right: 5px; font-size: 10px; opacity: 0.6;
+  position: absolute; top: 3px; right: 5px; font-size: 10px; opacity: 0.85;
 }
 #panel .t-reform { background: #1d3550; color: #a9cdf0; border: 1px solid var(--reform); }
 #panel .t-seize { background: #4a221e; color: #f0b0a9; border: 1px solid var(--seize); }
