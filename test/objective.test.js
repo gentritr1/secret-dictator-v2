@@ -186,6 +186,36 @@ function audit(objectiveFor, OBJECTIVE_IDS, G, session, where) {
   }
 }
 
+/*
+ * The five-element stub document, lifted from test/view.test.js so the real
+ * panels.js render path runs in node. It is deliberately dumb: anything
+ * panels.js needs that a stub cannot provide (setAttribute, activeElement,
+ * addEventListener) is optional-chained in that file, and this is what keeps
+ * it that way.
+ */
+function stubDocument() {
+  var made = {};
+  function el() {
+    return {
+      innerHTML: '', textContent: '', scrollTop: 0, scrollHeight: 0,
+      classList: { add: function () {}, remove: function () {}, toggle: function () {} },
+      querySelectorAll: function () { return []; },
+      querySelector: function () { return null; },
+      addEventListener: function () {}
+    };
+  }
+  return {
+    made: made,
+    getElementById: function (id) {
+      if (!made[id]) made[id] = el();
+      return made[id];
+    }
+  };
+}
+
+/** The Emergency Vote position, captured for the panel render check below. */
+var emergency = null;
+
 function scriptedPlayer(salt) {
   var n = 0;
   return function (w) {
@@ -302,13 +332,56 @@ async function main() {
         'the Emergency Vote line does not name the power: "' + got.text + '"');
       check(got.text.indexOf('gavel') !== -1,
         'the Emergency Vote line does not say what the power does: "' + got.text + '"');
-      /* And the panel it points at can actually be built from the same view. */
-      var panels = require('fs').readFileSync(
-        require('path').join(__dirname, '..', 'src', 'play', 'panels.js'), 'utf8');
-      check(/POWER_BLURB\s*=[\s\S]*emergency:/.test(panels),
-        'panels.js has no blurb for the Emergency Vote');
+      emergency = { view: view, waiting: found, session: session };
     }
   })();
+
+  /* ------------------------------------- and the panel it points at draws
+   *
+   * The objective can be perfect and the screen still blank. panels.js imports
+   * no engine module and reaches the DOM through a handful of elements, so the
+   * stub-document idiom from test/view.test.js drives the REAL render path in
+   * node — the same code the browser runs.
+   *
+   * Aimed at the Emergency Vote in particular: docs/step-04.md recorded that no
+   * browser match had ever reached it with the human holding it, which meant
+   * the only evidence the panel worked was that it compiled.
+   */
+  if (emergency) {
+    var panelsMod = await import('../src/play/panels.js');
+    var doc = stubDocument();
+    var panels = panelsMod.createPanels(doc, {});
+    var opened = panels.open(emergency.view, emergency.waiting);
+    var html = doc.made.panel.innerHTML;
+
+    check(opened === true, 'the Emergency Vote panel refused to open');
+    check(html.indexOf('Emergency Vote') !== -1,
+      'the Emergency Vote panel does not name the power');
+    check(html.indexOf('Who takes the gavel next?') !== -1,
+      'the Emergency Vote panel does not ask the question');
+    check(html.indexOf('id="panel-title"') !== -1,
+      'the panel has no labelled title for aria-labelledby to point at');
+
+    /* Every advertised target is on screen by name, AND the value the button
+     * carries is the value the session accepts — the step-04 handshake bug one
+     * layer further out: a panel may not invent a shape submit() will refuse. */
+    emergency.waiting.options.forEach(function (id) {
+      var name = emergency.view.players.find(function (p) { return p.id === id; }).name;
+      check(html.indexOf('>' + name + ' ') !== -1 || html.indexOf('>' + name + '<') !== -1,
+        'the Emergency Vote panel omits target ' + name + ' (seat ' + id + ')');
+      check(html.indexOf("data-value='" + JSON.stringify(id) + "'") !== -1,
+        'the Emergency Vote panel does not offer seat ' + id + ' as a submittable value');
+      check(emergency.session.isLegal(id, emergency.waiting),
+        'the session rejects advertised Emergency Vote target ' + id);
+    });
+    /* The holder is not a legal target, and must not be drawn as one. */
+    check(html.indexOf("data-value='0'") === -1,
+      'the Emergency Vote panel offers the holder their own seat');
+
+    say('panel         the Emergency Vote screen rendered through the real panels.js: the power,');
+    say('              the question, a labelled title and all ' + emergency.waiting.options.length +
+        ' targets as submittable values');
+  }
 
   /* --- coverage ---------------------------------------------------------- */
   var REQUIRED = [

@@ -266,9 +266,23 @@ correct — the path had simply never been looked at. That is a real outcome and
 worth recording as one: the value of the pass was converting an untested claim
 into an observation, not a fix.
 
-Two things were added so it stays that way: the constructed-position case in
-`test/objective.test.js` (which asserts the seed still reaches it, and that the
-line names both the power and what it does), and the screenshot in this pass.
+Three things were added so it stays that way. The constructed-position case in
+`test/objective.test.js` asserts the seed still reaches the power and that the
+line names both the power and what it does. The same suite then renders the
+panel **through the real `panels.js` against the stub document** — the same code
+the browser runs — and asserts the power is named, the question is asked, the
+title carries the id `aria-labelledby` points at, and every advertised target
+appears by name *with the value `submit()` accepts*, which is step-04's
+`options`-handshake bug one layer further out: a panel may not invent a shape
+the scripted API cannot use. Mutation-tested three ways:
+
+| injected fault | first failure |
+| --- | --- |
+| the title loses its `id` | `the panel has no labelled title for aria-labelledby to point at` |
+| the power panel draws no targets | `the Emergency Vote panel omits target Bo (seat 1)` |
+| the panel wraps targets in `{ target: id }` | `does not offer seat 1 as a submittable value` |
+
+And the screenshot in this pass.
 The objective line for it gained the emergency-session marker on the following
 morning, because that is the one morning where the gavel did not simply rotate
 and a first-time player has no other way to notice.
@@ -287,7 +301,7 @@ node test/human-driver.test.js   OK — 1055 checks passed
 node test/contract.test.js       OK — 6139 checks passed
 node test/view.test.js           OK — 198201 checks passed
 node test/interact.test.js       OK — 31 checks passed
-node test/objective.test.js      OK — 41556 checks passed          <- new
+node test/objective.test.js      OK — 41572 checks passed          <- new
 node scripts/driver-parity.js    PARITY OK
 vite build                       ✓ built, three entry points
 ```
