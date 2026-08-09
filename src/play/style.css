@@ -167,6 +167,15 @@ html, body {
 #controls input { width: 78px; }
 #controls button { cursor: pointer; }
 #controls button:hover { background: #262d38; }
+/* The volume slider is a range, not a number box: it wants no border, no
+ * padding and less width than a seed. Gate 3. */
+#controls input[type="range"] {
+  width: 72px; padding: 0; border: none; background: transparent;
+  accent-color: var(--gold);
+}
+/* Muted is a state, so it reads as one rather than as a button that was
+ * pressed and sprang back. */
+#controls button[aria-pressed="true"] { color: var(--gold); border-color: #6a5a2a; }
 
 /* --------------------------------------------------------- the objective */
 

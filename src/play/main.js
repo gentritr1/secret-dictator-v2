@@ -41,11 +41,15 @@ import { createController, defaultTuning } from '../walk/controller.js';
 import { createCameraRig } from '../walk/camera.js';
 import { createBvhWorld } from '../walk/bvh-world.js';
 import { buildSquare, seatPosition, SPAWN, DAIS, BELL, BENCH } from './square.js';
-import { ENV_DAIS_A, loadEnvironmentAsset } from './assets.js';
+import { ENVIRONMENT, loadEnvironment } from './assets.js';
 import { createInteractions } from './interact.js';
 import { createPanels } from './panels.js';
 import { objectFor } from './objective.js';
-import { createPace } from './pace.js';
+import { createPace, beatKey } from './pace.js';
+import {
+  createLightingDirector, lightingFor, publicEdges, STING_MS, LIGHT_LEAD_MS
+} from './lighting.js';
+import { createAudio } from './audio.js';
 
 const NAMES = ['Alice', 'Bo', 'Chen', 'Dara', 'Eze', 'Fin', 'Gita', 'Hale', 'Ivo', 'Juno'];
 const DEFAULT_SEED = 1000;
@@ -93,26 +97,54 @@ const renderer = new THREE.WebGLRenderer({ antialias: true });
 renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
 renderer.shadowMap.enabled = true;
 renderer.shadowMap.type = THREE.PCFShadowMap;
+/*
+ * AgX, from Gate 3 (docs/step-07.md).
+ *
+ * asset-lab.html has reviewed material values under AgX since Gate 2 because
+ * the pipeline says to; this page rendered with no tone mapping at all, which
+ * meant the instrument and the game were two different images of the same
+ * timber and a colour judgement made on one did not transfer to the other. The
+ * discrepancy was recorded rather than fixed at the time and this is where it
+ * gets closed.
+ *
+ * What it actually changes, measured rather than asserted (docs/step-07.md):
+ * at these levels AgX barely moves the midtones and does its whole job in the
+ * highlights. With the shipped rigs, turning it off takes the trial frame from
+ * 0.13% to 0.48% of pixels at 250+ — the beam pool stops being amber timber and
+ * starts being a white hole. Every intensity in src/play/lighting.js is
+ * therefore an AgX number, and there is no second table for the other curve.
+ */
+/*
+ * `?tone=linear` turns it off, the way asset-lab.html's `T` key does. It is
+ * here so the decision can be re-examined rather than taken on trust: the
+ * before/after in docs/step-07.md is two loads of the same URL, and anybody who
+ * thinks the rigs would read better untone-mapped can look instead of arguing.
+ */
+const TONE_MAPPED = new URLSearchParams(location.search).get('tone') !== 'linear';
+renderer.toneMapping = TONE_MAPPED ? THREE.AgXToneMapping : THREE.NoToneMapping;
+renderer.toneMappingExposure = 1.0;
 stage.appendChild(renderer.domElement);
 
 const labelRenderer = new CSS2DRenderer({ element: document.getElementById('labels') });
 
 const scene = new THREE.Scene();
-scene.background = new THREE.Color(0x11141a);
-scene.fog = new THREE.Fog(0x11141a, 40, 90);
 
-const sun = new THREE.DirectionalLight(0xfff2e0, 2.0);
-sun.position.set(12, 20, 8);
-sun.castShadow = true;
-sun.shadow.mapSize.set(2048, 2048);
-sun.shadow.camera.left = -22;
-sun.shadow.camera.right = 22;
-sun.shadow.camera.top = 22;
-sun.shadow.camera.bottom = -22;
-sun.shadow.camera.far = 60;
-sun.shadow.bias = -0.0008;
-scene.add(sun);
-scene.add(new THREE.HemisphereLight(0xa8bee0, 0x3a3630, 1.8));
+/*
+ * The lighting director owns the sun, the ambient, the beam over the dais, the
+ * background and the fog — there is no light in this file any more. What state
+ * it is in is a pure function of the player-safe view; see src/play/lighting.js
+ * for why it may not be a function of anything else.
+ */
+const lighting = createLightingDirector(scene, {
+  focus: { x: DAIS.x, y: DAIS.top, z: DAIS.z }
+});
+lighting.setState('day', { instant: true });
+
+/*
+ * Sound. Nothing is constructed until the first user gesture (autoplay), and
+ * every cue is driven by the same public edges the light is.
+ */
+const audio = createAudio();
 
 /* ------------------------------------------------------------ the ground */
 
@@ -386,22 +418,202 @@ function beat(nextWaiting) {
   holdUntil = performance.now() + pace.beatFor(nextWaiting, speed);
 }
 
+/*
+ * The ambience's own bookkeeping. All of it is presentation: a clock, the
+ * previous projection, and the key of the decision this seat last answered.
+ * None of it is game state and none of it can reach any.
+ */
+/** The view refresh() last saw, so publicEdges() has something to compare to. */
+let previousView = null;
+/** A tile sting, running until this timestamp. */
+let stingUntil = 0;
+let stingTile = null;
+/** The key of the decision YOU just submitted — your own keystroke. */
+let ownSubmission = null;
+/** The phase the lighting was last aimed at, so a change can be detected. */
+let litPhase = null;
+/*
+ * Light changes first, people move second (STYLE_BIBLE staging rule 2). On a
+ * phase change the re-light goes out immediately and the cast update is held
+ * here for LIGHT_LEAD_MS, so the square visibly changes colour before anybody's
+ * ring or badge does.
+ */
+let stagedView = null;
+let stagedAt = 0;
+
+function flushCast() {
+  if (!stagedView) return false;
+  const v = stagedView;
+  stagedView = null;
+  applyToScene(v);
+  return true;
+}
+
+/** Run the staged cast update if its lead has elapsed. Called from both loops. */
+function pumpCast() {
+  if (stagedView && performance.now() >= stagedAt) flushCast();
+}
+
+/*
+ * Two things that end on a clock and fire no game event when they do — the same
+ * shape as the deliberation beat in tick(), and they need the same two callers.
+ * requestAnimationFrame does not run in a hidden pane, so a scripted review
+ * would otherwise find the square still flashing red minutes later; the
+ * setTimeout loop keeps running either way.
+ */
+let wasHeld = false;
+
+function pumpAmbience() {
+  if (!view) return;
+  const held = holding();
+
+  /* The beat has just ended: everything the square was told during it happens
+   * now, at once. See ambience() for why it waited. */
+  if (wasHeld && !held) {
+    wasHeld = false;
+    const edges = heldEdges || NO_EDGES;
+    heldEdges = null;
+    applyAmbience(view, edges, null);
+    return;
+  }
+  wasHeld = held;
+  if (held) return;
+
+  if (!stingTile || performance.now() < stingUntil) return;
+  stingTile = null;
+  const state = lightingFor(view, null);
+  lighting.setState(state);
+  audio.setLighting(state);
+}
+
 const panels = createPanels(document, {
   onSubmit(value) {
     if (!session || !session.waitingFor()) return;
+    /* Captured BEFORE the submit, because after it the decision is gone. This
+     * is the one thing the ambience knows that the view does not carry, and it
+     * is the player's own keystroke — the bell they just rang, the ballot they
+     * just sealed. */
+    ownSubmission = beatKey(session.waitingFor());
     session.submit(value);
     beat(session.waitingFor());
     refresh();
+    ownSubmission = null;
+    /*
+     * Re-time the loop from NOW.
+     *
+     * Without this the bots' deliberation does not happen after one of your
+     * submissions, and the reason is a timer already in flight. While the rules
+     * are waiting on you the loop polls every IDLE_INTERVAL (200 ms) to notice
+     * that you have answered; the tick that notices then takes the bot's action
+     * immediately and only *afterwards* computes a proper `pace.delayFor`
+     * delay. So ringing the morning bell produced a nomination within 200 ms
+     * instead of the declared 1500-3000 ms.
+     *
+     * Found by the Gate 3 capture pass, off the audio timestamps: the bell cue
+     * and the gavel cue were 157 ms apart. It is why the dusk state was
+     * unreachable — the square went from morning to a ballot without ever
+     * gathering. Nothing about the pace BANDS changes here; this only makes the
+     * ones docs/step-05.md already declared actually elapse. Timing still
+     * cannot change a match: test/pace.test.js hammers the clock at every seam
+     * and requires a byte-identical log.
+     */
+    stopLoop();
+    startLoop();
   },
   onClose() { refresh(); }
 });
+
+const NO_EDGES = { gavel: false, tally: false, sting: null };
+/** Public edges that arrived during a beat and are owed when it ends. */
+let heldEdges = null;
+
+/**
+ * Point the light and the sound at what the square is now doing.
+ *
+ * Both take the same two inputs and nothing else: the player-safe view, and
+ * `publicEdges(previous, current)` — which notices only things the square was
+ * told out loud (a nomination made, ballots opened, a tile enacted). The
+ * driver's omniscient event stream is not reachable from here, and that is the
+ * whole design: an ambience that could hear it would be a tell.
+ */
+function applyAmbience(next, edges, own) {
+  if (edges.sting) {
+    stingTile = edges.sting;
+    stingUntil = performance.now() + STING_MS;
+  } else if (performance.now() >= stingUntil) {
+    stingTile = null;
+  }
+
+  const sting = performance.now() < stingUntil ? stingTile : null;
+  const state = lightingFor(next, { sting });
+  lighting.setState(state);
+  audio.setLighting(state);
+  audio.fire(edges, own);
+  return state;
+}
+
+/**
+ * The beat holds the ambience too, and this is the sharpest reason the
+ * deliberation beat exists at all.
+ *
+ * Casting a ballot resolves the whole election in the same `Driver.step` — the
+ * engine has already counted the votes before the panel has finished closing
+ * (docs/step-05.md §7b). So without this, pressing `A` produced the seal, the
+ * tally sting and the "the motion carries" light in the same frame, and the
+ * player knew the result before walking to the podium to open the ballots. That
+ * is not a leak — `view.lastVote` really is public the moment it is written —
+ * but it spends the beat that Gate 1.5 built and spoils the panel the player is
+ * on their way to open.
+ *
+ * So during a beat: YOUR OWN cue fires immediately (it is your keystroke, and a
+ * silent keypress feels broken), and everything the square is about to announce
+ * waits for the square to announce it. Same flag, same clock, and the same
+ * property the objective line has — nothing tells the player anything before
+ * the object they are walking to would.
+ */
+function ambience(next) {
+  const edges = publicEdges(previousView, next);
+  previousView = next;
+
+  if (holding()) {
+    heldEdges = {
+      gavel: (heldEdges && heldEdges.gavel) || edges.gavel,
+      tally: (heldEdges && heldEdges.tally) || edges.tally,
+      sting: edges.sting || (heldEdges && heldEdges.sting) || null
+    };
+    wasHeld = true;
+    audio.fire(NO_EDGES, ownSubmission);
+    return lighting.target;
+  }
+  return applyAmbience(next, edges, ownSubmission);
+}
 
 function refresh() {
   if (!session) return;
   waiting = session.waitingFor();
   view = View.viewFor(session.G, session.humanId, { waitingFor: waiting });
   objective = panels.renderHud(view, presentation());
-  applyToScene(view);
+
+  /*
+   * The light before the crowd, deliberately in this order and with this delay.
+   *
+   * On a phase change the re-light goes out first and the cast update waits
+   * LIGHT_LEAD_MS. During a beat it waits for the beat as well, and for the
+   * same reason the tally sting does: `applyToScene` paints every seat's AYE or
+   * NAY badge the instant the phase turns, which would announce the result over
+   * the heads of the crowd while the player is still walking to the podium to
+   * open the ballots.
+   */
+  const phaseChanged = litPhase !== null && litPhase !== view.phase;
+  litPhase = view.phase;
+  ambience(view);
+  if (phaseChanged || holding()) {
+    stagedView = view;
+    stagedAt = Math.max(performance.now(), holdUntil) + LIGHT_LEAD_MS;
+  } else {
+    stagedView = null;
+    applyToScene(view);
+  }
 
   /* A panel left open on a decision the match has moved past is a lie. */
   if (panels.isOpen && panels.openKind !== 'game_over') {
@@ -438,6 +650,25 @@ function restart(seed = DEFAULT_SEED, playerCount = DEFAULT_PLAYERS, humanIndex 
   gameOverShown = false;
   autopilotOn = false;      // a new match is played by hand until asked otherwise
   seated = false;
+
+  /*
+   * A fresh match starts in daylight, snapped rather than faded. Crossfading
+   * two and a half seconds from the last match's game-over red into the new
+   * match's morning is a bug that looks like a mood, and the new deal's first
+   * view must not be compared against the old match's last one — publicEdges
+   * would read a Seize count dropping to zero as an enactment.
+   */
+  previousView = null;
+  stingTile = null;
+  stingUntil = 0;
+  ownSubmission = null;
+  litPhase = null;
+  stagedView = null;
+  heldEdges = null;
+  wasHeld = false;
+  lighting.setState('day', { instant: true });
+  audio.setLighting('day');
+
   controller.teleport(SPAWN.x, SPAWN.y, SPAWN.z);
   smoothPrimed = false;
   rig.reset();
@@ -517,6 +748,11 @@ function tick() {
   const held = holding();
   if (wasHolding && !held && view) objective = panels.renderObjective(view, presentation());
   wasHolding = held;
+
+  /* Both of these end on a clock too, and for the same reason they are pumped
+   * here as well as from the render loop. */
+  pumpCast();
+  pumpAmbience();
 
   if (session.over || held) return;
   const w = session.waitingFor();
@@ -638,6 +874,21 @@ function readKeyboard() {
   if (len > 1) { input.x /= len; input.z /= len; }
 }
 
+/*
+ * The autoplay gate, in one place.
+ *
+ * No AudioContext exists until the player does something, which is the policy
+ * every browser enforces and the reason a page that constructs one at load
+ * prints a console warning. `start()` is idempotent and cheap after the first
+ * call, so hanging it off every gesture is simpler and more reliable than
+ * picking one gesture and hoping it happens.
+ */
+function firstGesture() {
+  audio.start();
+}
+window.addEventListener('pointerdown', firstGesture);
+window.addEventListener('keydown', firstGesture);
+
 window.addEventListener('keydown', (e) => {
   if (e.target && /^(INPUT|TEXTAREA|SELECT)$/.test(e.target.tagName)) return;
 
@@ -700,6 +951,12 @@ function frame(now) {
   const raw = (now - last) / 1000;
   last = now;
   const dt = Math.min(0.1, Math.max(0, raw));
+
+  /* The crossfade, and the two things that end on a clock rather than on an
+   * event. The light is advanced before anything is drawn. */
+  lighting.update(dt);
+  pumpCast();
+  pumpAmbience();
 
   const frozen = panels.isOpen || seated;
   if (frozen) { input.x = 0; input.z = 0; } else readKeyboard();
@@ -765,7 +1022,9 @@ const ui = {
   players: document.getElementById('c-players'),
   human: document.getElementById('c-human'),
   restart: document.getElementById('c-restart'),
-  speed: document.getElementById('c-speed')
+  speed: document.getElementById('c-speed'),
+  volume: document.getElementById('c-volume'),
+  mute: document.getElementById('c-mute')
 };
 
 /* A restart driven from the console must leave the boxes saying what is
@@ -796,6 +1055,34 @@ ui.restart.addEventListener('click', () => {
   restart(Number(ui.seed.value), Number(ui.players.value), Number(ui.human.value));
 });
 ui.speed.addEventListener('change', () => { speed = Number(ui.speed.value); });
+
+/*
+ * Volume and mute.
+ *
+ * Mute is a button rather than a checkbox because it is the control somebody
+ * reaches for in a hurry, and it says what it will do rather than what it is —
+ * "mute" / "unmute" — so it needs no legend. Both are inside #controls, which
+ * panels.js marks `inert` while a dialog is open; that is correct, since a
+ * decision is on screen and the sound has already happened.
+ */
+if (ui.volume) {
+  ui.volume.value = String(Math.round(audio.volume * 100));
+  ui.volume.addEventListener('input', () => {
+    audio.setVolume(Number(ui.volume.value) / 100);
+    if (audio.muted) syncMute(audio.setMuted(false));
+  });
+}
+function syncMute(on) {
+  if (!ui.mute) return on;
+  ui.mute.textContent = on ? 'Unmute' : 'Mute';
+  ui.mute.setAttribute('aria-pressed', on ? 'true' : 'false');
+  return on;
+}
+if (ui.mute) {
+  syncMute(false);
+  ui.mute.addEventListener('click', () => syncMute(audio.setMuted(!audio.muted)));
+}
+
 fillHumanChoices();
 
 /* ---------------------------------------------------------------- boot */
@@ -810,13 +1097,17 @@ fillHumanChoices();
  * it.
  */
 function buildGround(env) {
-  const built = buildSquare(env ? { omit: env.replaces } : undefined);
+  const built = buildSquare(env.replaces.length ? { omit: env.replaces } : undefined);
   scene.add(built.group);
 
   const parts = [built.colliderGeometry];
-  if (env) {
-    scene.add(env.visual);
-    for (const part of env.colliderParts) parts.push(part);
+  for (const visual of env.visuals) scene.add(visual);
+  /* A row that asked for `capsule` and did not load leaves an obvious grey
+   * volume rather than a hole. Visual only — see assets.js: a placeholder that
+   * blocked the player would turn a missing asset into a movement bug. */
+  for (const stand of env.placeholders) scene.add(stand);
+  for (const part of env.colliderParts) parts.push(part);
+  if (env.sockets.podium) {
     podiumAnchor = { x: env.sockets.podium.x, y: env.sockets.podium.y, z: env.sockets.podium.z };
   }
 
@@ -833,18 +1124,20 @@ function buildGround(env) {
  * so there is no failure mode here that leaves the page without a square.
  */
 async function boot() {
-  const env = await loadEnvironmentAsset(ENV_DAIS_A);
+  const env = await loadEnvironment(ENVIRONMENT);
   environment = env;
-  buildGround(env.ok ? env : null);
+  buildGround(env);
   restart(DEFAULT_SEED, DEFAULT_PLAYERS, DEFAULT_HUMAN);
   requestAnimationFrame(frame);
-  if (env.ok) {
+  for (const asset of env.loaded) {
     console.info(
-      `[assets] ${env.id} loaded — ${env.stats.visMeshes} visual meshes, ` +
-      `${env.stats.colMeshes} colliders, ${env.stats.triangles} tris, ` +
-      `materials ${env.stats.materials.join('/')}; placed at ` +
-      `(${env.place.x}, ${env.place.y}, ${env.place.z}) yaw ${env.place.yaw.toFixed(3)}; ` +
-      `podium socket at (${podiumAnchor.x.toFixed(3)}, ${podiumAnchor.y.toFixed(3)}, ${podiumAnchor.z.toFixed(3)}).`
+      `[assets] ${asset.id} loaded — ${asset.stats.visMeshes} visual meshes, ` +
+      `${asset.stats.colMeshes} colliders, ${asset.stats.triangles} tris, ` +
+      `materials ${asset.stats.materials.join('/')}; placed at ` +
+      `(${asset.place.x}, ${asset.place.y}, ${asset.place.z}) yaw ${asset.place.yaw.toFixed(3)}` +
+      (asset.sockets.podium
+        ? `; podium socket at (${podiumAnchor.x.toFixed(3)}, ${podiumAnchor.y.toFixed(3)}, ${podiumAnchor.z.toFixed(3)})` : '') +
+      '.'
     );
   }
 }
@@ -1090,20 +1383,85 @@ window.__play = {
    */
   get environment() {
     if (!environment) return { ok: false, reason: 'not-loaded-yet' };
+    const first = environment.assets[0] || {};
     return {
+      /* Gate 2's shape, kept: every browser probe in docs/step-06.md reads
+       * `ok`, `reason` and `podiumAnchor` off this object, and a table of
+       * assets is not a reason to invalidate a recorded review. `ok` is now
+       * "every row arrived"; `reason` is the first row that did not. */
       ok: environment.ok,
-      id: environment.id,
-      url: environment.url,
-      reason: environment.reason || null,
-      detail: environment.detail || null,
-      place: environment.place || null,
-      replaces: environment.replaces || [],
-      sockets: environment.sockets || null,
-      nodes: environment.nodes || [],
-      stats: environment.stats || null,
-      podiumAnchor: { x: podiumAnchor.x, y: podiumAnchor.y, z: podiumAnchor.z }
+      reason: environment.fallbacks.length ? environment.fallbacks[0].reason : null,
+      detail: environment.fallbacks.length ? environment.fallbacks[0].detail : null,
+      id: first.id || null,
+      url: first.url || null,
+      place: first.place || null,
+      replaces: environment.replaces,
+      sockets: environment.sockets,
+      nodes: first.nodes || [],
+      stats: first.stats || null,
+      podiumAnchor: { x: podiumAnchor.x, y: podiumAnchor.y, z: podiumAnchor.z },
+      /* The table, which is the part that matters from Gate 3 on. */
+      rows: environment.rows,
+      loaded: environment.loaded.map((a) => a.id),
+      fallbacks: environment.fallbacks
     };
   },
+
+  /*
+   * The lighting director, and the style law measured rather than asserted.
+   *
+   * `lighting()` is a cheap readback of the live rig — the numbers on screen,
+   * not the numbers in the table, because a crossfade means those are different
+   * things for a couple of seconds. `lighting({ measure: true })` additionally
+   * renders the scene into a small offscreen target and counts warm pixels, so
+   * "a night frame is under 10% warm" is an observation about the frame and not
+   * a claim about the light rig. It is not on the render path: a style gate
+   * that cost frame time would be switched off.
+   */
+  lighting(opts) {
+    const snap = lighting.snapshot();
+    snap.mapped = view ? lightingFor(view, { sting: stingTile && performance.now() < stingUntil ? stingTile : null }) : null;
+    snap.sting = performance.now() < stingUntil ? stingTile : null;
+    snap.lead = LIGHT_LEAD_MS;
+    snap.castStaged = !!stagedView;
+    snap.toneMapping = renderer.toneMapping === THREE.AgXToneMapping ? 'AgX' : 'linear';
+    snap.warm = (opts && opts.measure)
+      ? lighting.measure(renderer, rig.camera, opts)
+      : lighting.lastMeasurement;
+    return snap;
+  },
+
+  /**
+   * Force a lighting state, for a capture pass. The `__lab.mood()` idiom.
+   *
+   * It does not override the mapping — it aims the rig, and the next refresh()
+   * aims it back at whatever the view says. That is on purpose: a debug setter
+   * that could hold a state against the view would be a way to photograph a
+   * lighting story the game never actually shows.
+   */
+  setLighting(id, instant = true) {
+    lighting.setState(id, { instant: !!instant });
+    audio.setLighting(id);
+    return lighting.target;
+  },
+
+  /** What the ambience would do for the current view, without doing it. */
+  edges: () => publicEdges(previousView, view),
+
+  /* Sound, as a report. A scripted review cannot hear a gavel; it can read
+   * that one was fired, and when. */
+  audio: {
+    report: () => audio.report(),
+    get log() { return audio.log; },
+    cue: (id) => audio.cue(id),
+    mute: (on) => syncMute(audio.setMuted(on !== false)),
+    volume: (v) => audio.setVolume(v),
+    /* The gesture gate, for a headless driver that has no real gesture. */
+    start: () => audio.start()
+  },
+
+  /** Run the staged cast update now, without waiting out the light's lead. */
+  flushCast,
 
   /*
    * Named spots for a scripted walk-up. `podium` is a STANDING spot on the

@@ -42,6 +42,13 @@
       <option value="2">2&times;</option>
       <option value="4">4&times;</option>
     </select>
+    <!-- Sound. Nothing is constructed until the first gesture, so these are
+         inert-but-honest until then: moving the slider before touching the page
+         is itself the gesture. -->
+    <label for="c-volume">sound</label>
+    <input id="c-volume" type="range" min="0" max="100" step="5" value="70"
+           aria-label="sound volume" />
+    <button id="c-mute" type="button" aria-pressed="false">Mute</button>
   </div>
 
   <!-- The persistent objective: one line, always on screen, saying what to do
