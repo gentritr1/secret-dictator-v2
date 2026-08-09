@@ -558,6 +558,22 @@ mutationRows.forEach(say);
 
 /* ===================================================================== */
 /* 4. THE PERMUTATION TEST, EXTENDED TO SPEECH                           */
+/*                                                                       */
+/* READ THIS BEFORE COPYING IT. What this section proves is that the     */
+/* SCHEMA and the FOLD are blind to hidden roles: the speaker below is   */
+/* the synthetic one at the top of this file, which has no mind, reads   */
+/* only the public record, and draws only from this suite's own stream.  */
+/* Rotate the roles it may not know and its stream is byte-identical,    */
+/* because there is nothing for a role to get into.                      */
+/*                                                                       */
+/* It is NOT the claim "a citizen's utterance stream is independent of   */
+/* its role". Since D2 that is false on purpose — src/engine/orator.js   */
+/* reads minds, so what a bot chooses to say correlates with what it     */
+/* knows, and that correlation IS the deduction game. The re-scoped gate */
+/* lives in test/orator.test.js section 7, in four parts, one of which   */
+/* requires the divergence rather than forbidding it. This section keeps */
+/* its value untouched — it is the control that says the schema and the  */
+/* public window are still the reason nothing leaks.                     */
 /* ===================================================================== */
 
 /**
