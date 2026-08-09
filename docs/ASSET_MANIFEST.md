@@ -85,6 +85,8 @@ remaining suspicion is on the material — a `.blend` fix, not a runtime one. Th
 lectern collider is a single box `0.06 m` taller and slightly deeper than the
 visible desk; harmless in play, visible with the lab's collider overlay on.
 
+| chr-citizen-base | art/blender/characters/chr-citizen-base/chr-citizen-base.blend | public/assets/models/characters/chr-citizen-base.glb | authored for this project via Blender MCP; ours | 0.861 × 1.725 × 0.515 m (1.70 body, hat crown +0.025 from the head-lift fix) | 1272 tris / 1 material (CarvedWood) / 0 textures | draft | nothing yet — blockout awaiting owner eyeball; will replace bot capsules via the placement table with capsule fallback | design/reviews/chr-citizen-base/ |
+
 Placement is declared as one row of the `ENVIRONMENT` table in
 `src/play/assets.js` from Gate 3 on. The next environment assets are one row
 each — id, category, position, yaw, required nodes, sockets, and whether a
