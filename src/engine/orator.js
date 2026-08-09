@@ -174,6 +174,31 @@
     };
   }
 
+  /**
+   * Which government a driver event belongs to, found by matching the actor
+   * against the record.
+   *
+   * The obvious alternative — "whatever government was open before the
+   * observation" — is correct only when exactly one step happened since the
+   * last fold. That is true of the play layer's refresh() and false of its
+   * fast-forward, and a private memory that is silently wrong in fast-forward
+   * is a lie that only shows up in a review. Matching backwards from the end of
+   * the record is right in both cases, and the callers share this one function
+   * rather than each keeping their own idea of the answer.
+   */
+  function governmentFor(record, ev) {
+    if (!ev || ev.actor === null || ev.actor === undefined) return null;
+    var key = ev.action === 'speaker_discard' ? 'speaker'
+      : (ev.action === 'deputy_discard' || ev.action === 'propose_block') ? 'deputy' : null;
+    if (!key) return null;
+    for (var i = record.governments.length - 1; i >= 0; i--) {
+      var g = record.governments[i];
+      if (g.resolution === 'failed') continue;
+      if (g[key] === ev.actor) return g.id;
+    }
+    return null;
+  }
+
   /* --------------------------------------------------------- reading a mind */
 
   /*
@@ -755,6 +780,7 @@
     SALT: SALT,
     streamFor: streamFor,
     createMemory: createMemory,
+    governmentFor: governmentFor,
 
     chooseUtterance: chooseUtterance,
     beatOrder: beatOrder,

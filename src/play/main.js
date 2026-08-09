@@ -36,7 +36,7 @@ import * as THREE from 'three';
 import { CSS2DRenderer, CSS2DObject } from 'three/examples/jsm/renderers/CSS2DRenderer.js';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 
-import { SD, AI, Human, View } from '../engine/index.js';
+import { SD, AI, Human, View, Floor, Orator } from '../engine/index.js';
 import { createController, defaultTuning } from '../walk/controller.js';
 import { createCameraRig } from '../walk/camera.js';
 import { createBvhWorld } from '../walk/bvh-world.js';
@@ -47,6 +47,7 @@ import { createPanels } from './panels.js';
 import { objectFor } from './objective.js';
 import { createPace, beatKey } from './pace.js';
 import { createMurmurs } from './murmur.js';
+import { createFloorVoice } from './floor-voice.js';
 import {
   createLightingDirector, lightingFor, publicEdges, STING_MS, LIGHT_LEAD_MS
 } from './lighting.js';
@@ -537,6 +538,31 @@ let holdUntil = 0;
  */
 let murmurs = createMurmurs(DEFAULT_SEED, { chatter: AI.chatter });
 
+/*
+ * The floor: bots arguing through the canonical claim schema. See
+ * src/play/floor-voice.js. It is handed Floor and Orator rather than importing
+ * them, so it stays in the same "imports nothing" family as pace.js and
+ * murmur.js — and like both of them it draws only from its own stream, which
+ * is why turning it on changes no match.
+ */
+let floorVoice = null;
+/* The bots' minds, kept beside the session so the orator can read them. The
+ * session already holds this exact array; hoisting it here reads it, it does
+ * not copy it, and nothing writes to it (proved by a Proxy sweep in
+ * test/orator.test.js). */
+let minds = null;
+/*
+ * The end of the argument currently being spoken, on the same clock everything
+ * else uses. It holds the BOT LOOP only — a floor never blocks a decision the
+ * player owns, because being unable to act while other people talk is the worst
+ * version of a discussion layer.
+ */
+let floorUntil = 0;
+
+function floorRemaining() {
+  return Math.max(0, floorUntil - performance.now());
+}
+
 function holdRemaining() {
   return Math.max(0, holdUntil - performance.now());
 }
@@ -800,6 +826,37 @@ function refresh() {
     notBefore: Math.max(performance.now(), holdUntil),
     speed
   });
+  /*
+   * And the floor, on the same cue and the same clock.
+   *
+   * `floorVoice.observe` folds the public record, files each new driver event
+   * into the seat's own private hand memory, and — if a trigger fires and the
+   * square is minded to convene — selects the WHOLE argument synchronously and
+   * hands back its bubbles already timed. Selecting it all at once is what
+   * keeps the utterance record independent of the frame rate: a floor chosen
+   * beat by beat off a wall clock would record something different in a
+   * background tab than it does on screen.
+   *
+   * `session.events` is the driver's OMNISCIENT stream, and this is the one
+   * place in the play layer it is passed anywhere. What floor-voice does with
+   * it is file `hand` and `passedOn` under the seat that actually held them —
+   * a citizen's memory of their own hand, which is the thing that makes a lie
+   * a lie. `Orator.createMemory()` is the split, and test/orator.test.js asks
+   * it for every seat's memory of every government and requires that the seat
+   * sat in it.
+   */
+  if (floorVoice) {
+    const said = floorVoice.observe(session.G, session.events, {
+      now: performance.now(),
+      notBefore: Math.max(performance.now(), holdUntil),
+      speed,
+      waiting
+    });
+    if (said.lines.length) {
+      murmurs.say(said.lines);
+      floorUntil = Math.max(floorUntil, said.until);
+    }
+  }
   if (phaseChanged || holding()) {
     stagedView = view;
     stagedAt = Math.max(performance.now(), holdUntil) + LIGHT_LEAD_MS;
@@ -832,7 +889,8 @@ function restart(seed = DEFAULT_SEED, playerCount = DEFAULT_PLAYERS, humanIndex 
     humanIndex: human,
     seed: dealSeed
   });
-  session = Human.createSession({ G, minds: AI.create(G), humanId: human });
+  minds = AI.create(G);
+  session = Human.createSession({ G, minds, humanId: human });
 
   /* A fresh clock per match, seeded from the same integer the deal is — so a
    * replayed seed has the same rhythm as the original. It is salted away from
@@ -843,6 +901,16 @@ function restart(seed = DEFAULT_SEED, playerCount = DEFAULT_PLAYERS, humanIndex 
    * replayed seed hears the same square. Rebuilt rather than reset because
    * setRoster is about to throw away every bubble element it was pointing at. */
   murmurs = createMurmurs(dealSeed, { chatter: AI.chatter });
+  /* A fresh record for a fresh match, seeded from the same integer, so a
+   * replayed seed hears the same argument as well as the same chatter. */
+  floorVoice = createFloorVoice({
+    Floor, Orator,
+    seed: dealSeed,
+    humanSeat: human,
+    names: NAMES.slice(0, count),
+    minds
+  });
+  floorUntil = 0;
 
   gameOverShown = false;
   autopilotOn = false;      // a new match is played by hand until asked otherwise
@@ -926,6 +994,10 @@ function nextDelay() {
   if (session.over) return IDLE_INTERVAL;
   const w = session.waitingFor();
   if (w && !autopilotOn) return IDLE_INTERVAL;
+  /* An argument in progress owns the clock the same way a deliberation beat
+   * does — but only the bots' half of it. See tick(). */
+  const floorLeft = floorRemaining();
+  if (!w && floorLeft > 0) return Math.min(floorLeft, BEAT_POLL);
   return pace.delayFor(view ? view.phase : 'nomination', speed);
 }
 
@@ -954,6 +1026,15 @@ function tick() {
 
   if (session.over || held) return;
   const w = session.waitingFor();
+  /*
+   * The square does not move on while it is still arguing — but a floor NEVER
+   * blocks a decision the player owns. The deliberation beat freezes the podium
+   * and the objective line on purpose, because it is the pause before your own
+   * next move; a discussion the bots are having is not, and being unable to act
+   * while other people talk is the worst possible version of a discussion
+   * layer. So this gate is on the bot branch only, and `readyAt` is untouched.
+   */
+  if (!w && floorRemaining() > 0) return;
   if (!w) { session.advanceBots(); refresh(); }
   else if (autopilotOn) { session.submit(w.options[0]); beat(session.waitingFor()); refresh(); }
 }
@@ -1757,6 +1838,28 @@ window.__play = {
     };
   },
 
+  /*
+   * The floor, as a report.
+   *
+   * The utterance record, the flags with their rules, refs and who has
+   * addressed them, the open obligations, and the last dozen things said —
+   * rendered in the THIRD person, from the same `text_id` entries the bubbles
+   * render in the first, which is the whole reason the record carries an id
+   * and not a sentence.
+   *
+   * Nothing here is on screen beyond the bubbles: the tray, the private card
+   * and the ledger are work items 3 and 5. This is the scripted-review surface,
+   * and it is deliberately a projection of the record rather than the record —
+   * __play has never handed out a live object it did not want written to.
+   */
+  floor() { return floorVoice ? floorVoice.report() : null; },
+  /** Every ledger entry, the pure fold. See src/engine/floor.js. */
+  floorLedger() { return floorVoice ? floorVoice.ledger() : null; },
+  /** The allowlist instrument, over the live record. Must come back empty. */
+  floorAudit() { return floorVoice ? floorVoice.audit() : null; },
+  get floorHolding() { return floorRemaining() > 0; },
+  get floorRemaining() { return Math.round(floorRemaining()); },
+
   /** What the ambience would do for the current view, without doing it. */
   edges: () => publicEdges(previousView, view),
 
@@ -1797,6 +1900,6 @@ window.__play = {
 console.info(
   '[play] window.__play ready — state(), waitingFor(), submit(a), step() [bots only], ' +
   'auto() [one decision], autopilot(on), runToEnd(), eventLog, ' +
-  'restart(seed, players, humanIndex), teleport(x,y,z), face(x,z), look(), use(). ' +
+  'restart(seed, players, humanIndex), teleport(x,y,z), face(x,z), look(), use(), floor(). ' +
   'submit(waitingFor().options[0]) is always legal.'
 );

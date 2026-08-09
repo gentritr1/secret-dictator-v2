@@ -22,7 +22,8 @@
  *   driver.js  reads self.SD and self.SDAI at load time
  *   human-driver.js / view.js  read self.SDDriver at load time
  * ESM guarantees these run top-to-bottom in the order written, which is exactly
- * the guarantee needed.
+ * the guarantee needed. floor.js reads self.SD, and orator.js reads self.SD and
+ * self.SDFloor, so both go last and in that order.
  *
  * The `?? namespace.default` fallbacks cover the case where a bundler decides to
  * treat these files as CommonJS (it would then define `module`, the UMD head
@@ -40,6 +41,12 @@ import * as aiModule from './ai.js';
 import * as driverModule from './driver.js';
 import * as humanModule from './human-driver.js';
 import * as viewModule from './view.js';
+/* The two engine EXTENSIONS. They are not part of the frozen five and are not
+ * held by the v1 oracle; floor.js reads a game only through its own public
+ * window and orator.js never receives one at all. Load order matters here too:
+ * orator.js reads self.SD and self.SDFloor at load time. */
+import * as floorModule from './floor.js';
+import * as oratorModule from './orator.js';
 
 const g = /** @type {any} */ (globalThis);
 
@@ -48,6 +55,8 @@ export const AI = g.SDAI || aiModule.default || aiModule;
 export const Driver = g.SDDriver || driverModule.default || driverModule;
 export const Human = g.SDHuman || humanModule.default || humanModule;
 export const View = g.SDView || viewModule.default || viewModule;
+export const Floor = g.SDFloor || floorModule.default || floorModule;
+export const Orator = g.SDOrator || oratorModule.default || oratorModule;
 
 /* Fail loudly and early rather than throwing "undefined is not a function"
  * somewhere deep in the first step. */
@@ -56,7 +65,9 @@ for (const [name, api, probe] of [
   ['AI', AI, 'chooseNominee'],
   ['Driver', Driver, 'step'],
   ['Human', Human, 'createSession'],
-  ['View', View, 'viewFor']
+  ['View', View, 'viewFor'],
+  ['Floor', Floor, 'createRecorder'],
+  ['Orator', Orator, 'holdFloor']
 ]) {
   if (!api || typeof api[probe] !== 'function') {
     throw new Error(

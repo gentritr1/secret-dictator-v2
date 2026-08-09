@@ -60,6 +60,23 @@
  * Murmurs never enter `G.log`. SD.say() is not called and could not be — this
  * module has no game object. The official record of what the square has heard
  * stays exactly as long as it was before this layer.
+ *
+ * THE SECOND VOICE (D2)
+ * ---------------------
+ * `say()` takes lines somebody else authored — src/play/floor-voice.js renders
+ * them from a validated utterance record — and puts them through THIS queue,
+ * not a second one. Floor speech and idle chatter therefore share one answer to
+ * "how many bubbles are up", one bubble per citizen, one rule about the dead
+ * and the human's own seat, and one "dropped rather than shown late". Two
+ * queues with two sets of caps would be two answers, and the first thing that
+ * goes wrong with two answers is that they disagree — which is exactly the bug
+ * the one-bubble-per-citizen hold was added for in the first place.
+ *
+ * `keepable()` does not apply to those lines: they come from a schema in which
+ * an allegiance is unrepresentable, not from a v1 template bank. The bright
+ * line still does. A line naming a role or a team is dropped and counted
+ * (`barred`), so a bad sentence in a table is a number rather than a word on
+ * screen.
  */
 
 /** At most this many bubbles on screen at once. */
@@ -342,6 +359,7 @@ export function createMurmurs(seed, options = {}) {
   let produced = 0;     // murmurs ever queued
   let calls = 0;        // chatter invocations
   let nextId = 1;       // identity, so two identical sentences are two murmurs
+  let barred = 0;       // authored lines refused at the bright line
 
   function reset() {
     queue = [];
@@ -406,6 +424,51 @@ export function createMurmurs(seed, options = {}) {
     },
 
     /**
+     * Queue speech somebody else authored — the floor.
+     *
+     * Idle murmurs come out of v1's template banks and are gated by `keepable`
+     * because a template can say something a citizen may not. Floor speech is
+     * rendered from a validated utterance record by src/play/floor-voice.js, so
+     * the schema has already made an allegiance unrepresentable. The one gate
+     * that still applies is the bright line: no role or team word reaches a
+     * bubble, whatever produced it. A line that fails it is dropped and counted
+     * rather than shown, so a bad sentence in the table is a number a sweep can
+     * find instead of a word on screen.
+     *
+     * Everything after that is the SAME queue as an idle murmur, on purpose:
+     * one bubble per citizen, at most MAX_VISIBLE on screen, nothing over the
+     * dead or over your own seat, dropped rather than shown late. A second
+     * queue with its own caps would be a second answer to "how many bubbles are
+     * up", and the first thing that goes wrong with two answers is that they
+     * disagree.
+     *
+     * @param {Array} lines  each { playerId, text, at, until, ... } — the
+     *                       caller owns the clock, because the record and the
+     *                       display schedule have to come from one place.
+     * @returns {number} how many were accepted
+     */
+    say(lines) {
+      let taken = 0;
+      for (const line of lines || []) {
+        if (!line || !line.text || typeof line.playerId !== 'number') { barred++; continue; }
+        if (ROLE_TOKENS.test(line.text)) { barred++; continue; }
+        queue.push({
+          id: nextId++,
+          playerId: line.playerId,
+          text: line.text,
+          beat: line.beat || 'floor',
+          floor: true,
+          utterance: line.utterance || null,
+          at: line.at || 0,
+          until: line.until || (line.at || 0) + LIFE_MS[1]
+        });
+        produced++;
+        taken++;
+      }
+      return taken;
+    },
+
+    /**
      * Advance the bubbles. Returns true when what is on screen changed.
      *
      * Driven from BOTH loops in main.js, exactly like `pumpCast` and
@@ -455,9 +518,12 @@ export function createMurmurs(seed, options = {}) {
     /** What is on screen, for the renderer and for a scripted review. */
     get visible() {
       return visible.map((m) => ({
-        id: m.id, playerId: m.playerId, text: m.text, beat: m.beat, until: m.until
+        id: m.id, playerId: m.playerId, text: m.text, beat: m.beat,
+        floor: !!m.floor, until: m.until
       }));
     },
+    /** Authored lines refused for naming a role or a team. Must stay zero. */
+    get barred() { return barred; },
     get pending() { return queue.length; },
     /** How many times this module's own stream was drawn — chatter's included. */
     get draws() { return draws; },

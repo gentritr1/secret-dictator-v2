@@ -48,6 +48,15 @@
  *     murmur, at most two bubbles are up at once, and a bubble does not outlive
  *     its band. Driven on a synthetic clock so the numbers are exact.
  *
+ *  4b. THE SECOND VOICE (D2). src/play/floor-voice.js renders a validated
+ *     utterance record into prose and pushes it through the SAME queue, so
+ *     every manner above has to survive it: the cap is a cap on bubbles, not on
+ *     murmurs. A whole match is driven on a synthetic clock with both voices
+ *     running, and the authored prose gets the same treatment the templates
+ *     get — no role word, no name the utterance did not publicly involve — plus
+ *     the census of the sentence table itself, because an entry no match
+ *     happens to reach is still prose that will ship.
+ *
  *  5. THE SOURCE. src/play/murmur.js imports nothing, mentions no engine
  *     module, no `Math.random`, no `.rng(` and no `eventLog`.
  */
@@ -604,6 +613,209 @@ async function main() {
   say('              ' + longest + ' ms against a ' + M.LIFE_MS[0] + '-' + M.LIFE_MS[1] +
       ' ms band; a bubble dies with its citizen; the');
   say('              human seat never has one; the same seed says the same words');
+
+  /* -------------------------------------------------- 4b. the floor speaks
+   *
+   * D2 gives the square a second voice: src/play/floor-voice.js renders a
+   * validated utterance record into prose and pushes it through `say()`, into
+   * THE SAME queue as an idle murmur. So every manner checked above has to
+   * survive the addition — the cap is a cap on bubbles, not on murmurs — and
+   * the prose has to pass the same bright line the templates do.
+   *
+   * The whole match is driven on a synthetic clock, so the numbers are exact
+   * and a background tab cannot make the answer different.
+   */
+
+  var FV = await import('../src/play/floor-voice.js');
+  var Floor = require('../src/engine/floor.js');
+  var Orator = require('../src/engine/orator.js');
+
+  (function () {
+    var maxUp = 0, floorBubbles = 0, idleBubbles = 0, samples = 0;
+    var seatsSeen = {}, kindsSeen = {}, missing = {}, wrongName = 0, roleWords = 0;
+    var floorLines = 0, shown = {}, barred = 0, rejects = 0;
+    var matches = 0, utterances = 0;
+
+    for (var fgi = 0; fgi < Math.min(GAMES, 8); fgi++) {
+      var fSeed = 4242 + fgi * 7919;
+      var fCount = 5 + (fgi % 6);
+      var fHuman = fgi % fCount;
+      var G = SD.createGame({
+        names: NAMES.slice(0, fCount), humanIndex: fHuman, seed: fSeed
+      });
+      var fMinds = AI.create(G);
+      var session = Human.createSession({ G: G, minds: fMinds, humanId: fHuman });
+      var voice = FV.createFloorVoice({
+        Floor: Floor, Orator: Orator, seed: fSeed, humanSeat: fHuman,
+        names: NAMES.slice(0, fCount), minds: fMinds
+      });
+      var mm = createMurmurs(fSeed, { chatter: AI.chatter });
+      var decide = scriptedPlayer(fgi);
+      var prev = null;
+      var now = 0;
+      var guard = 0;
+      matches++;
+
+      function beat() {
+        var next = View.viewFor(G, fHuman, { waitingFor: null });
+        mm.observe(prev, next, { now: now, notBefore: now, speed: 1 });
+        var said = voice.observe(G, session.events, {
+          now: now, notBefore: now, speed: 1, waiting: session.waitingFor()
+        });
+        if (said.lines.length) {
+          floorLines += said.lines.length;
+          for (var li = 0; li < said.lines.length; li++) {
+            var line = said.lines[li];
+            check(line.playerId !== fHuman, 'the floor put a bubble over the human seat');
+            if (M.ROLE_TOKENS.test(line.text)) roleWords++;
+            /* A first-person bubble may name the citizen it is aimed at, and
+             * nobody else — the same whitelist objective.js and the murmur
+             * sweep already use, pointed at authored prose. */
+            var u = Floor.utterance(voice.record, line.utterance);
+            var named = M.namesIn(line.text, next.players);
+            for (var ni = 0; ni < named.length; ni++) {
+              if (named[ni] !== (u ? u.target : null)) wrongName++;
+            }
+          }
+          mm.say(said.lines);
+        }
+        prev = next;
+        /*
+         * Pump across the WHOLE window the lines were scheduled into.
+         *
+         * The first version of this advanced a fixed 6.5 s and reported 81% of
+         * floor lines dropped — which was the harness, not the square: an
+         * argument runs up to six beats at ~2 s each, so more than half of it
+         * was scheduled past the end of the window and counted as never shown.
+         * In the running page the bot loop is held for exactly this window
+         * (`floorUntil` in main.js), so pumping to the horizon is what the game
+         * actually does, and a fixed window is what nothing does.
+         */
+        var horizon = now + 6500;
+        for (var hi = 0; hi < said.lines.length; hi++) {
+          if (said.lines[hi].until + 600 > horizon) horizon = said.lines[hi].until + 600;
+        }
+        for (var at = now; at <= horizon; at += 400) {
+          mm.pump(at, next);
+          var up = mm.visible;
+          samples++;
+          if (up.length > maxUp) maxUp = up.length;
+          var perSeat = {};
+          for (var k = 0; k < up.length; k++) {
+            check(!perSeat[up[k].playerId],
+              'seat ' + up[k].playerId + ' had two bubbles at once with the floor running');
+            perSeat[up[k].playerId] = 1;
+            check(up[k].playerId !== fHuman, 'a bubble stood over the human seat');
+            var who = next.players[up[k].playerId];
+            check(!!who && who.alive, 'a bubble stood over a dead citizen');
+            /* Keyed by MATCH and id: every match builds a fresh controller and
+             * its ids restart at 1, so a bare id counted eight matches of
+             * bubbles as one match's worth and reported 81% of the floor
+             * dropped. The drop rate was the key, not the square. */
+            if (up[k].floor) { floorBubbles++; shown[fgi + ':' + up[k].id] = 1; }
+            else idleBubbles++;
+            seatsSeen[up[k].playerId] = 1;
+          }
+        }
+        now = horizon + 200;
+      }
+
+      beat();
+      while (!session.over && guard++ < 900) {
+        var w = session.waitingFor();
+        if (w) session.submit(decide(w, session));
+        else if (!session.advanceBots()) break;
+        beat();
+      }
+
+      var rep = voice.report();
+      utterances += rep.utterances;
+      rejects += rep.rejected.length;
+      barred += mm.barred;
+      rep.missingSentences.forEach(function (id) { missing[id] = 1; });
+      voice.record.utterances.forEach(function (u) {
+        kindsSeen[u.kind] = (kindsSeen[u.kind] || 0) + 1;
+        check(u.speaker !== fHuman, 'the human seat spoke on the floor in D2');
+        check(u.target !== fHuman, 'the floor aimed something at the human seat in D2');
+      });
+      check(voice.audit().length === 0,
+        'seed ' + fSeed + ': the live record fails the allowlist in the browser path');
+    }
+
+    check(utterances > 100, 'only ' + utterances + ' utterances over ' + matches +
+      ' browser-path matches — too few to sweep');
+    check(rejects === 0, rejects + ' utterances were refused by the schema on the browser path');
+    check(barred === 0, barred + ' floor lines named a role or a team and were barred');
+    check(roleWords === 0, roleWords + ' floor bubbles carried a role or team word');
+    check(wrongName === 0, wrongName + ' floor bubbles named a citizen the utterance did not ' +
+      'publicly involve');
+    check(Object.keys(missing).length === 0,
+      'text_ids with no sentence in the table: ' + Object.keys(missing).join(', '));
+    check(maxUp <= M.MAX_VISIBLE,
+      'the busiest moment had ' + maxUp + ' bubbles up with the floor running, cap is ' +
+      M.MAX_VISIBLE);
+    check(floorBubbles > 0, 'no floor bubble was ever on screen');
+    check(idleBubbles > 0, 'the idle murmurs stopped once the floor was wired in');
+
+    var shownLines = Object.keys(shown).length;
+    var dropRate = floorLines ? Math.round((1 - shownLines / floorLines) * 100) : 0;
+    /* Reported rather than asserted at zero: the cap is deliberate and a floor
+     * that outruns it drops its tail, which is the same "a stale bubble is
+     * worse than silence" rule idle murmurs already follow. What must not
+     * happen is most of an argument going unheard. */
+    check(dropRate <= 25,
+      dropRate + '% of floor lines never reached the screen — the beat band and the ' +
+      'bubble cap are fighting');
+
+    say('floor         ' + utterances + ' utterances over ' + matches +
+        ' matches on the BROWSER path, 0 refused,');
+    say('              kinds ' + JSON.stringify(kindsSeen));
+    say('              ' + floorLines + ' bubbles cued, ' + dropRate +
+        '% dropped to the 2-bubble cap; never more than ' + maxUp + ' up at once,');
+    say('              never over the dead or the human seat, never two on one citizen');
+  })();
+
+  /* Every sentence in the table, rendered both ways, swept for the bright line
+   * and for a name it has no business printing. The census is the point: a
+   * table entry that no match happens to reach is still prose that will ship. */
+  (function () {
+    var ids = Object.keys(FV.SENTENCES);
+    var players = [
+      { id: 0, name: 'Alice' }, { id: 1, name: 'Bo' }, { id: 2, name: 'Chen' },
+      { id: 3, name: 'Dara' }, { id: 4, name: 'Eze' }
+    ];
+    var names = ['Alice', 'Bo', 'Chen', 'Dara', 'Eze'];
+    var stub = {
+      id: 'u-1', day: 2, floor: 'f-0', seq: 0, speaker: 1, target: 3,
+      kind: 'CLAIM_HAND', basis: null, refs: {}, amends: null, text_id: 'x',
+      drawn: { reform: 1, seize: 2 }, passed: { reform: 0, seize: 2 },
+      received: { reform: 1, seize: 1 }, blocked: null, enacted: 'seize'
+    };
+    ids.forEach(function (id) {
+      ['bubble', 'line'].forEach(function (how) {
+        var u = JSON.parse(JSON.stringify(stub));
+        u.text_id = id;
+        var text = FV.renderUtterance(u, names, how);
+        check(typeof text === 'string' && text.length > 0,
+          id + '.' + how + ' rendered nothing');
+        if (typeof text !== 'string') return;
+        check(!M.ROLE_TOKENS.test(text), id + '.' + how + ' names a role or a team: ' + text);
+        check(!/undefined|NaN|\[object/.test(text),
+          id + '.' + how + ' rendered a hole: ' + text);
+        var named = M.namesIn(text, players);
+        for (var i = 0; i < named.length; i++) {
+          var ok = how === 'bubble' ? named[i] === u.target
+            : (named[i] === u.target || named[i] === u.speaker);
+          check(ok, id + '.' + how + ' names seat ' + named[i] +
+            ', who the utterance does not involve: ' + text);
+        }
+      });
+    });
+    check(ids.length >= 20, 'the sentence table has only ' + ids.length + ' entries');
+    say('sentences     ' + ids.length + ' text_ids, rendered first-person for the bubble and');
+    say('              third-person for the log: no role word, no hole, and no name outside');
+    say('              the speaker and the seat the utterance is aimed at');
+  })();
 
   /* ---------------------------------------------------------- 5. the source */
 

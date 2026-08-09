@@ -81,11 +81,11 @@ function j(x) { return JSON.stringify(x); }
 /* THE HARNESS                                                           */
 /*                                                                       */
 /* One function, used by every section, because the thing under test is  */
-/* an ORDER of calls as much as it is a module: note the event against   */
-/* the government that was open BEFORE the observation resolved it, fold,*/
-/* then run the floor for the transition that just happened — and only   */
-/* then acknowledge the morning, which publishes a transition of its own */
-/* and would otherwise swallow the one before it (a D1 scar).            */
+/* an ORDER of calls as much as it is a module: fold, file the event into */
+/* the seat's own hand memory, run the floor for the transition that just */
+/* happened — and only THEN acknowledge the morning, which publishes a    */
+/* transition of its own and would otherwise swallow the one before it,   */
+/* which is how D1's T4 and T5 came to open zero floors in fifty matches. */
 /* ===================================================================== */
 
 function playWithOrator(seed, count, opts) {
@@ -116,7 +116,6 @@ function playWithOrator(seed, count, opts) {
 
   Floor.observe(record, G);
   while (G.phase !== SD.PHASE.GAME_OVER && guard < 4000) {
-    var govBefore = record.openGovernment;
     /* `n` is stamped by Driver.playOut and the plain run below goes through it;
      * stamping it here is what makes the two logs comparable field for field.
      * D1's first invariance test compared a log that had `n` with one that did
@@ -126,9 +125,8 @@ function playWithOrator(seed, count, opts) {
     ev.n = guard;
     guard++;
     events.push(ev);
-    if (opts.onEvent) opts.onEvent(G, ev, govBefore);
-    memory.note(ev, govBefore);
     Floor.observe(record, G);
+    memory.note(ev, Orator.governmentFor(record, ev));
     floorNow();
     if (G.day !== day) {
       day = G.day;
@@ -197,11 +195,10 @@ function countFor(i) { return 5 + (i % 6); }
       if (ts.length) beats += Orator.holdFloor(record, ts[0], ctx).utterances.length;
     }
     while (G.phase !== SD.PHASE.GAME_OVER && guard < 4000) {
-      var gb = record.openGovernment;
       var ev = Driver.step(G, minds);
       guard++;
-      memory.note(ev, gb);
       Floor.observe(record, G);
+      memory.note(ev, Orator.governmentFor(record, ev));
       run();
       if (G.day !== day) { day = G.day; Floor.acknowledgeMorning(record, day); run(); }
     }
@@ -363,9 +360,8 @@ var saltB = (function () {
   Floor.observe(record, G);
   function run() { var ts = Floor.triggers(record); if (ts.length) Orator.holdFloor(record, ts[0], ctx); }
   while (G.phase !== SD.PHASE.GAME_OVER && guard < 4000) {
-    var gb = record.openGovernment;
     var ev = Driver.step(G, minds); guard++;
-    memory.note(ev, gb); Floor.observe(record, G); run();
+    Floor.observe(record, G); memory.note(ev, Orator.governmentFor(record, ev)); run();
     if (G.day !== day) { day = G.day; Floor.acknowledgeMorning(record, day); run(); }
   }
   return record;
@@ -642,9 +638,8 @@ function argueWithRotation(seed, count, rotate) {
   Floor.observe(record, G);
   function run() { var ts = Floor.triggers(record); if (ts.length) Orator.holdFloor(record, ts[0], ctx); }
   while (G.phase !== SD.PHASE.GAME_OVER && guard < 4000) {
-    var gb = record.openGovernment;
     var ev = Driver.step(G, minds); guard++;
-    memory.note(ev, gb); Floor.observe(record, G); run();
+    Floor.observe(record, G); memory.note(ev, Orator.governmentFor(record, ev)); run();
     if (G.day !== day) { day = G.day; Floor.acknowledgeMorning(record, day); run(); }
   }
   return record;

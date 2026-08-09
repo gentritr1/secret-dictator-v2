@@ -107,6 +107,28 @@ html, body {
   white-space: normal;
 }
 .murmur.hidden { display: none; }
+
+/*
+ * The floor speaks louder than the square mutters.
+ *
+ * An idle murmur is atmosphere; a claim on the floor is evidence the player is
+ * meant to weigh, and the two must not read as the same thing. The distinction
+ * is contrast and size, NOT colour: `--ink` and a brass hairline, both already
+ * on the page. A warm fill here would spend the style bible's scarce lantern
+ * glow on something that happens twenty times a match, and a coloured bubble
+ * would be a second channel that could correlate with allegiance.
+ *
+ * 12px on `--ink` over a 0.92 chip computes to 12.1:1 in the blown-out worst
+ * case, against the idle murmur's 5.55:1 — the same two tokens the nameplate
+ * and the murmur already use, one step apart.
+ */
+.murmur.floor {
+  max-width: 230px;
+  font-size: 12px;
+  color: var(--ink);
+  background: rgba(10, 12, 17, 0.92);
+  border: 1px solid #6a5a34;
+}
 .badge.aye { background: #1d4a2c; color: #9ff0b8; border: 1px solid #2f7a48; }
 .badge.nay { background: #4a1d20; color: #f0a09f; border: 1px solid #7a2f33; }
 
