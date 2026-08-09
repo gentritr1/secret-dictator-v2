@@ -56,6 +56,22 @@ const IDLE_INTERVAL = 200;
 const LN20 = Math.log(20);
 const STEP_SMOOTH = 0.07;      // presentation only; see docs/step-03.md
 
+/*
+ * The HUD covers the left of the window, so the camera frames the body to the
+ * right of centre — otherwise the thing the player is steering spends the match
+ * behind a panel of text.
+ *
+ * HUD_PX is the width in src/play/style.css. Putting the subject in the middle
+ * of what is left needs a shift of (HUD_PX / 2) / windowWidth; FRAMING_BIAS is
+ * how much of that correction is actually applied, and it is deliberately less
+ * than all of it — full correction reads as a camera that is looking somewhere
+ * else. Both are here rather than in camera.js because the HUD is this page's
+ * problem: `screenBias` defaults to 0 and walk.html never sets it.
+ */
+const HUD_PX = 330;
+const FRAMING_BIAS = 0.6;
+const MAX_FRAMING_BIAS = 0.18;   // a narrow window must not swing the camera off
+
 const COLOR = {
   citizen: 0x8d96a8,
   dead: 0x40444d,
@@ -289,6 +305,8 @@ function applyToScene(view) {
 let session = null;
 let view = null;
 let waiting = null;
+/* The objective line as panels.js last rendered it: { id, text, act, at }. */
+let objective = null;
 let seated = false;
 let speed = 1;
 let timer = null;
@@ -312,7 +330,7 @@ function refresh() {
   if (!session) return;
   waiting = session.waitingFor();
   view = View.viewFor(session.G, session.humanId, { waitingFor: waiting });
-  panels.renderHud(view);
+  objective = panels.renderHud(view);
   applyToScene(view);
 
   /* A panel left open on a decision the match has moved past is a lie. */
@@ -575,6 +593,11 @@ function resize() {
   renderer.setSize(w, h);
   labelRenderer.setSize(w, h);
   rig.resize(w, h);
+  /* Recomputed on every resize because the correction is a fraction of the
+   * window: the same 330 px is a third of a small window and a fifth of a big
+   * one, and a constant bias would be wrong at both. */
+  rig.tuning.screenBias = Math.min(MAX_FRAMING_BIAS,
+    (HUD_PX / 2) / Math.max(1, w) * FRAMING_BIAS);
 }
 window.addEventListener('resize', resize);
 
@@ -764,6 +787,42 @@ window.__play = {
   get panelOpen() { return panels.isOpen; },
   get panelKind() { return panels.openKind; },
   get seated() { return seated; },
+
+  /*
+   * The persistent objective line, as an object AND as the text actually on
+   * screen. Both, deliberately: a review that only reads the object is checking
+   * the function, and a review that only reads the DOM cannot say which mapping
+   * produced it. If these two ever disagree the render is broken, not the
+   * mapping.
+   */
+  get objective() {
+    const node = document.getElementById('objective');
+    return {
+      id: objective ? objective.id : null,
+      text: objective ? objective.text : null,
+      act: objective ? objective.act : false,
+      at: objective ? objective.at : null,
+      onScreen: node ? node.textContent : null
+    };
+  },
+
+  /* The framing bias in use, so a reviewer can see and change it live. */
+  get framing() {
+    return { screenBias: rig.tuning.screenBias, hudPx: HUD_PX, of: FRAMING_BIAS };
+  },
+  setFraming(fraction) {
+    rig.tuning.screenBias = Math.max(0, Math.min(0.45, Number(fraction) || 0));
+    return rig.tuning.screenBias;
+  },
+
+  /* What Tab can reach inside the open panel, in order. */
+  get focusOrder() {
+    return panels.focusOrder.map((n) => (n.textContent || '').replace(/\s+/g, ' ').trim());
+  },
+  get focused() {
+    const a = document.activeElement;
+    return a ? { tag: a.tagName, text: (a.textContent || '').trim().slice(0, 40) } : null;
+  },
   marks: { spawn: SPAWN, podium: { x: DAIS.x, z: DAIS.z - 2.6 }, bell: BELL, bench: BENCH }
 };
 

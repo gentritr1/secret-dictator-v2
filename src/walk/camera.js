@@ -35,7 +35,22 @@ export function defaultCameraTuning() {
     maxPitch: 35,       // deg, looking up
     orbitSpeed: 0.28,   // deg of yaw per pixel dragged
     collisionPad: 0.20, // m the camera keeps off any surface it would enter
-    minDistance: 0.6    // m — never end up inside the character
+    minDistance: 0.6,   // m — never end up inside the character
+    /*
+     * Screen-space framing bias: how far RIGHT of centre the subject sits, as a
+     * fraction of the viewport width. 0 is dead centre and is the default
+     * everywhere — walk.html never sets it, and the branch below is skipped
+     * entirely at 0, so the workbench runs the arithmetic it always ran.
+     *
+     * play.html sets it because a fixed 330 px HUD covers the left of the
+     * scene, and a subject centred in the WINDOW is not centred in the part of
+     * the window the player can see. Expressed as a screen fraction rather than
+     * as metres on purpose: the world offset that produces it depends on the
+     * boom distance, the field of view and the aspect ratio, all three of which
+     * move (the wheel zooms, the window resizes), and a constant in metres
+     * would silently mean something different at every zoom level.
+     */
+    screenBias: 0
   };
 }
 
@@ -105,6 +120,33 @@ export function createCameraRig(options = {}) {
     }
 
     camera.position.copy(follow).addScaledVector(boom, distance);
+
+    /*
+     * Framing bias, if the page asked for one.
+     *
+     * Moving the CAMERA sideways does not move the subject in frame — the look
+     * target moves with it and the subject stays centred. What moves the
+     * subject is aiming past it: shifting the look point to the LEFT of the
+     * character puts the character to the RIGHT of centre, which is where the
+     * unobscured half of play.html's window is.
+     *
+     * The conversion is the half-width of the view frustum at the boom
+     * distance, so a bias of 0.5 would put the subject exactly on the right
+     * edge and the number means the same thing at every zoom and aspect.
+     *
+     * Guarded rather than multiplied by zero so walk.html executes the same
+     * instructions it did before this existed.
+     */
+    if (tuning.screenBias) {
+      const halfWidth = Math.tan((tuning.fov * DEG) / 2) * distance * camera.aspect;
+      /* The camera's flat right, recomputed here because flatRight below still
+       * holds the previous frame's value at this point in the function. */
+      const rx = Math.cos(yaw);
+      const rz = -Math.sin(yaw);
+      const shift = 2 * halfWidth * tuning.screenBias;
+      aim.x -= rx * shift;
+      aim.z -= rz * shift;
+    }
 
     /* Aim is its own smoother, applied to the point being looked at rather than
      * to the camera's quaternion: smoothing the quaternion drifts off the
