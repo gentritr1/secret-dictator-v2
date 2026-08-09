@@ -28,14 +28,15 @@
  * of complete matches for role and tile tokens, and for any player name that is
  * not publicly involved in the current beat.
  *
- * Every line names the object to walk to, and the two objects are the two the
- * interaction system routes to (src/play/main.js):
+ * Every line names the object to walk to, and `objectFor` below IS the routing
+ * rule — src/play/main.js builds the podium and the bell out of it, so the
+ * sentence and the interactable cannot disagree. A line that says "bell" for a
+ * decision the bell cannot open is a lie the player pays for by walking.
  *
- *   acknowledge  -> the bell     (interact.js: kind === 'acknowledge')
- *   everything else -> the podium (kind !== 'acknowledge')
- *
- * That correspondence is asserted rather than trusted: a line that says "bell"
- * for a decision the bell cannot open is a lie the player pays for by walking.
+ * There is also a beat, added in Gate 1.5: for a moment after one of your own
+ * submissions the rules already owe you the next decision but the square has
+ * not visibly produced it yet (see src/play/pace.js). During it no object will
+ * answer, so the line stops naming one and says what is being done instead.
  *
  * `id` is the mapping key, returned alongside the text so a test can assert
  * WHICH line was chosen without matching prose. Prose changes; the mapping is
@@ -93,7 +94,7 @@ export const OBJECTIVE_IDS = [
   'beat:deputy_discard',
   'beat:block_response',
   'beat:power_target',
-  'beat:power_ack'
+  'beat:power_ack:foresight'
 ];
 
 /**
@@ -151,7 +152,7 @@ const BEAT_LINE = {
   deputy_discard: 'The Speaker throws one away and passes two to you.',
   block_response: 'The Deputy is putting the Block to you.',
   power_target: 'The board is granting you the power.',
-  power_ack: 'The board is granting you the power.'
+  'power_ack:foresight': 'The board is granting you the power.'
 };
 
 /**

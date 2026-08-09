@@ -474,8 +474,24 @@ function nextDelay() {
   return pace.delayFor(view ? view.phase : 'nomination', speed);
 }
 
+let wasHolding = false;
+
 function tick() {
-  if (session.over || holding()) return;
+  /*
+   * A beat ends on a clock, and no game event fires when it does. The render
+   * loop re-derives the line every frame, which is what a player sees — but
+   * requestAnimationFrame stops in a background tab, and it is also not running
+   * in a scripted review pane, so the line stayed on "the square is counting
+   * them" after the podium had already lit up. Same family as the bug `look()`
+   * exists for: anything that only happens on a frame cannot be observed by
+   * anything that is not watching the window. This loop is a setTimeout, so it
+   * keeps running either way.
+   */
+  const held = holding();
+  if (wasHolding && !held && view) objective = panels.renderObjective(view, presentation());
+  wasHolding = held;
+
+  if (session.over || held) return;
   const w = session.waitingFor();
   if (!w) { session.advanceBots(); refresh(); }
   else if (autopilotOn) { session.submit(w.options[0]); beat(session.waitingFor()); refresh(); }
@@ -683,6 +699,13 @@ function frame(now) {
     interactions.update(controller.state.position, controller.state.facing, interactionContext());
     panels.setPrompt(interactions.prompt);
   }
+
+  /* The deliberation beat ends on a clock, not on a game event, so nothing
+   * calls refresh() when it does. Re-deriving the line here is what makes it
+   * flip back from "the square is counting them" to "open them at the podium"
+   * at the same instant the podium lights up. It rewrites the DOM only when the
+   * sentence actually changes. */
+  if (view) objective = panels.renderObjective(view, presentation());
 
   renderer.render(scene, rig.camera);
   labelRenderer.render(scene, rig.camera);
@@ -910,6 +933,33 @@ window.__play = {
   /* The framing bias in use, so a reviewer can see and change it live. */
   get framing() {
     return { screenBias: rig.tuning.screenBias, hudPx: HUD_PX, of: FRAMING_BIAS };
+  },
+
+  /*
+   * The deliberation clock.
+   *
+   * `submit()` above deliberately does NOT run a beat: it is the scripted seam,
+   * and a scripted sweep that had to sit through 1.7 s of atmosphere per
+   * decision would be measuring the clock instead of the game. The keyboard and
+   * the panel buttons do run one, so `beat()` is here to drive that path on
+   * purpose — press it after a submit and the podium goes dark and the
+   * objective line changes for exactly as long as a player would have waited.
+   */
+  get holding() { return holding(); },
+  get holdRemaining() { return Math.round(holdRemaining()); },
+  beat() { beat(session ? session.waitingFor() : null); return this.holdRemaining; },
+  clearBeat() { holdUntil = 0; return true; },
+  get pace() {
+    return {
+      draws: pace.draws,
+      speed,
+      bands: pace.bands,
+      /* The band for the phase on screen, scaled by the pace control. Reported
+       * rather than drawn: a readback that consumed the stream would change the
+       * rhythm just by being looked at. */
+      band: view && pace.bands[view.phase]
+        ? pace.bands[view.phase].map((ms) => Math.round(ms / speed)) : null
+    };
   },
   setFraming(fraction) {
     rig.tuning.screenBias = Math.max(0, Math.min(0.45, Number(fraction) || 0));
