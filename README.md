@@ -28,6 +28,7 @@ src/engine/ai.js         bot opponents, driving the engine through the same publ
 src/engine/driver.js     the shared driver: one action per step(), plus a serialisable event
 src/engine/human-driver.js  the session for a match with a person in it: waitingFor / submit / replay
 src/engine/view.js       the player-safe projection — what one seat is allowed to know
+src/engine/floor.js      the floor: the structured claim schema — speech as canonical, replayable data
 src/engine/index.js      ESM shim — re-exports the UMD globals for the browser build
 src/app/                 the 3D playground: three.js scene, match runner, debug overlay
 src/walk/                the movement workbench: capsule controller, obstacle course, follow camera
@@ -54,6 +55,7 @@ test/objective.test.js   the objective line: every state mapped, right object na
 test/pace.test.js        the deliberation clock: timing cannot change a match, at any speed
 test/ambience.test.js    the light and the sound: every state mapped, style laws asserted, nothing leaked
 test/glb.test.js         the GLB contract: the file, the loader, and the player walking up it
+test/floor.test.js       the claim schema: allowlist, permutation, V1-V6, C1-C6, and floor-off invariance
 scripts/driver-parity.js proves driver.js reproduces the self-test's numbers exactly
 scripts/simulate.js      headless batch simulator: statistics instead of assertions
 scripts/capture-reviews.mjs  the seven fixed asset captures, through asset-lab.html
@@ -65,16 +67,25 @@ docs/step-04.md          learning log for the first playable match
 docs/step-05.md          learning log for Gate 1: objective line, dialog focus, contrast, framing
 docs/step-06.md          learning log for Gate 2: the asset loader, the asset lab, the GLB gate
 docs/step-07.md          learning log for Gate 3: the lighting director, AgX, sound, the asset table
+docs/step-08.md          learning log for the murmur facade and its three-run proof
+docs/step-09.md          learning log for Discussion Gate D1: the structured claim schema
 docs/STYLE_BIBLE.md      locked visual direction, palette, light meaning and anti-goals
 docs/BLENDER_PIPELINE.md one-asset-at-a-time Blender/MCP production and acceptance contract
 docs/ASSET_MANIFEST.md   provenance and production status for every visual asset
 ```
 
-The five engine modules are UMD (`module.exports` under Node, `window.SD` /
-`window.SDAI` / `window.SDDriver` / `window.SDHuman` / `window.SDView` in a
-browser) and have no dependencies. `engine.js` and `ai.js` are byte-identical to
-v1 and must stay that way; `src/engine/index.js` is the ESM adapter that lets a
-bundler import them without editing them.
+The six engine modules are UMD (`module.exports` under Node, `window.SD` /
+`window.SDAI` / `window.SDDriver` / `window.SDHuman` / `window.SDView` /
+`window.SDFloor` in a browser) and have no dependencies. `engine.js` and `ai.js`
+are byte-identical to v1 and must stay that way; `src/engine/index.js` is the
+ESM adapter that lets a bundler import them without editing them.
+
+`floor.js` is the first deliberate engine *extension* since the port, and the
+only one of the six that nothing in the running game calls yet. It turns speech
+into canonical data — validated claims, contradiction flags, floor scheduling,
+a per-citizen ledger — while reading the game only through a public whitelist
+and drawing no randomness at all. At this stage no bot rules-decision reads it,
+and `npm run test:floor` holds that line by playing every seed twice.
 
 Everything the presentation reads flows one way, with one extra link once a
 human is seated:
@@ -111,6 +122,7 @@ npm run test:objective                     # the objective line: mapping, routin
 npm run test:pace                          # the deliberation clock cannot change a match
 npm run test:ambience                      # the lighting map and the sound cues: mapped, lawful, leak-free
 npm run test:glb                           # the shipping GLB's contract, three layers deep
+npm run test:floor                         # the claim schema: what may be said, and that saying it changes nothing
 npm run parity                             # driver.js vs the self-test's exact numbers
 npm run verify                             # all of the above, plus the production build
 npm run simulate                           # 500 games, default seed
@@ -219,6 +231,28 @@ harvests nothing from, and a label socket that clears the crown — then the
 runtime seam that merges and instances them, and the seat mapping.
 `node test/glb.test.js <file>` points the file layer at a candidate re-export
 before it is committed.
+
+`npm run test:floor` is the gate on what a citizen may say. Speech is data:
+`src/engine/floor.js` records a claim as `{speaker: 3, kind: CLAIM_HAND, refs:
+{government: "g-6"}, drawn: {reform: 1, seize: 2}, ...}` — seat numbers, never
+names; ids, never objects; a `text_id`, never a sentence. The suite is aimed at
+the four ways that can be wrong. **It says too much:** a field allowlist over 50
+complete matches with synthetic utterance streams, plus the permutation test
+from `test:view` extended to speech — the same match folded twice, once with the
+roles a seat may not know rotated at every observation, and every utterance,
+flag and ledger entry must serialise identically. **It accepts a lie about
+public fact:** V1–V6 are enforced at construction, so an invalid claim is not
+rejected on append, it is never built; each rule is refused by name and a fuzz
+sweep of 4000 randomised claims accepts none that an independent re-derivation
+calls invalid. **It delivers a verdict:** each of C1–C6 has a triggering fixture
+*and* a near-miss, a flag names a rule and its refs and stops, and C3 — where
+one of two accounts must be lying and the record cannot know which — is proved
+symmetric by swapping the two seats and requiring the same flag. **It changes
+the game:** at this stage no bot rules-decision reads a word of it, so every
+seed is played twice, plain and with the whole layer running, and the event logs
+must be identical — with a control that hands the speech layer the game's own
+seeded stream and requires all 50 to diverge, because an invariance result from
+an instrument that cannot see a violation is not a result.
 
 `npm run test:controller` is the gate on movement. It runs the same controller
 the browser runs, against a closed-form collision world instead of a mesh, and
