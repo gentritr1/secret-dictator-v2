@@ -57,6 +57,12 @@ project via Blender MCP; ours.”
 Owner approved the review captures on 2026-08-09; the row moved `review` →
 `shipping` when the runtime loader landed the same day.
 
+Review images: the browser captures in `design/reviews/env-dais-a/` (front /
+three-quarter / side / game-camera / silhouette / collider-overlay, 1440×900,
+taken by `scripts/capture-reviews.mjs` through `asset-lab.html`) are the final
+truth per the pipeline; `blender-preview-*.png` are retained work previews.
+The front view doubles as the scale view (capsule + banded ruler in frame).
+
 Gated by `npm run test:glb` (`test/glb.test.js`), which reads the bytes: the
 required node names, single-sided opaque materials, bounds and the `0.22 m` dais
 top to ±1 cm, closed outward-facing colliders, and then the real controller

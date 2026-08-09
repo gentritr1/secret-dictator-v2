@@ -22,6 +22,7 @@
     "verify": "npm test && npm run test:controller && npm run test:human && npm run test:contract && npm run test:view && npm run test:interact && npm run test:objective && npm run test:pace && npm run test:glb && npm run parity && npm run build"
   },
   "devDependencies": {
+    "playwright": "^1.62.1",
     "vite": "^8.2.1"
   },
   "dependencies": {

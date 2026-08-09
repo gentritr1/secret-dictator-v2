@@ -432,10 +432,18 @@ against a 8000 review limit.
   render, `requestAnimationFrame` does not run in a hidden pane, and a readback
   therefore reports the last painted frame. The numbers quoted above were read
   off screenshots. Same family as the two hazards in `docs/step-05.md`.
-- **The fixed captures in `design/reviews/env-dais-a/` predate the lab.** They
-  were rendered in Blender; the pipeline says the fixed browser capture is the
-  final truth. Re-taking front/three-quarter/side/game/silhouette/scale/collider
-  through `asset-lab.html` is the obvious next housekeeping, and would give the
-  next asset a set to be compared against.
+- ~~The fixed captures predate the lab~~ — **closed 2026-08-09**:
+  `scripts/capture-reviews.mjs` (Playwright, headless Chromium at 1440×900)
+  drives `__lab` and writes the full browser set — front / three-quarter /
+  side / game-camera / silhouette / collider-overlay, with the front view
+  carrying the always-in-frame capsule + ruler as the scale view. The Blender
+  renders were kept as `blender-preview-*.png` (work previews, per the
+  pipeline). One capture lesson worth keeping: the silhouette view must use the
+  LOW front camera — from the three-quarter's 35° elevation the lectern
+  projects entirely inside the dais outline and vanishes black-on-black. That
+  is also a real art observation: from elevated angles the lectern does not
+  break the dais silhouette. `__lab.probe()` (scene + camera) was added so a
+  scripted review can interrogate the scene instead of arguing with a
+  screenshot.
 - Everything `docs/step-05.md` lists as open is still open, including the one
   that matters most: **the deliberation timings have still never been felt.**

@@ -622,6 +622,10 @@ requestAnimationFrame(frame);
 /* A handle for a scripted capture pass, same idea as __play and __walk. */
 window.__lab = {
   load: (path) => loadAsset(path),
+  /* The live scene and camera, for scripted review probes (capture scripts,
+   * pixel-level checks). An instrument that can be read but not interrogated
+   * ends every disagreement at a screenshot. */
+  probe: () => ({ scene, camera }),
   camera: (mode) => { applyCamera(mode); drawButtons(); return cameraMode; },
   mood: (name) => { applyMood(name); return mood; },
   collider: (on) => { applyCollider(!!on); return colliderOn; },
