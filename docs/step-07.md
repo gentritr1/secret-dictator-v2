@@ -5,25 +5,32 @@
 > the cycle reads without debug explanation, secret information stays inside
 > the safe view, frame time is stable, and a hands-on pass approves it.
 
-This is the code half of it: a **view-driven lighting director**, **AgX** in
-`play.html`, **minimal sound**, and the **asset placement table** the reviewer's
-Blender lane will add rows to. No new geometry — the lantern, the façade, the
-ground treatment and the citizen base are the other half of the gate and belong
-to Blender.
+This is the code half of it, in two passes.
+
+**The first** is the ambience: a **view-driven lighting director**, **AgX** in
+`play.html`, **minimal sound**, and the **asset placement table** the Blender
+lane would add rows to. No new geometry — that was the other half of the gate.
+
+**The second** is that half arriving. Four citizen GLBs landed and the square
+stopped being made of capsules: the placement contract from §5 got its first
+real test, the crowd became figures, and the GLB gate grew a layer that reads
+them. §5b and §6b are that pass; everything before them is the ambience.
 
 ```
-npm run test:ambience   # the new gate: every reachable state has a light
-npm run verify          # eleven gates now, all green
+npm run test:ambience   # the ambience gate: every reachable state has a light
+npm run test:glb        # the asset gate: the dais, and now the cast
+npm run verify          # eleven gates, all green
 node scripts/capture-cycle.mjs    # the acceptance set, at 1x, through the real page
 ```
 
 New: `src/play/lighting.js`, `src/play/audio.js`, `test/ambience.test.js`,
 `scripts/capture-cycle.mjs`, `public/assets/sfx/`,
 `design/reviews/gate-3-cycle/`. Changed: `src/play/main.js` (the director, the
-sound, the cast lead, AgX, one loop fix), `src/play/assets.js` (the table),
-`play.html` + `src/play/style.css` (volume and mute), `package.json`, `README`,
-`docs/ASSET_MANIFEST.md`. Nothing under `src/engine/` or `src/walk/` was
-touched.
+sound, the cast lead, AgX, one loop fix, the crowd), `src/play/assets.js` (both
+tables), `test/glb.test.js` (the cast layer), `src/lab/main.js` (the citizens in
+the dropdown), `play.html` + `src/play/style.css` (volume and mute),
+`package.json`, `README`, `docs/ASSET_MANIFEST.md`. Nothing under `src/engine/`
+or `src/walk/` was touched, and no `.blend` or `.glb` was edited.
 
 ## 1. The lighting director
 
@@ -404,6 +411,119 @@ drives, so the Gate 2 gate did not move. The table ships with **one row**, on
 purpose: inventing rows for assets that do not exist would be inventing the
 assets.
 
+## 5b. The citizens arrive, and the table pays for itself
+
+Four figures landed from the Blender lane — `chr-citizen-base`, `-stout`,
+`-tall`, `-hunched` — and the square stopped being made of capsules. This is the
+first test of the §5 contract against an asset nobody had when it was written,
+and it is worth saying plainly what it cost: **a second table, not a second
+loader.**
+
+### Why a cast is not an environment row
+
+An environment row is *placed*: one position, one yaw, it goes there once. A
+cast member is *instanced*: no position at all, loaded once, stamped onto
+however many seats the match has, and the same file stands in the ring two or
+three times. Giving `CHR_CITIZENS` a `place` it would never read, to make the
+two tables look alike, would have been tidiness that hides what the code does.
+So `assets.js` grew a second table and `buildCastMember` / `loadCast` beside
+`buildEnvironment` / `loadEnvironment`, sharing the url derivation, the failure
+shape and the one-warning rule.
+
+Everything else the contract promised held. A fifth variant is one row and no
+code: nothing in the game names any of the four ids, because `variantForSeat`
+reads the length of the table.
+
+### Who stands where: arithmetic, not chance
+
+`variantForSeat(seat)` is `table[seat mod table.length]`. That is the whole
+mapping, and every property that matters follows from it being arithmetic:
+stable within a match, stable across a reload, stable across a replay, and
+**identical no matter which seat the human is in** — so a recorded review of
+seed 1000 shows the same seven people to whoever re-runs it. A shuffle would
+look better at seven citizens and would be the first unseeded draw under
+`src/play/`, which is a gate this project has relied on since Step 4.
+
+VERIFIED in the browser: two restarts of seed 1000 produced identical seat
+assignments; moving the human from seat 0 to seat 3 changed which seat is a
+capsule and nothing else; ten citizens extended the cycle rather than
+reshuffling it.
+
+### Three numbers that came off the assets instead of out of the air
+
+- **The nameplate is `SOCKET_label`.** The four figures are 1.481 m to 1.957 m
+  tall and their sockets sit at **1.62 / 1.80 / 1.95 / 2.15** — the old
+  hardcoded 1.95 floats a hand above the hunched citizen and sits inside the
+  tall one's hat. The badge keeps its 0.40 m clearance above whatever the name
+  does.
+- **The topple lift is the figure's own depth.** Toppling rotates −90° about X,
+  which maps the body's +Y to +Z: it falls forward onto its face and its former
+  *depth* is what holds it off the floor. So the lift is the asset's `max.z` —
+  0.239 for the tall one, **0.499 for the hunched one**, whose lean puts its
+  bounding box half a metre in front of its feet. The capsule's old 0.34 would
+  have buried one and floated the other.
+- **The facing needed no correction at all.** `group.lookAt(0, 0, 0)` points an
+  object's +Z at the target, and the World contract makes +Z a model's front.
+  VERIFIED numerically rather than by eye: for all seven seats the dot product
+  of the citizen's front with the direction to the middle of the square is
+  exactly **1**.
+
+### The merge, and the draw-call budget
+
+The citizens ship eight `VIS_*` meshes each. Ten of them left alone are eighty
+draw calls, against the pipeline's `<100` target for the *whole* visible scene.
+`buildCastMember` merges per material at load, into the cache, so every seat
+shares one geometry per variant.
+
+VERIFIED off `renderer.info` through `__play.stats`:
+
+| | draw calls | triangles |
+| --- | ---: | ---: |
+| seven citizens | 67–71 | 13 864–16 520 |
+| **ten citizens** | **77** | 21 456 |
+
+Comfortably inside `<100` calls and `<250k` triangles. Without the merge the
+ten-citizen frame would have been about 133.
+
+### The material clone, and the disposal hazard it exposed
+
+Death greys a citizen, and the merged material lives in the **cache**, shared by
+every seat using that variant. Writing to it would grey the whole ring the first
+time anybody was purged. So each seat clones the material it draws with — at
+most two clones per seat — and death writes to the clone; coming back alive
+restores the *authored* colour rather than a constant, because the figures are
+`CarvedWood` and the fallback capsules are graybox grey.
+
+That change exposed a live hazard in `clearCast`, which disposed every geometry
+and material it could reach. Correct when each capsule built its own; **fatal
+once the geometry is shared**, because the second deal would render an empty
+square — a bug that only appears after pressing Restart and looks exactly like a
+loader failure. Each seat now records the resources it made and `clearCast`
+frees only those. VERIFIED: 35 restarts across 7–10 citizens held steady at 35
+geometries, 72 draw calls, with every seat still a figure.
+
+### The fallback is per seat
+
+`fallback: 'capsule'` is now real rather than described. VERIFIED with
+`chr-citizen-tall.glb` renamed away and restored afterwards:
+
+```
+[cast] chr-citizen-tall not loaded (load-failed: Unexpected token '<', "<!doctype "…)
+       · the seats that would use it fall back to a capsule and the match is playable.
+[cast] 3 of 4 citizen variants loaded — …
+seats  0:you 1:stout 2:CAPSULE 3:hunched 4:base 5:stout 6:CAPSULE
+match  61 steps, 38 human decisions, LOYALIST
+```
+
+One bad file cost two faces, not the crowd. The capsule seats fall back to the
+old 1.95 m label, which is the right answer: there is no socket to read.
+
+### The human stays a capsule
+
+Deliberate, and not mine to change: the controller's collider **is** a capsule,
+and giving the player a silhouette that disagrees with what it collides with is
+a decision about the player's own avatar that nobody has made.
+
 ## 6. The gate: `test/ambience.test.js`
 
 15 535 checks over 36 complete matches, in five parts:
@@ -465,6 +585,60 @@ One of them, **the tally mutant, survives at 12 games and dies at the default
 load-bearing, and lowering it to make the suite faster would silently disarm
 that check. Recorded here so nobody does it.
 
+## 6b. The gate grows a fourth layer: the cast
+
+`test/glb.test.js` went from 390 checks to **1283**. The new layer sweeps all
+four citizen files with the dais's file contract minus everything about
+collision, then drives the runtime seam, then the mapping.
+
+It is written as its own function rather than as options on `fileLayer`, because
+almost every dais check is about a collider or a 0.22 m step; parameterising
+that would turn a readable list of gameplay facts into a list of conditionals
+and make both assets harder to reason about.
+
+Three checks in it are the ones a generic sweep would have missed:
+
+- **The feet, not the bounding box.** The pipeline says citizens use foot
+  centre. `chr-citizen-hunched` leans 0.50 m forward on purpose, so its bbox
+  centre is at `z = 0.159` and a bbox-centre assertion would fail a correct
+  asset. The check gathers the vertices within 5 cm of the ground and requires
+  *those* centred to ±5 cm.
+- **No collision, explicitly.** A citizen that shipped a `COL_` volume would not
+  become a wall — the cast loader harvests nothing — it would become invisible
+  dead weight in all ten copies. Either way it is wrong and invisible in a diff.
+- **The socket must clear the crown** and sit in a 1.50–2.30 m band, so a
+  nameplate can be neither inside the hat nor in the sky.
+
+The loader half asserts the merge preserves the triangle count exactly, that
+`labelY` comes from the socket and `topple` from the asset's own `max.z`, and
+that the authored material arrives **untouched** — compared against a second,
+independent parse of the same bytes, the same idiom the dais layer uses.
+
+### Mutation testing
+
+Seven faults into `src/play/assets.js`, one at a time, each restored:
+
+| injected fault | first failure |
+| --- | --- |
+| every seat gets the same variant | `seat 1 does not cycle the table: got chr-citizen-base` |
+| the nameplate goes back to a constant 1.95 | `chr-citizen-stout: labelY comes from SOCKET_label: got 1.95, expected 1.8` |
+| the topple lift goes back to the capsule radius | `chr-citizen-base: topple lift is the asset's own max Z: got 0.34, expected 0.257726` |
+| the loader tints the authored material | `chr-citizen-base: CarvedWood colour patched at runtime: 836e53 vs 917a5c` |
+| the missing-socket refusal removed | `a renamed SOCKET_label was accepted (missing-socket)` |
+| one bad file takes the whole cast down | `one missing variant cost 4 variants` |
+| the merge keeps only the first mesh | `chr-citizen-base: triangles survived the merge: got 108, expected 1272` |
+
+And five into fabricated citizen GLBs, rebuilt from the real bytes by rewriting
+the JSON chunk and restored afterwards:
+
+| mutated GLB | first failure |
+| --- | --- |
+| `VIS_torso` renamed `COL_torso` | `ships collision the runtime will not use: COL_torso` |
+| `SOCKET_label` dropped to 1.20 | `SOCKET_label at 1.2 is not above the crown at 1.725` |
+| `SOCKET_label` moved to x = 0.30 | `SOCKET_label off the centre line (X)` |
+| `CarvedWood` marked `doubleSided` | `opaque material exported double-sided: CarvedWood` |
+| a review camera left in the export | `guide geometry leaked into the export: REVIEW_cam` |
+
 ## What was verified, and how
 
 Node v20.19.4, macOS. Browser checks in headless Chromium at 1440×900 against
@@ -483,14 +657,17 @@ node test/interact.test.js       OK — 31 checks passed
 node test/objective.test.js      OK — 65715 checks passed
 node test/pace.test.js           OK — 30586 checks passed
 node test/ambience.test.js       OK — 15535 checks passed        <- Gate 3
-node test/glb.test.js            OK — 390 checks passed
+node test/glb.test.js            OK — 1283 checks passed       <- + the cast
 node scripts/driver-parity.js    PARITY OK
 vite build                       ✓ built, four entry points
 ```
 
 **The cycle, at 1×, through the real keyboard.** VERIFIED — executed
 `node scripts/capture-cycle.mjs`; images in `design/reviews/gate-3-cycle/`. The
-bell is rung and the ballot cast with real key events, so the beat runs:
+bell is rung and the ballot cast with real key events, so the beat runs. Every
+frame is now a crowd of figures — the readback beside each shot counts them, so
+"six figures, no capsules, labels at 1.80/2.15/1.62/1.95/1.80/2.15" is an
+assertion about the frame rather than an impression of it:
 
 ```
 01-morning-day      nomination  state day    target day             warm 2.65%

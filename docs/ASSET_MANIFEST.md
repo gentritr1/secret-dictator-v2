@@ -85,17 +85,39 @@ remaining suspicion is on the material — a `.blend` fix, not a runtime one. Th
 lectern collider is a single box `0.06 m` taller and slightly deeper than the
 visible desk; harmless in play, visible with the lab's collider overlay on.
 
-| chr-citizen-base | art/blender/characters/chr-citizen-base/chr-citizen-base.blend | public/assets/models/characters/chr-citizen-base.glb | authored for this project via Blender MCP; ours | 0.861 × 1.725 × 0.515 m (1.70 body, hat crown +0.025 from the head-lift fix) | 1272 tris / 1 material (CarvedWood) / 0 textures | draft | nothing yet — blockout awaiting owner eyeball; will replace bot capsules via the placement table with capsule fallback | design/reviews/chr-citizen-base/ |
+| chr-citizen-base | art/blender/characters/chr-citizen-base/chr-citizen-base.blend | public/assets/models/characters/chr-citizen-base.glb | authored for this project via Blender MCP; ours | 0.861 × 1.725 × 0.515 m (1.70 body, hat crown +0.025 from the head-lift fix) | 1272 tris / 1 material (CarvedWood) / 0 textures | shipping | `play.html` — the ring of citizens. `src/play/assets.js` declares it as a row of the `CHR_CITIZENS` table; `variantForSeat(seat) = table[seat mod 4]` puts it in seats 0, 4, 8. Loaded once and instanced per seat, merged to one draw call, `SOCKET_label` is the nameplate height (1.95 m) and the asset's own max Z (0.258 m) is the topple lift. A missing file degrades only the seats that would use it, to a capsule | design/reviews/chr-citizen-base/ |
 
-| chr-citizen-stout | art/blender/characters/chr-citizen-stout/chr-citizen-stout.blend | public/assets/models/characters/chr-citizen-stout.glb | parametric variant of chr-citizen-base via Blender MCP; ours | 1.102 × 1.565 × 0.626 m | 1272 tris / 1 material / 0 textures | draft | pending citizen wiring | design/reviews/chr-citizen-stout/ |
-| chr-citizen-tall | art/blender/characters/chr-citizen-tall/chr-citizen-tall.blend | public/assets/models/characters/chr-citizen-tall.glb | parametric variant of chr-citizen-base via Blender MCP; ours | 0.689 × 1.957 × 0.478 m | 1208 tris / 1 material / 0 textures | draft | pending citizen wiring | design/reviews/chr-citizen-tall/ |
-| chr-citizen-hunched | art/blender/characters/chr-citizen-hunched/chr-citizen-hunched.blend | public/assets/models/characters/chr-citizen-hunched.glb | parametric variant of chr-citizen-base via Blender MCP; ours | 0.861 × 1.481 × 0.679 m | 1240 tris / 1 material / 0 textures | draft | pending citizen wiring | design/reviews/chr-citizen-hunched/ |
+| chr-citizen-stout | art/blender/characters/chr-citizen-stout/chr-citizen-stout.blend | public/assets/models/characters/chr-citizen-stout.glb | parametric variant of chr-citizen-base via Blender MCP; ours | 1.102 × 1.565 × 0.626 m | 1272 tris / 1 material / 0 textures | shipping | `play.html` — the ring of citizens. `src/play/assets.js` declares it as a row of the `CHR_CITIZENS` table; `variantForSeat(seat) = table[seat mod 4]` puts it in seats 1, 5, 9. Loaded once and instanced per seat, merged to one draw call, `SOCKET_label` is the nameplate height (1.80 m) and the asset's own max Z (0.313 m) is the topple lift. A missing file degrades only the seats that would use it, to a capsule | design/reviews/chr-citizen-stout/ |
+| chr-citizen-tall | art/blender/characters/chr-citizen-tall/chr-citizen-tall.blend | public/assets/models/characters/chr-citizen-tall.glb | parametric variant of chr-citizen-base via Blender MCP; ours | 0.689 × 1.957 × 0.478 m | 1208 tris / 1 material / 0 textures | shipping | `play.html` — the ring of citizens. `src/play/assets.js` declares it as a row of the `CHR_CITIZENS` table; `variantForSeat(seat) = table[seat mod 4]` puts it in seats 2, 6. Loaded once and instanced per seat, merged to one draw call, `SOCKET_label` is the nameplate height (2.15 m) and the asset's own max Z (0.239 m) is the topple lift. A missing file degrades only the seats that would use it, to a capsule | design/reviews/chr-citizen-tall/ |
+| chr-citizen-hunched | art/blender/characters/chr-citizen-hunched/chr-citizen-hunched.blend | public/assets/models/characters/chr-citizen-hunched.glb | parametric variant of chr-citizen-base via Blender MCP; ours | 0.861 × 1.481 × 0.679 m | 1240 tris / 1 material / 0 textures | shipping | `play.html` — the ring of citizens. `src/play/assets.js` declares it as a row of the `CHR_CITIZENS` table; `variantForSeat(seat) = table[seat mod 4]` puts it in seats 3, 7. Loaded once and instanced per seat, merged to one draw call, `SOCKET_label` is the nameplate height (1.62 m) and the asset's own max Z (0.499 m) is the topple lift. A missing file degrades only the seats that would use it, to a capsule | design/reviews/chr-citizen-hunched/ |
 
 Placement is declared as one row of the `ENVIRONMENT` table in
 `src/play/assets.js` from Gate 3 on. The next environment assets are one row
 each — id, category, position, yaw, required nodes, sockets, and whether a
 missing file falls back to the graybox or to a placeholder capsule. See
 `docs/step-07.md` §5 for the contract.
+
+The citizens are the second table, `CHR_CITIZENS`, and a fifth variant is one
+row and no code: nothing in the game names any of the four ids, because
+`variantForSeat` reads the length of the table. A cast member carries no
+placement — it is instanced per seat rather than placed once — which is why it
+is a separate table rather than an `ENVIRONMENT` row with a `place` it would
+never read. See `docs/step-07.md` §5b.
+
+Gated by `npm run test:glb`, which now sweeps all four citizen files with the
+dais's file contract minus collision, plus three checks a generic sweep would
+miss: the **feet** must be centred rather than the bounding box (`-hunched`
+leans 0.50 m forward on purpose), the export must ship **no** `COL_` volume (the
+runtime harvests none, so one would be invisible dead weight in every copy), and
+`SOCKET_label` must clear the crown and sit in a 1.50–2.30 m band.
+
+Known limits at `shipping`: the blockouts are approved as blockouts. Silhouette
+separation was judged from `design/reviews/chr-citizen-*/silhouette.png` at
+review distance, not in a crowd — the pipeline's "test all accepted citizens
+together" gate is answered by `design/reviews/gate-3-cycle/11-the-ring-at-trial.png`
+and has not had an owner eyeball. A dead citizen's nameplate stays at its
+standing socket height while the body lies on the floor; that convention
+predates the figures and now reads as a label hovering over nothing.
 
 ## Audio
 

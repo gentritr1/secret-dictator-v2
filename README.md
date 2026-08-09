@@ -36,7 +36,7 @@ src/play/                the square: the first human-playable match
 src/play/interact.js     the interaction contract — proximity, facing, one key, no per-object input
 src/play/objective.js    the persistent objective line — a pure function of the player-safe view
 src/play/pace.js         how long the square takes to answer — a clock, and only a clock
-src/play/assets.js       the runtime asset table: one row per environment GLB, graybox/capsule fallback
+src/play/assets.js       the runtime asset tables: environment rows and the citizen cast, with per-row fallback
 src/play/lighting.js     the lighting director — a pure map from the player-safe view to a named state
 src/play/audio.js        minimal sound: five moments and one bed, off the same public state
 src/lab/                 the asset lab: fixed review cameras, moods, collider overlay, stats
@@ -211,8 +211,14 @@ material comparison against an untouched second parse. The **player**: the
 harvested colliders merged with the graybox, handed to the real BVH world, and
 the real controller walked north onto the dais at full speed — with a control
 that runs the same walk in a world without those colliders and requires it to
-end somewhere else. `node test/glb.test.js <file>` points the file layer at a
-candidate re-export before it is committed.
+end somewhere else. And the **cast**: the same file contract over all four
+citizen GLBs minus everything about collision, plus the checks a generic sweep
+would miss — the *feet* centred rather than the bounding box (one citizen leans
+half a metre forward on purpose), no `COL_` volume in an asset the runtime
+harvests nothing from, and a label socket that clears the crown — then the
+runtime seam that merges and instances them, and the seat mapping.
+`node test/glb.test.js <file>` points the file layer at a candidate re-export
+before it is committed.
 
 `npm run test:controller` is the gate on movement. It runs the same controller
 the browser runs, against a closed-form collision world instead of a mesh, and
@@ -292,7 +298,7 @@ permissive and imports nothing from the engine or the game: an instrument that
 can only display assets which already pass is useless for working out why one is
 failing.
 
-`src/play/assets.js` is the runtime half, and from Gate 3 it is a **table**.
+`src/play/assets.js` is the runtime half, and from Gate 3 it is two **tables**.
 `ENVIRONMENT` is one row per asset — id, category, where it stands, which way it
 faces, which graybox pieces it takes over, which nodes it may not arrive
 without, which sockets the game asks it for, and what to do when it is missing —
@@ -313,6 +319,20 @@ fall back to) — visual only, so a missing building never becomes a movement bu
 Materials are never patched at runtime — colour is a decision in the `.blend`,
 and `npm run test:glb` fails if the loader touches one.
 
+The second table is the **cast**: `CHR_CITIZENS`, the four carved-wood citizen
+variants. A cast member carries no placement — it is loaded once and instanced
+onto however many seats the match has — so which figure stands in which seat is
+`variantForSeat(seat) = table[seat mod 4]`. Arithmetic, not chance: stable
+within a match, across a reload and across a replay, and identical no matter
+which seat the human is in, so a recorded review of seed 1000 shows the same
+seven people to whoever re-runs it. Each variant's eight meshes are merged into
+one draw call at load and shared by every seat that uses it; the nameplate sits
+on that figure's own `SOCKET_label` (the four are 1.62 m to 2.15 m apart) and a
+purged citizen topples by its own depth rather than by a shared constant. A
+variant that will not load costs only the seats that would have used it, which
+fall back to the old capsule. The human's avatar stays a capsule on purpose:
+the controller's collider is one.
+
 `scripts/capture-cycle.mjs` is the other capture pass: where
 `capture-reviews.mjs` photographs an *asset* from fixed cameras, this drives a
 whole *match* through the real page and the real keyboard and photographs the
@@ -323,12 +343,13 @@ measured warm-pixel fraction printed beside each shot. Output lives in
 ### The square
 
 `play.html` — the first playable match. You walk a capsule around a mostly
-graybox square among the bots and play a whole game through real decisions:
+graybox square among a crowd of carved-wood citizens and play a whole game
+through real decisions:
 nominate when you hold the gavel, vote on every government, draft when you are
-elected, aim the powers the Seize board grants you. The dais and lectern are the
-first production art in it, loaded from `env-dais-a.glb` (see **Art
-production**); everything else — ground, kerbs, bell, bench — is still the
-procedural graybox of `src/play/square.js`.
+elected, aim the powers the Seize board grants you. The dais and lectern are
+loaded from `env-dais-a.glb` and the ring of bots from the four
+`chr-citizen-*.glb` figures (see **Art production**); everything else — ground,
+kerbs, bell, bench — is still the procedural graybox of `src/play/square.js`.
 
 The current review target is desktop keyboard and mouse. The fixed review HUD
 and controls are not yet responsive, and there is no touch movement/use path;
@@ -417,7 +438,10 @@ not the mapping), `focusOrder` / `focused` for the dialog, `framing` /
 `setFraming(f)` for the camera bias, `holding` / `beat()` / `pace` for the
 deliberation clock, `environment` for the asset load report (`ok`, the reason if
 not, the placement, the resolved sockets and the live podium anchor, plus the
-table's rows and any fallbacks), `lighting()` for the live rig — and
+table's rows and any fallbacks), `cast` for the crowd (which variant is in which
+seat, each nameplate's height read back off the scene graph, who has toppled,
+and which seats fell back to a capsule), `variantForSeat(n)` for the mapping
+alone, `stats` for `renderer.info`, `lighting()` for the live rig — and
 `lighting({ measure: true })` to render the scene into a small offscreen target
 and count the warm pixels for real — `edges()` for what the ambience last
 noticed, `audio.report()` / `audio.log` for what was played and when, and
