@@ -422,7 +422,10 @@
         nominee: s.nominee,
         deputy: null,
         special: !!s.isSpecialElection,
-        deck_window: record.deckWindow,
+        /*
+         * Stamped when the SPEAKER ACTUALLY DRAWS, not here. See below.
+         */
+        deck_window: null,
         ballot: null,
         block_available: null,
         block_proposed: false,
@@ -460,6 +463,31 @@
     }
 
     gov = currentGovernment(record);
+
+    /* --- the Speaker draws: which deck window did those three come out of?
+     *
+     * Stamped HERE rather than when the government opened, and the difference
+     * is a real false accusation. A government is created at the ballot and
+     * the Speaker draws a phase or two later, and `ensureDeck` can shuffle the
+     * discard back in between the two. Attributing the draw to the window the
+     * ELECTION happened in piles a government's three tiles into a window
+     * whose deck never held them, and C4 — "claimed draws exceed the deck" —
+     * then fires on a table where every single claim is true.
+     *
+     * Found by D2's orator: with real bots claiming the hands they actually
+     * held, C4 flagged five and six honest citizens at once, and the arithmetic
+     * gave it away — six governments' worth of honest draws (18 tiles) attributed
+     * to one window of a 17-tile deck. The window COUNT was right all along
+     * (37 reshuffles, 37 windows, over 40 matches); it was the attribution that
+     * was off by a phase. C1-C6 are evidence, and evidence that fires on the
+     * innocent is worse than no evidence.
+     *
+     * The deck-window counter above is advanced before this block runs, so by
+     * the time the draw is visible the window already includes the reshuffle
+     * that fed it. */
+    if (gov && s.phase === SD.PHASE.LEGISLATIVE_SPEAKER && gov.deck_window === null) {
+      gov.deck_window = record.deckWindow;
+    }
 
     /* --- the Deputy's draft: was a Block on the table for them? -------- */
     if (gov && s.phase === SD.PHASE.LEGISLATIVE_DEPUTY && gov.block_available === null) {

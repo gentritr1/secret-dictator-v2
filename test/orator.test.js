@@ -466,6 +466,67 @@ check(lies < truthful,
   'more claims were lies (' + lies + ') than truths (' + truthful +
   ') — a square where everybody lies has nothing to deduce');
 
+/* --- AN HONEST TABLE RAISES NO EVIDENCE ------------------------------
+ *
+ * The check that found the bug, kept as the check that stops it coming back.
+ *
+ * A mindless orator never lies — `wantsCover` needs to know whose side it is
+ * on — so every CLAIM_HAND it makes is the hand its speaker actually held. On
+ * such a table C1 (impossible), C2 (contradicts the board), C3 (the pair
+ * disagree), C4 (over the deck) and C5 (the story changed) must ALL stay
+ * silent, because every one of them is a statement that somebody said something
+ * untrue and nobody did.
+ *
+ * C6 is deliberately not in that list: "accuses on a basis their own prior
+ * claims contradict" is an overreach an entirely honest citizen can commit, and
+ * it is one of the few things in this game that is genuinely about argument
+ * rather than about truth.
+ *
+ * It fired: C4 flagged five and six truthful citizens at once, because
+ * `deck_window` was stamped when the government was ELECTED and the Speaker
+ * draws a phase or two later, with a reshuffle possible in between. Six honest
+ * governments' worth of draws — eighteen tiles — were attributed to one window
+ * of a seventeen-tile deck. The window count was right (37 reshuffles, 37
+ * windows over 40 matches); the attribution was off by a phase. */
+
+(function () {
+  var honestGames = 0, honestClaims = 0, spurious = {};
+  var QUIET = { C1: 1, C2: 1, C3: 1, C4: 1, C5: 1 };
+  for (var hg = 0; hg < GAMES; hg++) {
+    var hSeed = seedFor(hg), hCount = countFor(hg);
+    var hr = playWithOrator(hSeed, hCount, { blind: true });
+    honestGames++;
+
+    /* The premise first: nobody lied. A "no flags fired" result from a table
+     * that happens to contain a lie proves the opposite of what it looks like. */
+    var lied = 0;
+    hr.record.utterances.forEach(function (u) {
+      if (u.kind !== Floor.KIND.CLAIM_HAND) return;
+      honestClaims++;
+      var truth = hr.memory.forSeat(u.speaker)[u.refs.government];
+      if (!truth) return;
+      if (j([u.drawn, u.passed, u.received]) !==
+          j([truth.drawn || null, truth.passed || null, truth.received || null])) lied++;
+    });
+    check(lied === 0, 'seed ' + hSeed + ': a mindless orator told ' + lied +
+      ' lies — the honest-table premise does not hold, so the check below is meaningless');
+
+    Floor.contradictions(hr.record).forEach(function (f) {
+      if (!QUIET[f.rule]) return;
+      spurious[f.rule] = (spurious[f.rule] || 0) + 1;
+      check(false, 'seed ' + hSeed + ': ' + f.rule + ' fired on a table where every claim ' +
+        'is true — ' + f.id + ' names seats ' + j(f.seats));
+    });
+  }
+  check(honestClaims > 200, 'only ' + honestClaims + ' honest claims — too few to sweep');
+  say('honesty       ' + honestGames + ' matches with a mindless (therefore truthful) orator: ' +
+      honestClaims + ' claims,');
+  say('              0 of them false, and C1-C5 stayed silent on every one — evidence that ' +
+      'fires');
+  say('              on the innocent is worse than no evidence' +
+      (Object.keys(spurious).length ? ' (SPURIOUS: ' + j(spurious) + ')' : ''));
+})();
+
 /* THE FINGERPRINT. Quoted in docs/step-10.md and in the review report, so a
  * reviewer reproduces the exact lie rather than a lie like it. */
 (function () {

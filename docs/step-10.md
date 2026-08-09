@@ -13,7 +13,8 @@ npm run verify         # fourteen now; parity and the frozen five unchanged
 ```
 
 New: `src/engine/orator.js`, `src/play/floor-voice.js`, `test/orator.test.js`.
-Amended: `src/engine/floor.js` (two owner-locked spec changes), `src/play/main.js`,
+Amended: `src/engine/floor.js` (two owner-locked spec changes and one real
+defect the honest bots found), `src/play/main.js`,
 `src/play/murmur.js`, `src/play/style.css`, `src/engine/index.js`,
 `test/floor.test.js`, `test/murmur.test.js`.
 
@@ -179,6 +180,38 @@ lying         704 private hand rows, each held only by the seat that held it;
 28 lies against 594 truths is deliberate. A square where everybody lies has
 nothing to deduce.
 
+### The bug the honest bots found: C4 accusing the innocent
+
+D1's `floor.js` said, in a comment, that C4's bound is "conservative on purpose
+— the whole deck only ever holds this many of each tile, so a window total above
+it is impossible rather than merely suspicious, and the flag cannot fire on an
+honest table." **It could, and it did**, as soon as there were honest bots to
+try it on: C4 flagged five and six truthful citizens at once.
+
+`deck_window` was stamped when the government was **elected**. The Speaker draws
+a phase or two later, and `ensureDeck` can shuffle the discard back in between
+the two — so a government's three tiles were attributed to a window whose deck
+never held them. The arithmetic gave it away: six honest governments' worth of
+draws, eighteen tiles, attributed to one window of a seventeen-tile deck.
+
+The window *count* was never wrong — 37 engine reshuffles against 37 recorded
+windows over 40 matches, checked against the engine's own public log line. It
+was the **attribution** that was off by a phase, which is why a count-versus-count
+check would have passed. The stamp now happens when the draw is actually
+observed.
+
+The regression test is the check that found it, kept: a *mindless* orator never
+lies (`wantsCover` needs to know whose side it is on), so on a table where every
+claim is the hand its speaker actually held, C1–C5 must all stay silent. 50
+matches, 629 truthful claims, zero flags — and the premise is asserted first,
+because "no flags fired" on a table that happens to contain a lie proves the
+opposite of what it looks like. C6 is deliberately excluded: arguing against
+your own record is an overreach an entirely honest citizen can commit.
+
+**Detection rule that generalises: a derived attribute stamped at one moment and
+used at another is a bug the count will not show you.** Check the attribution,
+not the total.
+
 ### One reproducible caught lie
 
 Quoted in three places that must agree — here, `test/orator.test.js`, and the
@@ -290,18 +323,18 @@ test:view              198201
 test:interact              31
 test:objective          65715
 test:pace               30590
-test:murmur             15308        <- extended: the second voice, and the sentence table
+test:murmur             15312        <- extended: the second voice, and the sentence table
 test:ambience           15535
 test:glb                 1283
-test:floor              17296        <- extended: obligations persist, flags are permanent
-test:orator              4246        <- new
+test:floor              17300        <- extended: obligations persist, flags are permanent
+test:orator              4297        <- new
 parity                  PARITY OK — driver.js reproduces the self-test baseline exactly
 build                   four entry points
 ```
 
-### Three instrument failures, recorded
+### Four instrument failures, recorded
 
-All three are the same shape this project keeps meeting: **a probe that cannot
+The first three are the same shape this project keeps meeting: **a probe that cannot
 reach the thing it is aimed at reports a plausible number.**
 
 1. **"81% of floor lines never reached the screen."** The bubble regression's
@@ -327,6 +360,12 @@ reach the thing it is aimed at reports a plausible number.**
    and the instrument was hiding the bug. `__play.murmurs.onScreenFloor` now
    reads the class off the element, because a distinction that is not in the DOM
    is not a distinction.
+
+4. **And one that was not an instrument failure at all**: the C4 attribution
+   bug above. It is listed here because it belongs to the same family from the
+   other side — three probes that could not see a real thing, and one claim in a
+   comment that nobody had ever pointed a probe at. `npm run test:orator`'s
+   honesty section is that probe.
 
 ---
 
@@ -357,11 +396,12 @@ reach the thing it is aimed at reports a plausible number.**
   only. It fires a great deal now (52 flags over 50 matches) because the orator
   overreaches exactly where D1 predicted, but the rule is still
   under-implemented rather than guessed at.
-- **C4 names everybody in the window.** Several liars each claiming three Seizes
-  eventually exceed the deck, and the flag correctly names all of them, because
-  the record cannot say whose claim was the false one. It is right and it reads
-  as noise; whether a five-seat flag is useful evidence or clutter is a question
-  for the ledger's design.
+- **C4 names everybody in the window when it does fire.** Several liars each
+  claiming three Seizes can genuinely exceed the deck, and the flag correctly
+  names all of them, because the record cannot say whose claim was the false
+  one. Since the attribution fix it no longer fires on honest tables at all;
+  whether a five-seat flag is useful evidence or clutter when it *is* right is a
+  question for the ledger's design.
 - **The bots still do not BELIEVE anything anybody says.** Rules decisions read
   zero utterances — the invariance test enforces it. Belief coupling is a later
   gate, and it is the one that flips `invariance` into a controlled-divergence
