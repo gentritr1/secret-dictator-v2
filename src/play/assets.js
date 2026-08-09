@@ -133,7 +133,23 @@ export const ENV_DAIS_A = {
  * unknown `omit` name throws — the failure it would otherwise cause is a
  * podium anchored to the wrong asset, which reads as a targeting bug.
  */
-export const ENVIRONMENT = [ENV_DAIS_A];
+export const ENVIRONMENT = [
+  ENV_DAIS_A,
+  /* Two placements of one lantern asset, flanking the dais where the dusk
+   * reference puts them. Same GLB, distinct logical socket names — the flame
+   * sockets are where the lighting director may hang real lights later; until
+   * then the glass's authored emissive carries the glow. */
+  { id: 'env-lantern-a', category: 'environment',
+    place: { x: -4.2, y: 0, z: 8.2, yaw: 0 },
+    requiredNodes: ['COL_post', 'SOCKET_flame'],
+    sockets: { lanternWest: 'SOCKET_flame' },
+    fallback: 'capsule' },
+  { id: 'env-lantern-a', category: 'environment',
+    place: { x: 4.2, y: 0, z: 8.2, yaw: 0 },
+    requiredNodes: ['COL_post', 'SOCKET_flame'],
+    sockets: { lanternEast: 'SOCKET_flame' },
+    fallback: 'capsule' }
+];
 
 /** `public/assets/models/<category>/<id>.glb`, per BLENDER_PIPELINE.md. */
 export function assetUrl(row) {
