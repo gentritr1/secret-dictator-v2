@@ -3,6 +3,11 @@
 Every asset in this repo: where it came from, its license, and where it is used.
 Add a row the moment an asset enters the repo — no orphan files.
 
+Production status uses `draft`, `review`, `approved`, `shipping`, or `retired`.
+Keep retired rows so provenance is never lost. The complete source, export,
+review, naming, scale, and validation rules live in
+[`BLENDER_PIPELINE.md`](./BLENDER_PIPELINE.md).
+
 ## Concept art (reference only — never shipped in builds)
 
 Generated 2026-08-08 via Higgsfield (user's own account) for the Step 5 style
@@ -33,9 +38,22 @@ choice between them isolates *treatment*, not content.
 
 ## Pipeline test artifacts
 
-| file | source | license | used for |
-| --- | --- | --- | --- |
-| design/pipeline-test/podium-test.glb | authored in Blender 5.2 via MCP, 2026-08-09 | ours | Blender→glTF→three.js round-trip proof (2 hex meshes, TimberOchre + SlateStone materials from the style-bible palette, 0.42 m tall at meter scale); loaded successfully via GLTFLoader through the Vite dev server — not a shipped asset |
+| file | source | license | used for | status / known limits |
+| --- | --- | --- | --- | --- |
+| design/pipeline-test/podium-test.glb | authored in Blender 5.2 via MCP, 2026-08-09; source `.blend` is not in the repository | ours | Blender→glTF→three.js transport proof (2 hex meshes, TimberOchre + SlateStone materials); loaded successfully via GLTFLoader through Vite | pipeline test only — not shipped; approx. `2.77 x 0.42 x 3.20 m`, no asset root, collider, sockets, or metadata; default mesh datablock names; opaque materials are double-sided |
+| design/pipeline-test/front-marker.glb | authored in Blender 5.2 via MCP, 2026-08-09 | ours | axis-convention proof: Nose cube at Blender `(0,-1,0.25)` / Tail at `(0,+1,0.25)` arrive in three.js at `(0,0.25,+1)` / `(0,0.25,-1)` — locks Blender `-Y` = runtime `+Z` front (BLENDER_PIPELINE.md World contract) | pipeline test only — not shipped |
+
+## Production assets
+
+Add a row at `draft` as soon as production work starts. For an external asset,
+`origin / license` must include the source URL, creator, licence, download date,
+and modifications. Work authored for this project should say “authored for this
+project via Blender MCP; ours.”
+
+| asset ID | source `.blend` | runtime GLB | origin / license | bounds | tris / materials / textures | status | used by | review images |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- |
+
+No production asset has passed the pipeline yet.
 
 ## Code dependencies
 

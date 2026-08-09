@@ -158,6 +158,8 @@ a fix that silently invalidated them would make the document a lie.
 matches through the session's own legality check, then submits `options[0]`
 with no shape translation for any kind:
 
+Current verification snapshot, 2026-08-09:
+
 ```
 round trip    3228 advertised options across 2062 decisions in 60 complete matches
               — all accepted verbatim; options[0] submitted every time
@@ -165,8 +167,8 @@ block         the Block appeared in options exactly when canBlock said it could
               be moved; all three answers verified on a constructed position
 no skipping   608 ballots asked for 608 elections the human was alive for
 bots only     pass A: 200 advanceBots() calls, all refused at the opening gate
-              pass B: acknowledges answered, 40 bot actions ran, then stalled on
-              `vote` for 538 calls; state frozen, no decision invented
+              pass B: acknowledges answered, 1 bot action ran, then stalled on
+              `vote` for 598 calls; state frozen, no decision invented
 observer      seed 777: 36 decisions observed one at a time, all 36 recorded
 ```
 
@@ -270,6 +272,8 @@ matches for every seat, alive and dead:
    substring-matched: the track counters are *named* `reform` and `seize`, so a
    naive scan for `"seize"` reports a leak on every view ever built.
 
+Current verification snapshot, 2026-08-09:
+
 ```
 views         12760 projections audited across 24 complete matches, every seat, every step
 permutation   8724 role permutations left the view byte-identical
@@ -277,7 +281,7 @@ sweep         8724 single-knowledge seats carried exactly their own role token
 peek          1349 seat-states held a private Peek result
 rules         disclosure checked by name: Rebels, the Dictator at 5/6 vs 7+, Peek,
               Foresight, both legislative hands, and the game-over reveal
-OK — 197194 checks passed.
+OK — 198201 checks passed.
 ```
 
 **The suite was checked against injected leaks rather than assumed to work.**

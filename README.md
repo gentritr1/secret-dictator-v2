@@ -49,6 +49,9 @@ docs/step-01.md          learning log for the port
 docs/step-02.md          learning log for the playground
 docs/step-03.md          learning log for the character controller
 docs/step-04.md          learning log for the first playable match
+docs/STYLE_BIBLE.md      locked visual direction, palette, light meaning and anti-goals
+docs/BLENDER_PIPELINE.md one-asset-at-a-time Blender/MCP production and acceptance contract
+docs/ASSET_MANIFEST.md   provenance and production status for every visual asset
 ```
 
 The five engine modules are UMD (`module.exports` under Node, `window.SD` /
@@ -185,12 +188,26 @@ Calling `teleport` or `setInput` parks the live loop so a scripted measurement
 cannot depend on how long you took to type the next line; `resume()` or any
 movement key hands it back.
 
+### Art production
+
+The visual direction is locked in `docs/STYLE_BIBLE.md`. Blender and Blender
+MCP work follows `docs/BLENDER_PIPELINE.md`: one bounded asset task at a time,
+metre-scale source retained in the repo, semantic `VIS_*` / `COL_*` /
+`SOCKET_*` nodes, fixed browser captures, a graybox fallback, and manifest plus
+verification gates before an asset ships. The existing
+`design/pipeline-test/podium-test.glb` proves only that the export route works;
+it is deliberately not a runtime asset.
+
 ### The square
 
 `play.html` — the first playable match. You walk a capsule around a graybox
 square among the bots and play a whole game through real decisions: nominate
 when you hold the gavel, vote on every government, draft when you are elected,
 aim the powers the Seize board grants you.
+
+The current review target is desktop keyboard and mouse. The fixed review HUD
+and controls are not yet responsive, and there is no touch movement/use path;
+mobile support is not claimed for this milestone.
 
 WASD or arrows to walk, drag to orbit, wheel to zoom, **E** to use whatever you
 are facing. In a panel: 1–9 pick, A or Y is Aye, N is Nay, ↵ continues, Esc
