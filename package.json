@@ -19,9 +19,10 @@
     "test:murmur": "node test/murmur.test.js",
     "test:ambience": "node test/ambience.test.js",
     "test:glb": "node test/glb.test.js",
+    "test:floor": "node test/floor.test.js",
     "parity": "node scripts/driver-parity.js",
     "simulate": "node scripts/simulate.js",
-    "verify": "npm test && npm run test:controller && npm run test:human && npm run test:contract && npm run test:view && npm run test:interact && npm run test:objective && npm run test:pace && npm run test:murmur && npm run test:ambience && npm run test:glb && npm run parity && npm run build"
+    "verify": "npm test && npm run test:controller && npm run test:human && npm run test:contract && npm run test:view && npm run test:interact && npm run test:objective && npm run test:pace && npm run test:murmur && npm run test:ambience && npm run test:glb && npm run test:floor && npm run parity && npm run build"
   },
   "devDependencies": {
     "playwright": "^1.62.1",
