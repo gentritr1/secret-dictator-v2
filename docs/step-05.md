@@ -206,15 +206,9 @@ POI-weighted target is a Gate 3 staging question, not a readability fix.
 
 ## 5. Pacing, and the morning bell
 
-Gate 1 asks for one written pacing decision. **The morning acknowledgement stays
-physical this milestone — walk to the bell, press E. Revisit after Gate 3
-staging.** The reasoning is that Gate 3 re-lights the platform for every phase
-transition, and a beat that is tedious against a graybox may be the beat that
-gives the lighting somewhere to land. Deciding now optimises against a version
-of the game that is about to stop existing.
-
-It is a decision, not an endorsement. The cost, measured over 200 matches per
-table size with a scripted player:
+Gate 1 asks for one written pacing decision. The decision it produced was
+"leave the bell alone until Gate 3", with the cost measured rather than
+guessed — over 200 matches per table size with a scripted player:
 
 | table | days | engine steps | human decisions | bell trips | podium trips |
 | --- | ---: | ---: | ---: | ---: | ---: |
@@ -222,13 +216,14 @@ table size with a scripted player:
 | 7 | 10.6 | 49.0 | 35.4 | **21.5** | 13.9 |
 | 10 | 13.8 | 59.9 | 44.9 | **28.4** | 16.5 |
 
-The bell is visited *more often than the podium at every table size*, and the
-gap widens with the roster. Bell to podium is 5.57 m; at the 3.5 m/s walk speed
-that is 1.6 s each way, so a ten-player match spends up to ~250 m and ~71 s
-walking between two fixed points. The objective line makes that walking
-*legible*; it does not make it shorter. If Gate 3 does not give the bell
-something to be, the honest fix is to auto-advance the morning report and keep
-the bell for results.
+**The owner then played it, and the measurement was right.** Verdict: "it is
+intuitive overall what to do" — the objective line did its job — but "it feels
+like a chore going to the bell", and the match is "a bit repetitive but okay",
+with their own diagnosis that the bots answer instantly where real people take
+time.
+
+That is a better input than any of the arithmetic above, and Gate 1.5 acts on
+it. See §8.
 
 ## 6. The Emergency Vote, on screen at last
 
@@ -287,12 +282,124 @@ The objective line for it gained the emergency-session marker on the following
 morning, because that is the one morning where the gavel did not simply rotate
 and a first-time player has no other way to notice.
 
+## 7. Gate 1.5 — the chore, and the instant square
+
+A surgical follow-up after the owner's hands-on pass. Two changes, one of which
+is a routing edit and one of which is a clock. No new art, no ambience; Gate 3
+still owns everything atmospheric.
+
+### 7a. The ballots open at the podium
+
+**Revised pacing decision**, replacing §5's:
+
+| beat | opens at | why |
+| --- | --- | --- |
+| morning report | **bell** (unchanged) | one ritual trip a day; it is what opens the session |
+| **ballot tally** | **podium** (moved) | you voted there thirty seconds ago; the ballots open where the motion was made |
+| Chaos | **bell** (unchanged) | three failed governments is news worth the walk |
+
+The routing rule now lives in exactly one place — `objectFor(kind, gate)` in
+`src/play/objective.js` — and `main.js` builds the podium and the bell out of
+it. Gate 1 had the rule written twice, with the test asserting against the
+copy; this is the first time one of the two moved, and it is the seam where
+they would have drifted.
+
+Measured over the same 200 matches per table size:
+
+| table | bell trips | podium trips | bell↔podium crossings | walking |
+| --- | ---: | ---: | ---: | ---: |
+| 5 | 18.8 → **9.4** (−50%) | 13.4 → 22.8 | 22.1 → 17.7 (−20%) | 123 m → 99 m |
+| 7 | 21.5 → **10.9** (−49%) | 13.9 → 24.5 | 24.0 → 20.3 (−16%) | 134 m → 113 m |
+| 10 | 28.4 → **14.6** (−49%) | 16.5 → 30.3 | 29.6 → 26.8 (−10%) | 165 m → 149 m |
+
+**Both numbers are reported because they say different things, and the second
+one is less flattering.** Trips *to the bell* halve, which is the thing the
+owner named. Total *crossings* fall only 10–20%, because the morning bell still
+bookends every day: the shape of a day was bell → podium → bell → podium →
+bell, and it is now bell → podium → podium → bell. What disappeared is the
+mid-day bounce — voting at the podium, walking to the bell for the tally, and
+walking back to the podium to draft.
+
+The remaining bell load is now almost exactly the day count (9.4 trips over 9.3
+days at five, 14.6 over 13.8 at ten), which is the "one ritual trip per day"
+the change was aimed at. If it still reads as a chore after Gate 3 has given
+the bell something to be, the next lever is auto-advancing the morning report —
+and the `acknowledge` beats remain free to move, because they consume nothing
+from the seeded stream.
+
+### 7b. The square takes time to answer
+
+Gate 1 ran the bots on a flat 900 ms and, worse, on nothing at all in two
+places: naming a Deputy opened the ballot box in the same frame, and casting a
+ballot had the tally ready before the panel finished closing. Both are one
+`Driver.step` triggered by the human's own submission, so no timer was involved.
+
+`src/play/pace.js` is the clock. Bots deliberate per phase, longest where the
+decision is hardest and most private:
+
+| phase | at 1× | at 4× |
+| --- | --- | --- |
+| legislative draft (either side) | 2200–3400 ms | 550–850 ms |
+| power | 1800–3000 ms | 450–750 ms |
+| nomination | 1500–3000 ms | 375–750 ms |
+| block response | 1600–2600 ms | 400–650 ms |
+| vote | 1400–2200 ms | 350–550 ms |
+| bookkeeping (tally, chaos, end) | 600–1000 ms | 150–250 ms |
+
+And a **deliberation beat** covers the two instant transitions: after one of
+your own submissions, if the rules immediately owe you another decision, the
+page holds for 0.9–1.7 s. During it the object goes dark *and the objective
+line stops naming one* — "The ballots are sealed — the square is counting
+them." One flag drives both, which is what makes "the line never points at
+something that will not answer" structural rather than remembered.
+
+The cost, since a pacing change that only adds time should say how much:
+
+| table | bot deliberation | beats | total, 1× | was (flat 900 ms) | at 4× |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| 5 | 55 s | 24 s | **80 s** | 20 s | 20 s |
+| 7 | 61 s | 27 s | **88 s** | 22 s | 22 s |
+| 10 | 72 s | 35 s | **107 s** | 26 s | 27 s |
+
+4× reproduces Gate 1's pace almost exactly, so the old behaviour is still on
+the page rather than replaced. **Whether ~66 s of added deliberation reads as
+"the square is thinking" or as "the game is slow" is a taste question nobody
+has answered yet** — it is the first thing the next hands-on pass should
+judge, and the bands are one object literal to change.
+
+### 7c. Timing must not be able to change a match
+
+This is the sharp edge of 7b. The engine's chance is one seeded stream and the
+bots draw from it, so one draw taken by the presentation layer would shift
+every later bot decision — silently, and only for seeds somebody re-runs.
+
+Three defences, in order of strength:
+
+1. **`pace.js` cannot reach the rules.** It imports nothing, is handed a plain
+   integer, and returns numbers that only ever become `setTimeout` durations.
+2. **It owns its own generator.** `Math.random` is deliberately *not* used: the
+   same mulberry32 the engine uses, salted to a different seed in a different
+   closure. So there is still no `Math.random` and no `.rng(` anywhere under
+   `src/play/` — the grep gate this project has relied on since Step 4 stays
+   meaningful — and a replayed seed now replays its *rhythm* too.
+3. **`test/pace.test.js` tries to break it.** The same seeded match is played
+   twice with an identical scripted player: once plainly, once with the clock
+   hammered at every seam between engine calls, at every speed the page offers.
+   The event log, the action log, the winner and the step count must be
+   byte-identical.
+
+And the third defence gets its own control, because **a probe that cannot see
+the failure it is aimed at reports green** — the step-04 lesson. The same
+interleave is run once more with a clock that draws a single `G.rng()` per
+seam, and the log *must* diverge. It does, in 40 of 40 matches. Only then is
+"28 496 pace draws changed nothing" worth anything.
+
 ## What was verified, and how
 
 Node v20.19.4, macOS. Browser checks in a real Chromium tab at 1440×900 against
 `npm run dev`, driving `window.__play` and reading results back.
 
-**All eight gates.** VERIFIED (executed `npm run verify`):
+**All nine gates.** VERIFIED (executed `npm run verify`):
 
 ```
 node test/engine.test.js 50      OK — 28881 assertions passed
@@ -301,9 +408,27 @@ node test/human-driver.test.js   OK — 1055 checks passed
 node test/contract.test.js       OK — 6139 checks passed
 node test/view.test.js           OK — 198201 checks passed
 node test/interact.test.js       OK — 31 checks passed
-node test/objective.test.js      OK — 41572 checks passed          <- new
+node test/objective.test.js      OK — 65715 checks passed      <- Gate 1, extended in 1.5
+node test/pace.test.js           OK — 30580 checks passed      <- Gate 1.5
 node scripts/driver-parity.js    PARITY OK
 vite build                       ✓ built, three entry points
+```
+
+The pace suite's own report:
+
+```
+invariance    40 complete matches played twice: 28496 pace draws interleaved
+              between every engine call, at 0.5x, 1x, 2x, 4x — event log, action
+              log, winner and step count byte-identical every time
+probe         40/40 matches DIVERGED when the same clock drew one G.rng() per
+              seam, so the check above can see the failure it is aimed at
+control       40 matches forked at a real choice and diverged
+purity        pace.js imports nothing, names no game object and uses no
+              Math.random; no file under src/play/ draws from the engine stream
+numbers       every band respected over 200 draws each; a legislative draft
+              deliberates longer than a nomination, bookkeeping shorter; speed is
+              an exact divisor and 4x is within the 900 ms Gate 1 shipped
+rhythm        the same seed replays the same rhythm; a different seed does not
 ```
 
 The objective suite's own report:
@@ -348,6 +473,36 @@ result screen (no buttons) -> focus lands on the dialog itself, Esc returns focu
 and the capsule sits ~99 px right of centre in the screenshot, matching
 `0.0687 × 1440`.
 
+**Gate 1.5, in the browser.** VERIFIED (executed in the tab, premise re-asserted
+after every restart per the hazard note below):
+
+- *Routing.* Seed 1000, seven citizens: 74 states walked, and for every line
+  that named an object, teleporting there and facing it produced that object as
+  `look().target` — `bad: []`. `acknowledge:vote_result` now reports
+  `podium`, with the prompt `E — open the ballots`.
+- *The beat.* Voting with the `a` key: during the hold, `holding: true`,
+  objective `beat:acknowledge:vote_result` ("The ballots are sealed — the square
+  is counting them"), and `look().target === null` — the podium is dark. After
+  it: `holding: false`, objective back to `acknowledge:vote_result` ("open them
+  at the podium, where you voted"), `target: "podium"`, prompt restored. The
+  line and the object turn on together.
+- *Determinism through the real timer path.* Seed 4242, seven citizens, human
+  decisions answered with `options[0]` both ways. `runToEnd()` with no timers at
+  all hashes `6291469d` over 40 events, reproducibly. Autopilot driven **by the
+  actual `setTimeout` loop** at **4×** produced 23 events hashing `79cbcd53`,
+  identical to the first 23 of the untimed log; at **0.5×** it produced 10
+  events hashing `52ac46d5`, identical to the first 10. Prefixes rather than
+  whole matches because a hidden browser pane clamps `setTimeout` to about a
+  second, which makes a full 1× match take minutes — the exhaustive multi-speed
+  proof is the node suite; this is the proof that the page's own loop is the
+  same loop.
+
+**Wall-clock pacing is calculated, not stopwatched.** The bands and beats were
+read back live (`__play.pace.band`, `__play.holdRemaining` — 1233 ms remaining
+on a 1700 ms beat when sampled ~350 ms in), and the per-match totals in §7b are
+those numbers multiplied by measured bot-step counts. Nobody has sat through an
+unthrottled 1× match end to end.
+
 **No randomness in the presentation layer.** VERIFIED:
 `grep -rn "rng(\|Math.random" src/play/` returns nothing.
 
@@ -375,16 +530,36 @@ is the seed-1000 record from `docs/step-04.md`, printed verbatim.
 
 The rule that falls out: **a scripted browser review must re-assert its own
 premise after any edit** — read the seed, the roster and the seat back, not just
-the thing being measured. `__play.state()` carries all three.
+the thing being measured. `__play.state()` carries all three. Every Gate 1.5
+browser probe above opens by doing exactly that.
+
+Gate 1.5 turned up a second one of the same family. The deliberation beat ends
+on a clock, and nothing calls `refresh()` when it does; the render loop
+re-derives the objective every frame, which is what a player sees. But
+`requestAnimationFrame` does not run in a hidden pane, so the first scripted
+check found the podium lit and the line still saying "the square is counting
+them" — a bug that does not exist for a human and does exist for every
+automated check. Fixed by re-deriving the line from the `setTimeout` loop as
+well, which runs either way. **The general rule: state that changes on a frame
+cannot be observed by anything that is not watching the window** — the same
+reason `look()` exists.
 
 ## Open gaps, stated plainly
 
-- **Still nobody has played this with their hands.** Gate 1's exit condition is
-  "a first-time desktop player reaches every required object without verbal
-  coaching", and that is a human observation. Everything above is scripted or
-  key-injected. The objective line is the mechanism; whether it *works* on a
-  person is unmeasured, and the pacing table is the argument for trying it at
-  ten citizens rather than five.
+- **The deliberation timings have never been felt.** ~66 s of added waiting per
+  seven-player match is a real change to how the game plays, and whether it
+  reads as thoughtfulness or as lag is a taste question with no test. This is
+  the one thing the next hands-on pass must answer; the bands are a single
+  object literal in `src/play/pace.js`, and 2× or 4× is the escape hatch
+  meanwhile.
+- **Moving the tally cut crossings by 10–20%, not by half.** Bell *visits*
+  halved, which is what the owner named, but the morning bell still bookends
+  every day. If "chore" survives Gate 3, auto-advancing the morning report is
+  the remaining lever.
+- **Gate 1's exit condition is now partly met.** The owner played and reported
+  "it is intuitive overall what to do" — that is the "reaches every required
+  object without verbal coaching" criterion, answered by a person. What has not
+  been re-played is the *revised* routing and the new pacing.
 - **The contrast ratios are computed, not sampled.** They are exact for the
   colours declared in `style.css` over the stated backdrops, including the
   blown-out worst case — but no screenshot has been colour-sampled, and a

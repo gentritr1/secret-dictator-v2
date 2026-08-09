@@ -35,6 +35,7 @@ src/walk/controller.js   the kinematic controller — pure logic, no three.js, n
 src/play/                the square: the first human-playable match
 src/play/interact.js     the interaction contract — proximity, facing, one key, no per-object input
 src/play/objective.js    the persistent objective line — a pure function of the player-safe view
+src/play/pace.js         how long the square takes to answer — a clock, and only a clock
 index.html               Vite entry point for the playground
 walk.html                Vite entry point for the workbench
 play.html                Vite entry point for the square
@@ -45,6 +46,7 @@ test/contract.test.js    the options -> submit round trip: everything advertised
 test/view.test.js        the leak sweep: what each seat may see, checked three ways
 test/interact.test.js    the targeting contract: range, facing, liveness, overlap
 test/objective.test.js   the objective line: every state mapped, right object named, nothing leaked
+test/pace.test.js        the deliberation clock: timing cannot change a match, at any speed
 scripts/driver-parity.js proves driver.js reproduces the self-test's numbers exactly
 scripts/simulate.js      headless batch simulator: statistics instead of assertions
 docs/step-01.md          learning log for the port
@@ -94,6 +96,7 @@ npm run test:contract                      # the options -> submit round trip
 npm run test:view                          # the view model's leak sweep
 npm run test:interact                      # the interaction contract
 npm run test:objective                     # the objective line: mapping, routing, leaks
+npm run test:pace                          # the deliberation clock cannot change a match
 npm run parity                             # driver.js vs the self-test's exact numbers
 npm run verify                             # all of the above, plus the production build
 npm run simulate                           # 500 games, default seed
@@ -147,6 +150,17 @@ you to walk to is the object the interaction system would actually open that
 panel at, and — the leak sweep from `test:view` pointed at a string — that it
 never says a role, a team or a tile, and never names a citizen the square has
 not publicly been told about.
+
+`npm run test:pace` is the gate on the deliberation clock. The bots take
+humanlike time to answer, and the one risk in that is timing changing an
+outcome: the engine's chance is a single seeded stream, so one draw taken by
+the presentation layer would shift every later bot decision. The suite plays
+the same seeded match twice with the same human actions — once plainly, once
+with the clock hammered at every seam between engine calls at every speed the
+page offers — and requires byte-identical event logs. It then proves the probe
+can *see* that failure by running the same interleave with a clock that draws
+one `G.rng()` per seam and requiring divergence, because a probe that cannot
+reach the code it is aimed at reports green.
 
 `npm run test:controller` is the gate on movement. It runs the same controller
 the browser runs, against a closed-form collision world instead of a mesh, and
@@ -247,13 +261,21 @@ Three things share one interaction contract (`src/play/interact.js`), which is
 how it is known to be a contract and not three handlers:
 
 - the **podium** is context-sensitive — it *is* the nominee picker, the ballot,
-  the draft and the power target, depending on what the rules are waiting for;
-- the **bell** acknowledges the morning report, the ballot tally and the Chaos
-  screen;
+  the tally, the draft and the power target, depending on what the rules are
+  waiting for;
+- the **bell** opens the day and announces the Chaos Track;
 - the **bench** sits and stands, and has no effect on the rules at all.
 
-Bots act on a paced timer. When the rules are waiting on you the match stops and
-stays stopped — there is no timeout, by design.
+Which object owes a decision is one function, `objectFor(kind, gate)` in
+`src/play/objective.js`, and both the interactable and the objective line are
+built from it, so they cannot disagree about where to send you.
+
+Bots deliberate rather than answering instantly: a nomination takes a second or
+three, a legislative draft longer, bookkeeping less, and there is a short beat
+after your own submissions when the rules immediately owe you another decision.
+The **bot pace** control scales all of it (4× is roughly instant). None of it
+can change what happens — see `npm run test:pace`. When the rules are waiting on
+you the match stops and stays stopped; there is no timeout, by design.
 
 Everything on screen is drawn from `viewFor(G, yourSeat)` and nothing else, so
 what a panel *can* show is bounded by what the projection carries: your own
@@ -265,8 +287,11 @@ For review the page exposes `window.__play`: `state()` (the view model for your
 seat), `waitingFor()`, `submit(action)`, `eventLog`, `actions`,
 `restart(seed, players, humanIndex)`, plus `objective` (the line as an object
 *and* as the text actually in the DOM — if those disagree the render is broken,
-not the mapping), `focusOrder` / `focused` for the dialog, and `framing` /
-`setFraming(f)` for the camera bias.
+not the mapping), `focusOrder` / `focused` for the dialog, `framing` /
+`setFraming(f)` for the camera bias, and `holding` / `beat()` / `pace` for the
+deliberation clock. `submit()` deliberately runs no beat — it is the scripted
+seam, and a sweep that had to sit through the atmosphere would be measuring the
+clock instead of the game; `beat()` drives that path on purpose.
 
 `submit(waitingFor().options[0])` is always a legal move, for every kind — no
 special shapes. The four ways to advance say what they do: `step()` takes one
