@@ -36,9 +36,12 @@ src/play/                the square: the first human-playable match
 src/play/interact.js     the interaction contract — proximity, facing, one key, no per-object input
 src/play/objective.js    the persistent objective line — a pure function of the player-safe view
 src/play/pace.js         how long the square takes to answer — a clock, and only a clock
+src/play/assets.js       the runtime asset loader: one production GLB, graybox fallback
+src/lab/                 the asset lab: fixed review cameras, moods, collider overlay, stats
 index.html               Vite entry point for the playground
 walk.html                Vite entry point for the workbench
 play.html                Vite entry point for the square
+asset-lab.html           Vite entry point for the asset lab
 test/engine.test.js      headless self-test: plays full bot-vs-bot games, asserts the rules at every step
 test/controller.test.js  headless movement tests: frame-rate independence, slopes, walls, steps, falls
 test/human-driver.test.js replay determinism with a human seat, plus a divergence control
@@ -47,6 +50,7 @@ test/view.test.js        the leak sweep: what each seat may see, checked three w
 test/interact.test.js    the targeting contract: range, facing, liveness, overlap
 test/objective.test.js   the objective line: every state mapped, right object named, nothing leaked
 test/pace.test.js        the deliberation clock: timing cannot change a match, at any speed
+test/glb.test.js         the GLB contract: the file, the loader, and the player walking up it
 scripts/driver-parity.js proves driver.js reproduces the self-test's numbers exactly
 scripts/simulate.js      headless batch simulator: statistics instead of assertions
 docs/step-01.md          learning log for the port
@@ -54,6 +58,7 @@ docs/step-02.md          learning log for the playground
 docs/step-03.md          learning log for the character controller
 docs/step-04.md          learning log for the first playable match
 docs/step-05.md          learning log for Gate 1: objective line, dialog focus, contrast, framing
+docs/step-06.md          learning log for Gate 2: the asset loader, the asset lab, the GLB gate
 docs/STYLE_BIBLE.md      locked visual direction, palette, light meaning and anti-goals
 docs/BLENDER_PIPELINE.md one-asset-at-a-time Blender/MCP production and acceptance contract
 docs/ASSET_MANIFEST.md   provenance and production status for every visual asset
@@ -87,7 +92,8 @@ npm install                                # three (runtime) and vite (dev) only
 npm run dev                                # http://localhost:5173      the bot playground
                                            # http://localhost:5173/walk.html   the movement workbench
                                            # http://localhost:5173/play.html   the square (playable)
-npm run build                              # production bundle into dist/ (all three entry points)
+                                           # http://localhost:5173/asset-lab.html   the asset lab
+npm run build                              # production bundle into dist/ (all four entry points)
 
 npm test                                   # 50 bot-vs-bot games + targeted rule tests
 npm run test:controller                    # the character controller, headless
@@ -97,6 +103,7 @@ npm run test:view                          # the view model's leak sweep
 npm run test:interact                      # the interaction contract
 npm run test:objective                     # the objective line: mapping, routing, leaks
 npm run test:pace                          # the deliberation clock cannot change a match
+npm run test:glb                           # the shipping GLB's contract, three layers deep
 npm run parity                             # driver.js vs the self-test's exact numbers
 npm run verify                             # all of the above, plus the production build
 npm run simulate                           # 500 games, default seed
@@ -162,6 +169,25 @@ can *see* that failure by running the same interleave with a clock that draws
 one `G.rng()` per seam and requiring divergence, because a probe that cannot
 reach the code it is aimed at reports green.
 
+`npm run test:glb` is the gate on the one source file nobody reads. An art asset
+is authored in another program and arrives as bytes — `Bin 0 -> 89732 bytes` is
+what a reviewer sees in the diff — so the suite reads it in three layers. The
+**file**: GLB chunks parsed with no library at all, for required node names,
+default/`.001` names, guide or camera leaks, single-sided opaque materials,
+bounds and ground contact to ±1 cm, the sacred `0.22 m` dais top under the
+`0.25 m` step limit, and — the check a dimension test cannot make — per-triangle
+winding, signed volume and walkable area, because a collider of exactly the
+right size whose faces point inward is a dais the player walks straight through.
+The **loader**: `GLTFLoader.parse` on the real bytes and then the game's own
+`buildEnvironment()`, headlessly, so the placement, the collider harvest and the
+socket under test are the ones `play.html` runs; plus every refusal, and a
+material comparison against an untouched second parse. The **player**: the
+harvested colliders merged with the graybox, handed to the real BVH world, and
+the real controller walked north onto the dais at full speed — with a control
+that runs the same walk in a world without those colliders and requires it to
+end somewhere else. `node test/glb.test.js <file>` points the file layer at a
+candidate re-export before it is committed.
+
 `npm run test:controller` is the gate on movement. It runs the same controller
 the browser runs, against a closed-form collision world instead of a mesh, and
 checks that a scripted input sequence produces the same trajectory at 1/30 and
@@ -225,12 +251,41 @@ verification gates before an asset ships. The existing
 `design/pipeline-test/podium-test.glb` proves only that the export route works;
 it is deliberately not a runtime asset.
 
+`asset-lab.html` is the review instrument. It loads any GLB under
+`public/assets/models/` (a dropdown, or `?asset=<path>` for anything) beside the
+real `1.70 m` calibration capsule, a 1 m grid and a 0.25 m banded pole, with
+four fixed cameras (`1`–`4`: front, three-quarter, side, and the play camera's
+actual `3.5 m` / `1.8 m` / `60°`), four lighting moods (`D`/`U`/`N`/`S`: day,
+dusk, night, and an unlit black silhouette on a light background), a collider
+overlay (`C`) drawn from the same world-baked geometry the game's BVH is built
+from, a tone-mapping toggle (`T`: AgX, which is what the pipeline says to judge
+materials under, versus the linear image `play.html` currently renders), and
+`renderer.info` on screen. Drag to orbit, wheel to zoom; a camera key snaps back
+to the fixed view, so a capture is always the same capture. It is deliberately
+permissive and imports nothing from the engine or the game: an instrument that
+can only display assets which already pass is useless for working out why one is
+failing.
+
+`src/play/assets.js` is the runtime half. It loads
+`env-dais-a.glb` at match start, places it at `(0, 0, 9)` with yaw π — the
+documented placement transform, never baked into the mesh — renders the `VIS_*`
+nodes in place of the procedural dais and lectern, hides the `COL_*` nodes and
+feeds their world-baked geometry to the collision world, and resolves
+`SOCKET_podium` into the podium interactable's anchor. It never throws: a
+missing file, unreadable bytes or a renamed required node all produce one
+console warning and the full procedural graybox, and the match is playable
+either way. Materials are never patched at runtime — colour is a decision in the
+`.blend`, and `npm run test:glb` fails if the loader touches one.
+
 ### The square
 
-`play.html` — the first playable match. You walk a capsule around a graybox
-square among the bots and play a whole game through real decisions: nominate
-when you hold the gavel, vote on every government, draft when you are elected,
-aim the powers the Seize board grants you.
+`play.html` — the first playable match. You walk a capsule around a mostly
+graybox square among the bots and play a whole game through real decisions:
+nominate when you hold the gavel, vote on every government, draft when you are
+elected, aim the powers the Seize board grants you. The dais and lectern are the
+first production art in it, loaded from `env-dais-a.glb` (see **Art
+production**); everything else — ground, kerbs, bell, bench — is still the
+procedural graybox of `src/play/square.js`.
 
 The current review target is desktop keyboard and mouse. The fixed review HUD
 and controls are not yet responsive, and there is no touch movement/use path;
@@ -288,10 +343,12 @@ seat), `waitingFor()`, `submit(action)`, `eventLog`, `actions`,
 `restart(seed, players, humanIndex)`, plus `objective` (the line as an object
 *and* as the text actually in the DOM — if those disagree the render is broken,
 not the mapping), `focusOrder` / `focused` for the dialog, `framing` /
-`setFraming(f)` for the camera bias, and `holding` / `beat()` / `pace` for the
-deliberation clock. `submit()` deliberately runs no beat — it is the scripted
-seam, and a sweep that had to sit through the atmosphere would be measuring the
-clock instead of the game; `beat()` drives that path on purpose.
+`setFraming(f)` for the camera bias, `holding` / `beat()` / `pace` for the
+deliberation clock, and `environment` for the asset load report (`ok`, the
+reason if not, the placement, the resolved sockets and the live podium anchor).
+`submit()` deliberately runs no beat — it is the scripted seam, and a sweep that
+had to sit through the atmosphere would be measuring the clock instead of the
+game; `beat()` drives that path on purpose.
 
 `submit(waitingFor().options[0])` is always a legal move, for every kind — no
 special shapes. The four ways to advance say what they do: `step()` takes one
@@ -300,8 +357,11 @@ decision, `autopilot(true)` turns on continuous play (off after every restart),
 and `runToEnd()` fast-forwards to the result screen.
 
 To exercise the interaction system without
-a keyboard there is `teleport(x, y, z)`, `face(x, z)`, `look()` and `use()` —
-`look()` re-runs targeting on demand because `requestAnimationFrame` stops in a
-background tab, and a stale `target` reads exactly like a targeting bug. The
+a keyboard there is `teleport(x, y, z)`, `face(x, z)`, `look()`, `use()` and
+`walk(x, z, seconds)` — `look()` re-runs targeting on demand because
+`requestAnimationFrame` stops in a background tab, and a stale `target` reads
+exactly like a targeting bug; `walk()` advances the body on a fixed clock, the
+`__walk.run` idiom, so "can you still step onto the dais at full speed" is a
+measurement rather than a matter of how fast the reviewer types. The
 live game object is deliberately not exposed; it would make the trust boundary a
 suggestion.

@@ -52,12 +52,23 @@ project via Blender MCP; ours.”
 
 | asset ID | source `.blend` | runtime GLB | origin / license | bounds | tris / materials / textures | status | used by | review images |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| env-dais-a | art/blender/environment/env-dais-a/env-dais-a.blend | public/assets/models/environment/env-dais-a.glb | authored for this project via Blender MCP; ours | 6.0 × 1.27 × 3.4 m (lectern top 1.27; dais top 0.22) | ~13 boxes beveled / 3 materials (TimberOchre, TimberShadow, SlateStone) / 0 textures | review | nothing yet — runtime loader is the next Gate 2 step | design/reviews/env-dais-a/ |
+| env-dais-a | art/blender/environment/env-dais-a/env-dais-a.blend | public/assets/models/environment/env-dais-a.glb | authored for this project via Blender MCP; ours | 6.0 × 1.27 × 3.4 m (collision; visible art tops out at 1.209 — the lectern collider is 6 cm proud of the desk. dais top 0.22) | 1212 tris total: 1188 visible + 24 collision / 3 materials (TimberOchre, TimberShadow, SlateStone) / 0 textures | shipping | play.html square — `src/play/assets.js` places it at `(0, 0, 9)` with yaw π, replacing the procedural `dais` and `lectern` pieces of `src/play/square.js`; `COL_dais` and `COL_lectern` are the player's collision there and `SOCKET_podium` is the podium interactable's anchor | design/reviews/env-dais-a/ |
 
-Known limits at `review`: palette colors were set as raw linear values in Blender,
-so in-engine color will be calibrated in asset-lab against scene lighting before
-`approved`; COL_ meshes and SOCKET_podium export correctly (validated by node
-script) but nothing consumes them yet.
+Owner approved the review captures on 2026-08-09; the row moved `review` →
+`shipping` when the runtime loader landed the same day.
+
+Gated by `npm run test:glb` (`test/glb.test.js`), which reads the bytes: the
+required node names, single-sided opaque materials, bounds and the `0.22 m` dais
+top to ±1 cm, closed outward-facing colliders, and then the real controller
+walked up the step at full speed. A re-export that breaks any of that fails
+`npm run verify` rather than a playtest.
+
+Known limits at `shipping`: palette colours were set as raw linear values in
+Blender, so in-engine colour has still not been calibrated against scene
+lighting — `asset-lab.html` is the instrument for it, and its AgX tone mapping
+is not what `play.html` currently renders with (Gate 3 owns that). The lectern
+collider is a single box `0.06 m` taller and slightly deeper than the visible
+desk; harmless in play, visible with the lab's collider overlay on.
 
 ## Code dependencies
 
