@@ -42,16 +42,18 @@ import { createBvhWorld } from '../walk/bvh-world.js';
 import { buildSquare, seatPosition, SPAWN, DAIS, BELL, BENCH } from './square.js';
 import { createInteractions } from './interact.js';
 import { createPanels } from './panels.js';
+import { objectFor } from './objective.js';
+import { createPace } from './pace.js';
 
 const NAMES = ['Alice', 'Bo', 'Chen', 'Dara', 'Eze', 'Fin', 'Gita', 'Hale', 'Ivo', 'Juno'];
 const DEFAULT_SEED = 1000;
 const DEFAULT_PLAYERS = 7;
 const DEFAULT_HUMAN = 0;
 
-/** Milliseconds between bot actions at 1x. */
-const BASE_INTERVAL = 900;
 /** How often the loop looks up while it is waiting on the human. */
 const IDLE_INTERVAL = 200;
+/** How often it looks up while a deliberation beat is running. */
+const BEAT_POLL = 60;
 
 const LN20 = Math.log(20);
 const STEP_SMOOTH = 0.07;      // presentation only; see docs/step-03.md
@@ -317,10 +319,51 @@ let autopilotOn = false;
  * read as a locked screen. Found by pressing Esc, not by reading the code. */
 let gameOverShown = false;
 
+/*
+ * The deliberation clock. See src/play/pace.js for the constraint it is built
+ * around: nothing it produces reaches the rules, and it draws from its own
+ * stream so the engine's seeded one is untouched.
+ */
+let pace = createPace(DEFAULT_SEED);
+/* The end of the current beat, on the same clock the render loop reads. */
+let holdUntil = 0;
+
+function holdRemaining() {
+  return Math.max(0, holdUntil - performance.now());
+}
+function holding() {
+  return holdRemaining() > 0;
+}
+/** What the page is doing that the view cannot know. A clock, not game state. */
+function presentation() {
+  return { holding: holding() };
+}
+
+/**
+ * Hold the beat after one of YOUR submissions, but only when the rules
+ * immediately owe you another decision.
+ *
+ * Those are the two transitions the owner felt as instant, and they are instant
+ * for a structural reason: naming a Deputy and casting a ballot are both a
+ * single `Driver.step` triggered by the human's own submission, so the ballot
+ * box and the tally were open in the same frame as the click. Every other
+ * transition hands over to a bot, and the bot's own delay covers it.
+ *
+ * The beat is presentation only — the engine has already moved. What it holds
+ * back is the *interaction*: the podium and the bell go dark for its duration
+ * and the objective line says what the square is busy doing, so there is never
+ * a moment where the line points at an object that will not answer.
+ */
+function beat(nextWaiting) {
+  if (!nextWaiting) return;
+  holdUntil = performance.now() + pace.beatFor(nextWaiting, speed);
+}
+
 const panels = createPanels(document, {
   onSubmit(value) {
     if (!session || !session.waitingFor()) return;
     session.submit(value);
+    beat(session.waitingFor());
     refresh();
   },
   onClose() { refresh(); }
@@ -330,7 +373,7 @@ function refresh() {
   if (!session) return;
   waiting = session.waitingFor();
   view = View.viewFor(session.G, session.humanId, { waitingFor: waiting });
-  objective = panels.renderHud(view);
+  objective = panels.renderHud(view, presentation());
   applyToScene(view);
 
   /* A panel left open on a decision the match has moved past is a lie. */
@@ -350,13 +393,20 @@ function restart(seed = DEFAULT_SEED, playerCount = DEFAULT_PLAYERS, humanIndex 
   stopLoop();
   const count = Math.min(10, Math.max(5, playerCount | 0));
   const human = Math.min(count - 1, Math.max(0, humanIndex | 0));
+  const dealSeed = (seed >>> 0) || DEFAULT_SEED;
 
   const G = SD.createGame({
     names: NAMES.slice(0, count),
     humanIndex: human,
-    seed: (seed >>> 0) || DEFAULT_SEED
+    seed: dealSeed
   });
   session = Human.createSession({ G, minds: AI.create(G), humanId: human });
+
+  /* A fresh clock per match, seeded from the same integer the deal is — so a
+   * replayed seed has the same rhythm as the original. It is salted away from
+   * the engine's stream inside pace.js and shares nothing with it. */
+  pace = createPace(dealSeed);
+  holdUntil = 0;
 
   gameOverShown = false;
   autopilotOn = false;      // a new match is played by hand until asked otherwise
@@ -393,18 +443,42 @@ function stopLoop() {
  * that is Driver.step, shared with the parity script. When the human is owed a
  * decision the loop takes no step at all; it just looks up again shortly, so a
  * restart or a submission is noticed without the match ever advancing itself.
+ *
+ * Gate 1.5: the interval is no longer one flat number. `pace.delayFor(phase)`
+ * gives the bots time proportional to how hard the decision they are making is,
+ * read off `view.phase` — which is public, comes from the projection, and is
+ * the only thing this loop needs to know about what the square is doing. The
+ * pace control still divides it, so 4x is roughly the flat 900 ms Gate 1
+ * shipped.
+ *
+ * Nothing about WHICH action is taken is reachable from here, at any speed.
+ * That is the property test/pace.test.js proves by interleaving pace draws
+ * between every engine call and requiring an identical event log.
  */
 function schedule() {
-  const idle = session.over || (!!session.waitingFor() && !autopilotOn);
   timer = setTimeout(() => {
     timer = null;
-    if (!session.over) {
-      const w = session.waitingFor();
-      if (!w) { session.advanceBots(); refresh(); }
-      else if (autopilotOn) { session.submit(w.options[0]); refresh(); }
-    }
+    tick();
     schedule();
-  }, idle ? IDLE_INTERVAL : BASE_INTERVAL / speed);
+  }, nextDelay());
+}
+
+function nextDelay() {
+  /* A beat in progress owns the clock: no step is taken and no decision is
+   * answerable until it ends. Polled rather than scheduled exactly, so a speed
+   * change or a restart lands within a frame or two. */
+  if (holding()) return Math.min(holdRemaining(), BEAT_POLL);
+  if (session.over) return IDLE_INTERVAL;
+  const w = session.waitingFor();
+  if (w && !autopilotOn) return IDLE_INTERVAL;
+  return pace.delayFor(view ? view.phase : 'nomination', speed);
+}
+
+function tick() {
+  if (session.over || holding()) return;
+  const w = session.waitingFor();
+  if (!w) { session.advanceBots(); refresh(); }
+  else if (autopilotOn) { session.submit(w.options[0]); beat(session.waitingFor()); refresh(); }
 }
 
 /* ------------------------------------------------------- the three things */
@@ -418,25 +492,52 @@ const PODIUM_LABEL = {
   deputy_discard: 'draft — you hold two',
   block_response: 'answer the Block',
   power_target: 'use your power',
-  power_ack: 'read the deck'
+  power_ack: 'read the deck',
+  /* Gate 1.5: the tally opens where the motion was made. */
+  'acknowledge:vote_result': 'open the ballots'
 };
 
 const BELL_LABEL = {
   morning: 'the morning report',
-  vote_result: 'the ballots are open',
   chaos: 'chaos takes the deck'
 };
 
+/**
+ * Which object owes this decision — asked of `objective.js`, which owns the
+ * rule, so the interactable and the line on screen physically cannot disagree.
+ * Gate 1 kept two copies of it and this is the seam where they would have
+ * drifted the first time one moved. One did move, in Gate 1.5.
+ */
+const opensAt = (ctx) =>
+  (ctx.waiting ? objectFor(ctx.waiting.kind, ctx.waiting.gate) : null);
+
+/**
+ * Live only when the square is genuinely ready to answer.
+ *
+ * `!ctx.holding` is the deliberation beat: for its duration the rules already
+ * hold the next decision, but the square has not finished producing it, so
+ * pressing E would open a panel for something that has not visibly happened
+ * yet. It also guarantees the property Gate 1.5 was asked for — the objective
+ * line never points at an object that will not answer, because the same flag
+ * turns both of them off.
+ */
+const readyAt = (where) => (ctx) =>
+  !!ctx.waiting && !ctx.seated && !ctx.holding && opensAt(ctx) === where;
+
 /* Context-sensitive: the same lectern is the nominee picker, the ballot, the
- * draft and the power target, because it is where the rules happen. Which panel
- * it opens is read off the pending decision — the object has no idea what any
- * of them are. */
+ * tally, the draft and the power target, because it is where the rules happen.
+ * Which panel it opens is read off the pending decision — the object has no
+ * idea what any of them are. */
 interactions.add({
   id: 'podium',
   position: { x: DAIS.x, y: 0, z: DAIS.z - 0.9 },
   radius: 3.0,
-  canInteract: (ctx) => !!ctx.waiting && ctx.waiting.kind !== 'acknowledge' && !ctx.seated,
-  getPrompt: (ctx) => `E — ${PODIUM_LABEL[ctx.waiting.kind] || ctx.waiting.kind}`,
+  canInteract: readyAt('podium'),
+  getPrompt: (ctx) => {
+    const key = ctx.waiting.gate
+      ? ctx.waiting.kind + ':' + ctx.waiting.gate : ctx.waiting.kind;
+    return `E — ${PODIUM_LABEL[key] || PODIUM_LABEL[ctx.waiting.kind] || ctx.waiting.kind}`;
+  },
   interact: (ctx) => panels.open(ctx.view, ctx.waiting)
 });
 
@@ -444,7 +545,7 @@ interactions.add({
   id: 'bell',
   position: { x: BELL.x, y: 0, z: BELL.z },
   radius: 2.6,
-  canInteract: (ctx) => !!ctx.waiting && ctx.waiting.kind === 'acknowledge' && !ctx.seated,
+  canInteract: readyAt('bell'),
   getPrompt: (ctx) => `E — ring the bell: ${BELL_LABEL[ctx.waiting.gate] || 'continue'}`,
   interact: (ctx) => panels.open(ctx.view, ctx.waiting)
 });
@@ -461,7 +562,7 @@ interactions.add({
 });
 
 function interactionContext() {
-  return { view, waiting, seated };
+  return { view, waiting, seated, holding: holding() };
 }
 
 /* ------------------------------------------------------------------ input */

@@ -107,9 +107,9 @@ export function createPanels(doc, { onSubmit, onClose } = {}) {
    * defence. Rewritten only when it actually changes, so a screen reader is not
    * re-announcing the same sentence sixty times a second.
    */
-  function renderObjective(view) {
+  function renderObjective(view, presentation) {
     if (!el.objective) return null;
-    const o = objectiveFor(view);
+    const o = objectiveFor(view, presentation);
     if (o.id !== lastObjectiveId || el.objective.textContent !== o.text) {
       lastObjectiveId = o.id;
       el.objective.textContent = o.text;
@@ -157,11 +157,11 @@ export function createPanels(doc, { onSubmit, onClose } = {}) {
     el.log.scrollTop = el.log.scrollHeight;
   }
 
-  function renderHud(view) {
+  function renderHud(view, presentation) {
     renderRole(view);
     renderStatus(view);
     renderLog(view);
-    return renderObjective(view);
+    return renderObjective(view, presentation);
   }
 
   function setPrompt(text) {

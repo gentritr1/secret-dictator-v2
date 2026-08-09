@@ -52,8 +52,12 @@ project via Blender MCP; ours.”
 
 | asset ID | source `.blend` | runtime GLB | origin / license | bounds | tris / materials / textures | status | used by | review images |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| env-dais-a | art/blender/environment/env-dais-a/env-dais-a.blend | public/assets/models/environment/env-dais-a.glb | authored for this project via Blender MCP; ours | 6.0 × 1.27 × 3.4 m (lectern top 1.27; dais top 0.22) | ~13 boxes beveled / 3 materials (TimberOchre, TimberShadow, SlateStone) / 0 textures | review | nothing yet — runtime loader is the next Gate 2 step | design/reviews/env-dais-a/ |
 
-No production asset has passed the pipeline yet.
+Known limits at `review`: palette colors were set as raw linear values in Blender,
+so in-engine color will be calibrated in asset-lab against scene lighting before
+`approved`; COL_ meshes and SOCKET_podium export correctly (validated by node
+script) but nothing consumes them yet.
 
 ## Code dependencies
 

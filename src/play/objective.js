@@ -81,12 +81,39 @@ export const OBJECTIVE_IDS = [
   'bots:block_response',
   'bots:chaos',
   'bots:power',
-  'unknown'
+  'unknown',
+  /* The deliberation beats, one per decision that can immediately follow one
+   * of your own submissions. See BEAT_LINE and src/play/pace.js. */
+  'beat:vote',
+  'beat:acknowledge:vote_result',
+  'beat:acknowledge:chaos',
+  'beat:acknowledge:morning',
+  'beat:nominate',
+  'beat:speaker_discard',
+  'beat:deputy_discard',
+  'beat:block_response',
+  'beat:power_target',
+  'beat:power_ack'
 ];
 
-/** Which object a given decision kind is opened at. Mirrors main.js exactly. */
-export function objectFor(kind) {
-  return kind === 'acknowledge' ? 'bell' : 'podium';
+/**
+ * Which object a given decision is opened at. **This is the routing rule
+ * itself, not a copy of it** — src/play/main.js registers the podium and the
+ * bell by calling this function, so the line and the interactable cannot
+ * disagree. Gate 1 had the rule written out twice and the test asserting
+ * against the copy; that is a bug waiting for someone to change one of them.
+ *
+ * Gate 1.5 moved one gate. The owner played and reported the bell as a chore,
+ * and the measurement agreed: it was visited more often than the podium at
+ * every table size, because a day costs two trips to it. The ballots now open
+ * where the motion was made and where the player is already standing — they
+ * voted at the podium a moment ago. The morning report and the Chaos screen
+ * stay at the bell: one ritual trip a day, and one piece of news big enough to
+ * be worth the walk. See docs/step-05.md.
+ */
+export function objectFor(kind, gate) {
+  if (kind !== 'acknowledge') return 'podium';
+  return gate === 'vote_result' ? 'podium' : 'bell';
 }
 
 function nameOf(view, id) {
@@ -103,16 +130,58 @@ function seatName(view, id) {
 }
 
 /**
+ * What the square is doing during the beat between your submission and the
+ * decision it produced becoming answerable (see src/play/pace.js).
+ *
+ * Keyed by the decision now OWED, because that is what the square is busy
+ * producing — the same key `pace.beatKey` builds, so the length of the pause
+ * and the sentence describing it cannot drift apart.
+ *
+ * None of these is filler. "The square is thinking" would be filler; each of
+ * these names the specific thing that has to happen before you can act, which
+ * is the property the owner's "it is intuitive overall what to do" was about.
+ */
+const BEAT_LINE = {
+  vote: 'The nomination stands — the square is taking its seats to vote.',
+  'acknowledge:vote_result': 'The ballots are sealed — the square is counting them.',
+  'acknowledge:chaos': 'No government again — the deck is taking over.',
+  'acknowledge:morning': 'The square is gathering for the new session.',
+  nominate: 'The square settles, and the gavel comes to you.',
+  speaker_discard: 'You withdraw to draft — three tiles are being dealt to you.',
+  deputy_discard: 'The Speaker throws one away and passes two to you.',
+  block_response: 'The Deputy is putting the Block to you.',
+  power_target: 'The board is granting you the power.',
+  power_ack: 'The board is granting you the power.'
+};
+
+/**
  * @param {object} view  the output of View.viewFor for this seat, with
  *                       `waitingFor` populated by the session
+ * @param {object} [presentation] `{ holding }` — true while the page is holding
+ *                       the deliberation beat after your own submission. It is
+ *                       a clock, not game state: it carries no ids, no roles
+ *                       and no rules, and the only thing it can do is choose a
+ *                       sentence from BEAT_LINE above. The view stays the sole
+ *                       source of everything the line SAYS.
  * @returns {{id: string, text: string, act: boolean, at: string|null}}
  *          `act` is true when the square is waiting on YOU — the page uses it
  *          to make the line warm, because warm means attention.
  */
-export function objectiveFor(view) {
+export function objectiveFor(view, presentation) {
   if (!view) return { id: 'unknown', text: 'Dealing a new match…', act: false, at: null };
 
   const line = (id, text, at) => ({ id, text, act: at !== null, at: at || null });
+
+  /* The beat comes before everything except the end of the match: while it is
+   * running the decision exists but cannot be opened, and a line telling the
+   * player to go and press E on something inert is the stale instruction this
+   * gate exists to avoid. */
+  if (presentation && presentation.holding && view.waitingFor &&
+      view.phase !== 'game_over') {
+    const w = view.waitingFor;
+    const key = w.gate ? w.kind + ':' + w.gate : w.kind;
+    return line('beat:' + key, BEAT_LINE[key] || 'The square is answering.', null);
+  }
 
   /* The end comes first: at game over there is nothing left to owe. */
   if (view.phase === 'game_over') {
@@ -142,7 +211,7 @@ export function objectiveFor(view) {
             'Three failed governments — walk to the bell; chaos takes the deck.', 'bell');
         }
         return line('acknowledge:vote_result',
-          'The ballots are sealed — walk to the bell to open them.', 'bell');
+          'The ballots are sealed — open them at the podium, where you voted.', 'podium');
 
       case 'nominate':
         return line('nominate',
@@ -187,9 +256,10 @@ export function objectiveFor(view) {
 
       default:
         /* A decision kind nobody has written a line for still gets the object
-         * right, because the routing rule is the kind and not the prose. */
+         * right, because the routing rule is the decision and not the prose. */
         return line('unknown',
-          `The square is waiting on you — go to the ${objectFor(w.kind)}.`, objectFor(w.kind));
+          `The square is waiting on you — go to the ${objectFor(w.kind, w.gate)}.`,
+          objectFor(w.kind, w.gate));
     }
   }
 
