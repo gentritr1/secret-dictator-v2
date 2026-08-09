@@ -332,6 +332,57 @@ parity                  PARITY OK — driver.js reproduces the self-test baselin
 build                   four entry points
 ```
 
+### The browser pass
+
+Seed 1000, seven citizens, seat 0, autopilot at 1x. `__play.floor()` grew to 49
+utterances over 15 floors with 12 triggers declined by the scarcity gate;
+`floorAudit()` came back empty; `barred` stayed 0; the official log was 81 lines
+— the `docs/step-04.md` fingerprint exactly — and **no floor sentence, in either
+rendering, appears anywhere in it**. Two obligations were sitting undischarged
+with two recorded silences each, which is the D2 rule visible in a live match
+rather than in a fixture. Console clean throughout.
+
+Floor bubbles reach the DOM as `.murmur.floor`, read off the element rather than
+off the controller: `12px`, `rgb(230,233,240)` (`--ink`), brass border
+`rgb(106,90,52)`, `max-width: 230px` — against the idle murmur's `10px`,
+`rgb(152,160,179)` (`--dim`), `180px`. Never more than two up at once with both
+voices running, and zero disagreements between what the controller said was up
+and what the DOM showed. A screenshot with two of them on screen at once — Bo's
+"Every tile in my hand was a Seize. There was nothing else to pass on." and
+Chen's "Bo is telling it as I heard it." — is the eyeball half.
+
+**A caught lie a reviewer can reproduce in the page**, and the strongest single
+result in this pass, because the browser and a node replay of the browser path
+agreed to the utterance:
+
+```
+__play.restart(1006, 7, 0); __play.autopilot(true);   // play to game over
+
+  56 utterances - 17 floors convened - 3 declined - winner loyalist
+  flags: [ C3:u-40:u-42:g-4 ]  class pair  seats [4, 5]
+
+  day 7, government g-4 - Eze (seat 4) Speaker, Fin (seat 5) Deputy
+    truth   Eze drew {reform 1, seize 2} and passed on {reform 1, seize 1}
+            Fin received {reform 1, seize 1} and enacted the Seize
+    u-40    Eze, honestly: "I drew one Reform and two Seizes and passed on
+            one Reform and one Seize."
+    u-42    Fin, lying:    "I was handed two Seizes. Look at what that
+            leaves me."   received {reform 0, seize 2}
+    flag    C3 names the pair and stops. It cannot say which of them lied.
+```
+
+Every number in that block was produced twice — once by the node replay, once by
+the page — and they matched at the last observation of day 3 (18 utterances, 5
+floors), of day 4 (21, 6, 1 declined), and at game over.
+
+`walk.html`, `index.html` and `asset-lab.html` are unchanged: wall head-on still
+stops at z = 11.6499, the 35 degree ramp still stalls at x = 1.889 with y = 0,
+the 0.40 m block still stops the body at z = -2.400, the steps still run at
+3.5 m/s, `screenBias` is still 0; the playground still plays seed 1000 at seven
+citizens to 73 steps, a Loyalist win and a 31 365-character event log; the asset
+lab still reports `env-dais-a` at 6.000 x 1.209 x 3.400 m, 11 visual nodes,
+1188 triangles, `SOCKET_podium`.
+
 ### Four instrument failures, recorded
 
 The first three are the same shape this project keeps meeting: **a probe that cannot
@@ -412,7 +463,24 @@ reach the thing it is aimed at reports a plausible number.**
   invariance test and the fact that `G.log` is byte-untouched.
 - **No screenshot has been colour-sampled.** `.murmur.floor`'s 12.1:1 worst-case
   ratio is computed from the declared tokens, like every other ratio in
-  `style.css` since Gate 1.
+  `style.css` since Gate 1. The *computed* styles were read off the live
+  elements; the *contrast* was not measured on a rendered pixel.
+- **Floor bubbles can overlap each other.** Step 8 recorded that a bubble can
+  overlap a neighbour's nameplate at some angles; a floor bubble is 230 px wide
+  against 180 and it happens more often. Visible in the two-bubble screenshot,
+  where Bo's and Chen's overlap at that camera angle. Cosmetic, and the tray and
+  ledger are where a conversation stops competing for the same square metre.
+- **`runToEnd()` produces no discussion at all.** It steps the whole match and
+  refreshes once, so the floor observes one batch and sees only the final
+  transition. That is correct for a scripted fast-forward and it is worth
+  knowing before somebody reads an empty `floor()` as a bug. Normal play, the
+  autopilot and every hand-played match refresh per step and convene normally.
+- **The pane freezes a backgrounded match.** Chrome suspends a hidden tab's
+  timers after a few minutes, so a scripted review that walks away comes back to
+  a match that has not moved. Nothing is wrong with the page; it is the same
+  family as step-05's "a frame-driven value cannot be observed by anything that
+  is not watching the window", one step further out. Take a screenshot to thaw
+  it, and never read a stalled counter as a stalled loop.
 
 ## 7. Notes for later steps
 
