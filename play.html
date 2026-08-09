@@ -44,13 +44,20 @@
     </select>
   </div>
 
+  <!-- The persistent objective: one line, always on screen, saying what to do
+       and where to do it. Filled from src/play/objective.js, which is a pure
+       function of the same player-safe view the panels read. It is a live
+       region because it is the one piece of text that changes on its own. -->
+  <p id="objective" role="status" aria-live="polite"></p>
+
   <!-- Interaction prompt. One key does everything; which thing it does is
        decided by what you are standing in front of. -->
   <div id="prompt" class="hidden"></div>
 
   <p id="help">
     WASD or arrows to walk · drag to orbit · wheel to zoom · <b>E</b> to use
-    what you are facing · in a panel: 1–9 pick, A/Y aye, N nay, ↵ continue, Esc close
+    what you are facing · in a panel: 1–9 pick, A/Y aye, N nay, ↵ continue,
+    Tab moves between answers, Esc closes without answering
   </p>
 
   <!-- Whichever decision the rules are waiting on. Opened by walking up to

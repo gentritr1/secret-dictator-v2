@@ -14,7 +14,26 @@
  * Deliberately v0 debug quality — plain DOM, no transitions, no layout opinion
  * beyond legibility. Step 4 is about the decisions being real, not about them
  * being pretty.
+ *
+ * Gate 1 (docs/step-05.md) added two things and no decoration:
+ *
+ *   - the persistent objective line, from src/play/objective.js, which is a
+ *     pure function of the same view and imports no engine module either;
+ *   - real dialog semantics on the panel: role="dialog", aria-modal, a labelled
+ *     title, focus moved in on open, trapped while open, and returned to
+ *     whatever had it when the panel closes.
+ *
+ * The focus trap is deliberately built twice: Tab is handled here so the cycle
+ * is ordered (a focusin guard alone sends Shift+Tab to the wrong end), and a
+ * focusin listener on the document is the backstop for a click or a browser
+ * shortcut that lands outside. Both are optional-chained through the document
+ * they are given, because test/view.test.js drives this file against a stub
+ * document with five elements and no event system — that stub is a feature, not
+ * an accident, and a panel that only works in a browser cannot be tested where
+ * the rest of the game is.
  */
+
+import { objectiveFor } from './objective.js';
 
 const TILE_LABEL = { reform: 'REFORM', seize: 'SEIZE' };
 
@@ -43,11 +62,15 @@ export function createPanels(doc, { onSubmit, onClose } = {}) {
     status: doc.getElementById('status'),
     log: doc.getElementById('log'),
     prompt: doc.getElementById('prompt'),
-    panel: doc.getElementById('panel')
+    panel: doc.getElementById('panel'),
+    objective: doc.getElementById('objective')
   };
 
   let openKind = null;     // the waitingFor.kind (or 'game_over') on screen
   let lastLogLength = -1;
+  let lastObjectiveId = null;
+  /* Whatever had focus when the panel opened, so closing can give it back. */
+  let returnFocusTo = null;
 
   const nameOf = (view, id) => {
     if (id == null) return '—';
@@ -78,15 +101,37 @@ export function createPanels(doc, { onSubmit, onClose } = {}) {
       (peeks.length ? `<p class="known"><b>you have read</b> ${peeks.join(' · ')}</p>` : '');
   }
 
+  /*
+   * The objective line. One sentence, always on screen, derived from the safe
+   * view by objective.js — see that file for why the signature is the whole
+   * defence. Rewritten only when it actually changes, so a screen reader is not
+   * re-announcing the same sentence sixty times a second.
+   */
+  function renderObjective(view) {
+    if (!el.objective) return null;
+    const o = objectiveFor(view);
+    if (o.id !== lastObjectiveId || el.objective.textContent !== o.text) {
+      lastObjectiveId = o.id;
+      el.objective.textContent = o.text;
+      el.objective.className = o.act ? 'act' : '';
+      if (el.objective.setAttribute) el.objective.setAttribute('data-objective', o.id);
+    }
+    return o;
+  }
+
   function renderStatus(view) {
-    const row = (k, v) => `<div><span class="k">${esc(k)}</span><span class="v">${v}</span></div>`;
+    const row = (k, v, cls) =>
+      `<div class="${cls || ''}"><span class="k">${esc(k)}</span><span class="v">${v}</span></div>`;
     const track = (n, total, cls) => {
       let out = '';
       for (let i = 0; i < total; i++) out += `<i class="${cls}${i < n ? ' on' : ''}"></i>`;
       return out;
     };
     el.status.innerHTML =
-      row('phase', esc(view.phase)) +
+      /* The phase is one of the two loudest things on screen (the objective is
+       * the other), so it is marked rather than left to sit at the same weight
+       * as the deck count. */
+      row('phase', esc(view.phase), 'loud') +
       row('day', view.day) +
       row('reform', track(view.reform, view.limits.reformToWin, 'reform') + ` ${view.reform}/${view.limits.reformToWin}`) +
       row('seize', track(view.seize, view.limits.seizeToWin, 'seize') + ` ${view.seize}/${view.limits.seizeToWin}`) +
@@ -116,6 +161,7 @@ export function createPanels(doc, { onSubmit, onClose } = {}) {
     renderRole(view);
     renderStatus(view);
     renderLog(view);
+    return renderObjective(view);
   }
 
   function setPrompt(text) {
@@ -287,11 +333,99 @@ export function createPanels(doc, { onSubmit, onClose } = {}) {
     }
   }
 
+  /* ------------------------------------------------------ dialog plumbing */
+
+  /**
+   * Everything inside the panel a Tab can land on, in visual order.
+   *
+   * querySelectorAll returns document order, and the panel's document order IS
+   * its visual order — the buttons are emitted into `.row` in the order they
+   * are drawn. So no tabindex is set anywhere: a positive tabindex would be a
+   * second ordering to keep in sync with the first.
+   */
+  function focusables() {
+    if (!el.panel.querySelectorAll) return [];
+    return Array.prototype.slice.call(
+      el.panel.querySelectorAll('button, [href], input, select, textarea, [tabindex]')
+    ).filter((n) => !n.disabled && n.tabIndex !== -1);
+  }
+
+  function focusFirst() {
+    const list = focusables();
+    if (list.length) { list[0].focus(); return true; }
+    /* The result screen has no buttons. Focus the dialog itself so a screen
+     * reader announces it and Esc has somewhere to be pressed. */
+    if (el.panel.focus) { el.panel.focus(); return true; }
+    return false;
+  }
+
+  /*
+   * The rest of the page while a dialog is open.
+   *
+   * `inert` is the standard answer and it is a better one than a focus fight:
+   * it takes the HUD and the controls out of the tab order and out of the
+   * pointer's reach for as long as the modal is up, which is what `aria-modal`
+   * is *claiming* anyway. Without it the claim is a lie a screen reader repeats.
+   * The canvas is deliberately left alone — it holds no focusable element, and
+   * being able to orbit the camera while reading a decision is not a leak of
+   * focus, it is the whole point of the camera.
+   */
+  const OUTSIDE = ['hud', 'controls'];
+
+  function setOutsideInert(on) {
+    for (const id of OUTSIDE) {
+      const node = doc.getElementById(id);
+      if (!node || !node.setAttribute) continue;
+      if (on) { node.setAttribute('inert', ''); node.setAttribute('aria-hidden', 'true'); }
+      else { node.removeAttribute('inert'); node.removeAttribute('aria-hidden'); }
+    }
+  }
+
+  /**
+   * The backstop half of the trap: if focus escapes the open panel by a route
+   * neither Tab nor `inert` covers, pull it back.
+   *
+   * Deferred by a tick on purpose. Calling focus() from inside a focusin
+   * handler is ignored — the browser is still mid-transfer — and the first
+   * version of this looked exactly like a broken trap: the listener ran, the
+   * focus() call did nothing, and the seed box kept the keyboard. Found by
+   * driving it, not by reading it.
+   */
+  function onFocusIn(e) {
+    if (openKind === null) return;
+    if (!e || !e.target || !el.panel.contains) return;
+    if (el.panel.contains(e.target)) return;
+    setTimeout(() => { if (openKind !== null) focusFirst(); }, 0);
+  }
+  if (doc.addEventListener) doc.addEventListener('focusin', onFocusIn);
+
+  /**
+   * Close the panel.
+   *
+   * Closing NEVER answers anything. The decision the panel was drawn for is
+   * still pending in the session, so reopening it (walk back, press E) rebuilds
+   * exactly the same options from exactly the same `waitingFor` — this function
+   * touches no game state at all, which is why "Esc must not lose a pending
+   * decision" is a property of the design rather than a thing to remember.
+   */
   function close() {
     const wasOpen = openKind !== null;
     openKind = null;
     el.panel.classList.add('hidden');
     el.panel.innerHTML = '';
+    if (el.panel.removeAttribute) {
+      el.panel.removeAttribute('role');
+      el.panel.removeAttribute('aria-modal');
+      el.panel.removeAttribute('aria-labelledby');
+    }
+    if (wasOpen) setOutsideInert(false);
+    /* Give the keyboard back to whatever had it. Guarded, because the element
+     * can have been removed by a restart between opening and closing. */
+    const back = returnFocusTo;
+    returnFocusTo = null;
+    if (wasOpen && back && back.focus && (!doc.contains || doc.contains(back))) {
+      try { back.focus(); } catch (err) { /* a detached node; nothing to give back to */ }
+    }
     /* Only tell the page something changed if something changed. Firing the
      * callback on a close-that-closed-nothing is how a restart ended up
      * redrawing the scene halfway through rebuilding it. */
@@ -302,20 +436,35 @@ export function createPanels(doc, { onSubmit, onClose } = {}) {
   function open(view, w) {
     const spec = bodyFor(view, w);
     if (!spec) { close(); return false; }
+    const wasOpen = openKind !== null;
     openKind = w ? w.kind : 'game_over';
+    /* Remembered on the way in, and only on the way in: refresh() redraws an
+     * open panel in place, and re-reading activeElement there would remember a
+     * button inside the panel and hand focus to a node that no longer exists. */
+    if (!wasOpen) returnFocusTo = doc.activeElement || null;
+    setOutsideInert(true);
+
     el.panel.classList.remove('hidden');
     el.panel.innerHTML =
       `<div class="kicker">${spec.kicker || ''}</div>` +
-      `<h2>${spec.title}</h2>` +
+      `<h2 id="panel-title">${spec.title}</h2>` +
       (spec.body || '') +
       `<div class="row">${spec.actions || ''}</div>` +
-      (w ? '<div class="foot">Esc closes this — the square waits as long as you like.</div>' : '');
+      (w ? '<div class="foot">Tab moves between the answers · Esc closes this — ' +
+           'the decision stays open and the square waits as long as you like.</div>' : '');
+
+    /* A modal that only looks modal is a trap for anyone not using a mouse. */
+    if (el.panel.setAttribute) {
+      el.panel.setAttribute('role', 'dialog');
+      el.panel.setAttribute('aria-modal', 'true');
+      el.panel.setAttribute('aria-labelledby', 'panel-title');
+      el.panel.setAttribute('tabindex', '-1');
+    }
 
     el.panel.querySelectorAll('button.opt').forEach((b) => {
       b.addEventListener('click', () => submit(JSON.parse(b.dataset.value)));
     });
-    const first = el.panel.querySelector('button.opt');
-    if (first) first.focus();
+    focusFirst();
     return true;
   }
 
@@ -331,6 +480,26 @@ export function createPanels(doc, { onSubmit, onClose } = {}) {
    */
   function handleKey(e, view, w) {
     if (!openKind) return false;
+
+    /*
+     * Tab cycles inside the panel and cannot leave it.
+     *
+     * Consuming the key and moving focus by hand is what makes Shift+Tab from
+     * the first answer land on the LAST one rather than on the seed box behind
+     * the modal. The focusin listener above would catch the escape either way,
+     * but it would put focus back at the top, which reads as the key being
+     * broken.
+     */
+    if (e.key === 'Tab') {
+      const list = focusables();
+      if (!list.length) return true;
+      const at = list.indexOf(doc.activeElement);
+      const next = e.shiftKey
+        ? (at <= 0 ? list.length - 1 : at - 1)
+        : (at === -1 || at === list.length - 1 ? 0 : at + 1);
+      list[next].focus();
+      return true;
+    }
     if (e.key === 'Escape') { close(); return true; }
     if (openKind === 'game_over') return false;
     if (!w) return false;
@@ -367,14 +536,19 @@ export function createPanels(doc, { onSubmit, onClose } = {}) {
 
   return {
     renderHud,
+    renderObjective,
     setPrompt,
     open,
     close,
     handleKey,
+    /* For a scripted review: what a Tab press can reach right now. */
+    get focusOrder() { return focusables(); },
     get isOpen() { return openKind !== null; },
     get openKind() { return openKind; },
     /* A restart throws the log away, so the cache that stops it being rebuilt
-     * sixty times a second has to be thrown away with it. */
-    resetLog() { lastLogLength = -1; }
+     * sixty times a second has to be thrown away with it. The objective's cache
+     * goes with it for the same reason: a new deal can open on the same line
+     * the old match ended holding. */
+    resetLog() { lastLogLength = -1; lastObjectiveId = null; }
   };
 }
