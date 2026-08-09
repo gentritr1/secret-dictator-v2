@@ -599,6 +599,347 @@ async function playerLayer(built) {
     `${fmt(Math.hypot(socket.x - standing.x, socket.z - standing.z))} m, inside the 3.0 m radius`);
 }
 
+/* ------------------------------------------------ layer 4: the cast */
+
+/**
+ * The citizens: the same file contract as the dais, minus everything about
+ * collision, plus the two things a figure has that a prop does not — a
+ * nameplate socket the runtime reads instead of guessing, and a silhouette the
+ * game is going to stamp out several times.
+ *
+ * Written as its own function rather than as options on `fileLayer` because
+ * almost every dais check is about a collider or a 0.22 m step. Parameterising
+ * that would turn a readable list of gameplay facts into a list of conditionals
+ * and would make both assets harder to reason about.
+ */
+const CITIZENS = {
+  dir: path.join(__dirname, '..', 'public', 'assets', 'models', 'characters'),
+  ids: ['chr-citizen-base', 'chr-citizen-stout', 'chr-citizen-tall', 'chr-citizen-hunched'],
+  /* BLENDER_PIPELINE.md: "Citizen LOD0 about 8k, review 12k". */
+  triangleReview: 12000,
+  /* "A citizen normally has at most two." */
+  materialLimit: 2,
+  /* A citizen is a person-sized object. Anything outside this is a scale bug,
+   * which is the failure a metre-scale pipeline exists to prevent. */
+  heightBand: [1.35, 2.10],
+  /* Where a nameplate may sit. The runtime reads the socket, so this is not a
+   * layout constant — it is the band outside which a label is either inside the
+   * hat or floating in the sky, and either way somebody wrote a wrong number. */
+  labelBand: [1.50, 2.30],
+  /* How far the FEET may sit off the asset root. The pipeline says citizens use
+   * foot centre, and the bounding box will not do: chr-citizen-hunched leans
+   * 0.50 m forward of its feet on purpose. */
+  footTolerance: 0.05,
+  footSlice: 0.05,
+  tolerance: 0.01
+};
+
+function citizenFileLayer(id, glb) {
+  const json = glb.json;
+  const tag = id.replace('chr-citizen-', '');
+
+  check(glb.magic === 0x46546C67, `${id}: not a GLB: bad magic`);
+  check(glb.version === 2, `${id}: glTF version ${glb.version}, expected 2`);
+  check(glb.total === glb.buf.length, `${id}: declared length does not match the file size`);
+  check(!!json && !!glb.bin, `${id}: missing its JSON or BIN chunk`);
+
+  check(json.scenes.length === 1, `${id}: scenes ${json.scenes.length}, expected 1`);
+  check(json.scenes[0].nodes.length === 1, `${id}: the scene must have exactly one asset root`);
+  const root = json.nodes[json.scenes[0].nodes[0]];
+  check(root.name === id, `${id}: asset root name is ${root.name}`);
+  check(!root.translation && !root.rotation && !root.scale,
+    `${id}: the asset root must sit at the origin with no transform of its own`);
+
+  const names = json.nodes.map((n) => n.name);
+  if (names.indexOf('SOCKET_label') === -1) {
+    check(false, `${id}: required node missing: SOCKET_label`);
+    return null;      // everything below reads it by name
+  }
+
+  const DEFAULTS = /^(Cube|Sphere|Cylinder|Plane|Cone|Torus|Icosphere|Suzanne|Empty|Material|Object)(\.\d+)?$/i;
+  const SUFFIXED = /\.\d{3}$/;
+  const everything = []
+    .concat(json.nodes.map((n) => ['node', n.name]))
+    .concat(json.meshes.map((m) => ['mesh', m.name]))
+    .concat(json.materials.map((m) => ['material', m.name]))
+    .concat((json.animations || []).map((a) => ['animation', a.name]));
+  for (const [kind, name] of everything) {
+    check(!!name, `${id}: an unnamed ${kind} reached the export`);
+    check(!DEFAULTS.test(name || ''), `${id}: ${kind} has a default name: ${name}`);
+    check(!SUFFIXED.test(name || ''), `${id}: ${kind} has a .00n duplicate suffix: ${name}`);
+  }
+
+  const leaks = names.filter((n) => /^(CAL_|GUIDE_|REF_|REVIEW_)/.test(n || ''));
+  check(leaks.length === 0, `${id}: guide geometry leaked into the export: ${leaks.join(', ')}`);
+  check(!json.cameras || json.cameras.length === 0, `${id}: the export contains a camera`);
+  check(!(json.extensionsUsed || []).some((e) => e === 'KHR_lights_punctual'),
+    `${id}: the export contains a light`);
+
+  const unclassified = names.filter((n) => n !== id && !/^(VIS_|SOCKET_)/.test(n || ''));
+  check(unclassified.length === 0, `${id}: nodes with no runtime role: ${unclassified.join(', ')}`);
+  /*
+   * And specifically NO collision. The pipeline's rule is that decorative
+   * citizens are non-colliding until gameplay deliberately changes it, and the
+   * runtime harvests nothing from a cast member — so a COL_ volume that slipped
+   * into the export would not become a wall, it would become invisible dead
+   * weight in every one of the ten copies. Either way it is wrong, and it is
+   * invisible in a diff.
+   */
+  const colliders = names.filter((n) => /^COL_/.test(n || ''));
+  check(colliders.length === 0,
+    `${id}: ships collision the runtime will not use: ${colliders.join(', ')}`);
+
+  for (const m of json.materials) {
+    check(m.doubleSided !== true, `${id}: opaque material exported double-sided: ${m.name}`);
+    check(!m.alphaMode || m.alphaMode === 'OPAQUE', `${id}: material is not opaque: ${m.name}`);
+    const pbr = m.pbrMetallicRoughness || {};
+    check((pbr.metallicFactor || 0) === 0, `${id}: ${m.name} is metallic (${pbr.metallicFactor})`);
+    const rough = pbr.roughnessFactor === undefined ? 1 : pbr.roughnessFactor;
+    check(rough >= 0.8 && rough <= 0.95,
+      `${id}: ${m.name} roughness ${rough} is outside the painted-wood band 0.80-0.95`);
+  }
+  check(json.materials.length <= CITIZENS.materialLimit,
+    `${id}: materials ${json.materials.length}, a citizen is budgeted ${CITIZENS.materialLimit}`);
+  for (const image of json.images || []) {
+    check(image.bufferView !== undefined, `${id}: texture image is external: ${image.uri}`);
+  }
+
+  /* -- geometry, bounds, and the feet ----------------------------------- */
+
+  const box = { min: [Infinity, Infinity, Infinity], max: [-Infinity, -Infinity, -Infinity] };
+  const foot = { min: [Infinity, Infinity], max: [-Infinity, -Infinity] };
+  let triangles = 0;
+  let footVertices = 0;
+
+  for (const node of json.nodes) {
+    if (node.mesh === undefined) continue;
+    check(!node.translation && !node.rotation && !node.scale,
+      `${id}: ${node.name} carries a node transform; geometry is expected baked`);
+    for (const prim of json.meshes[node.mesh].primitives) {
+      check(prim.mode === undefined || prim.mode === 4, `${id}: ${node.name} is not triangles`);
+      check(!!prim.attributes.NORMAL, `${id}: ${node.name} has no normals`);
+      const declared = json.accessors[prim.attributes.POSITION];
+      const pos = accessor(glb, prim.attributes.POSITION);
+      const local = { min: [Infinity, Infinity, Infinity], max: [-Infinity, -Infinity, -Infinity] };
+      for (let v = 0; v < pos.count; v++) {
+        const x = pos.data[v * 3], y = pos.data[v * 3 + 1], z = pos.data[v * 3 + 2];
+        const p = [x, y, z];
+        for (let k = 0; k < 3; k++) {
+          local.min[k] = Math.min(local.min[k], p[k]);
+          local.max[k] = Math.max(local.max[k], p[k]);
+          box.min[k] = Math.min(box.min[k], p[k]);
+          box.max[k] = Math.max(box.max[k], p[k]);
+        }
+        /* The lowest slice is the feet. Measured rather than assumed, because
+         * the bounding box centre is the wrong test for a figure that leans. */
+        if (y <= CITIZENS.footSlice) {
+          footVertices++;
+          foot.min[0] = Math.min(foot.min[0], x); foot.max[0] = Math.max(foot.max[0], x);
+          foot.min[1] = Math.min(foot.min[1], z); foot.max[1] = Math.max(foot.max[1], z);
+        }
+      }
+      for (let k = 0; k < 3; k++) {
+        near(declared.min[k], local.min[k], 1e-4, `${id}: ${node.name} declared min[${k}] vs its vertices`);
+        near(declared.max[k], local.max[k], 1e-4, `${id}: ${node.name} declared max[${k}] vs its vertices`);
+      }
+      const index = json.accessors[prim.indices];
+      triangles += (index ? index.count : pos.count) / 3;
+    }
+  }
+
+  const height = box.max[1] - box.min[1];
+  near(box.min[1], 0, CITIZENS.tolerance, `${id}: ground contact — the lowest vertex must sit on Y=0`);
+  check(height >= CITIZENS.heightBand[0] && height <= CITIZENS.heightBand[1],
+    `${id}: height ${fmt(height)} m is outside the ${CITIZENS.heightBand.join('-')} m band for a citizen`);
+  check(triangles <= CITIZENS.triangleReview,
+    `${id}: ${triangles} triangles is over the ${CITIZENS.triangleReview} review limit`);
+
+  check(footVertices > 0, `${id}: no geometry within ${CITIZENS.footSlice} m of the ground to call feet`);
+  if (footVertices > 0) {
+    near((foot.min[0] + foot.max[0]) / 2, 0, CITIZENS.footTolerance, `${id}: feet centred on X`);
+    near((foot.min[1] + foot.max[1]) / 2, 0, CITIZENS.footTolerance, `${id}: feet centred on Z`);
+  }
+
+  /* -- the socket -------------------------------------------------------- */
+
+  const socket = json.nodes.find((n) => n.name === 'SOCKET_label');
+  check(socket.mesh === undefined, `${id}: SOCKET_label must be an empty, not a mesh`);
+  const at = socket.translation || [0, 0, 0];
+  near(at[0], 0, CITIZENS.tolerance, `${id}: SOCKET_label off the centre line (X)`);
+  near(at[2], 0, CITIZENS.tolerance, `${id}: SOCKET_label off the centre line (Z)`);
+  check(at[1] > box.max[1],
+    `${id}: SOCKET_label at ${fmt(at[1])} is not above the crown at ${fmt(box.max[1])}`);
+  check(at[1] >= CITIZENS.labelBand[0] && at[1] <= CITIZENS.labelBand[1],
+    `${id}: SOCKET_label at ${fmt(at[1])} is outside the ${CITIZENS.labelBand.join('-')} m band`);
+
+  say(`${tag.padEnd(9)} ${fmt(box.max[0] - box.min[0])} × ${fmt(height)} × ` +
+    `${fmt(box.max[2] - box.min[2])} m, ground ${fmt(box.min[1])}, ${triangles} tris, ` +
+    `${json.materials.length} material, label ${fmt(at[1])}`);
+
+  return { box, triangles, label: at, materials: json.materials.length, height };
+}
+
+/**
+ * The cast loader, and the mapping that decides who stands where.
+ *
+ * Same argument as the environment's layer 2: this drives the game's own
+ * `buildCastMember` on the real bytes, so the merge, the socket and the
+ * refusals under test are the ones play.html runs.
+ */
+async function castLayer(reports) {
+  const THREE = await import('three');
+  const { GLTFLoader } = await import('three/addons/loaders/GLTFLoader.js');
+  const A = await import('../src/play/assets.js');
+
+  function parse(id) {
+    const buf = fs.readFileSync(path.join(CITIZENS.dir, id + '.glb'));
+    const bytes = buf.buffer.slice(buf.byteOffset, buf.byteOffset + buf.byteLength);
+    return new Promise((resolve, reject) => new GLTFLoader().parse(bytes, '', resolve, reject));
+  }
+
+  check(A.CHR_CITIZENS.length === CITIZENS.ids.length,
+    `the cast table has ${A.CHR_CITIZENS.length} rows, this suite knows ${CITIZENS.ids.length} files`);
+  for (const row of A.CHR_CITIZENS) {
+    check(CITIZENS.ids.indexOf(row.id) !== -1, `${row.id} is in the table but not in this suite`);
+    check(row.category === 'characters', `${row.id} is not filed under characters`);
+    check(A.assetUrl(row) === `/assets/models/characters/${row.id}.glb`,
+      `${row.id} derives the wrong url: ${A.assetUrl(row)}`);
+  }
+
+  let mergedTriangles = 0;
+  for (const id of CITIZENS.ids) {
+    const spec = A.CHR_CITIZENS.find((r) => r.id === id);
+    const report = reports[id];
+    const gltf = await parse(id);
+    const built = A.buildCastMember(gltf.scene, spec);
+    if (!check(built.ok === true, `buildCastMember refused ${id}: ${built.reason} ${built.detail || ''}`)) continue;
+
+    /* The merge is the whole reason this loader is not the environment's: it
+     * has to preserve the geometry exactly while collapsing eight draw calls
+     * into one per material. Triangle count is the check that says it did. */
+    check(built.parts.length === report.materials,
+      `${id}: merged into ${built.parts.length} parts for ${report.materials} material(s)`);
+    near(built.stats.triangles, report.triangles, 0.5, `${id}: triangles survived the merge`);
+    mergedTriangles += built.stats.triangles;
+
+    near(built.labelY, report.label[1], 1e-4, `${id}: labelY comes from SOCKET_label`);
+    near(built.bounds.max.y, report.box.max[1], CITIZENS.tolerance, `${id}: merged bounds height`);
+    near(built.bounds.min.y, 0, CITIZENS.tolerance, `${id}: merged bounds ground contact`);
+    /* The topple lift IS the asset's depth in front of its feet. A constant
+     * here would bury the tall citizen and float the hunched one. */
+    near(built.topple, report.box.max[2], 1e-4, `${id}: topple lift is the asset's own max Z`);
+    check(built.topple > 0, `${id}: topple lift is not positive`);
+
+    /* The authored material must arrive untouched — compared against a second,
+     * independent parse of the same bytes, which is the same idiom the dais
+     * layer uses. A loader that "helpfully" tinted a citizen would make the
+     * asset lab review a colour the player never sees. */
+    const fresh = await parse(id);
+    const authored = [];
+    fresh.scene.traverse((n) => { if (n.isMesh) for (const m of [].concat(n.material)) if (m) authored.push(m); });
+    for (const part of built.parts) {
+      const match = authored.find((m) => m.name === part.material.name);
+      if (!check(!!match, `${id}: material ${part.material.name} has no counterpart in a fresh parse`)) continue;
+      check(part.material.color.getHex() === match.color.getHex(),
+        `${id}: ${part.material.name} colour patched at runtime: ` +
+        `${part.material.color.getHexString()} vs ${match.color.getHexString()}`);
+      check(part.material.roughness === match.roughness, `${id}: ${part.material.name} roughness patched`);
+      check(part.material.side === match.side, `${id}: ${part.material.name} side patched`);
+    }
+  }
+  say(`merge         ${CITIZENS.ids.length} variants, one draw call each, ${mergedTriangles} tris total — ` +
+    `ten of them cost ${CITIZENS.ids.length ? 10 : 0} calls instead of 80`);
+
+  /* -- the refusals ----------------------------------------------------- */
+
+  const spec = A.CHR_CITIZENS[0];
+  const renamed = await parse(spec.id);
+  renamed.scene.traverse((n) => { if (n.name === 'SOCKET_label') n.name = 'SOCKET_nameplate'; });
+  const noSocket = A.buildCastMember(renamed.scene, spec);
+  check(noSocket.ok === false && noSocket.reason === 'missing-nodes',
+    `a renamed SOCKET_label was accepted (${noSocket.reason})`);
+
+  const stripped = await parse(spec.id);
+  stripped.scene.traverse((n) => { if (n.isMesh) n.name = 'Mesh'; });
+  const noGeometry = A.buildCastMember(stripped.scene, spec);
+  check(noGeometry.ok === false && noGeometry.reason === 'no-geometry',
+    `a citizen with no VIS_ meshes was accepted (${noGeometry.reason})`);
+
+  const nothing = A.buildCastMember(null, spec);
+  check(nothing.ok === false && nothing.reason === 'no-scene', 'a missing scene was accepted');
+
+  const warned = [];
+  const lost = await A.loadCast(A.CHR_CITIZENS, {
+    loader: { loadAsync: () => Promise.reject(new Error('404 Not Found')) },
+    warn: (m) => warned.push(m)
+  });
+  check(lost.ok === false, 'a cast that failed entirely reported ok');
+  check(lost.fallbacks.length === A.CHR_CITIZENS.length,
+    `a total failure produced ${lost.fallbacks.length} fallbacks, expected ${A.CHR_CITIZENS.length}`);
+  check(lost.fallbacks.every((f) => f.fallback === 'capsule'),
+    'a failed citizen does not fall back to a capsule');
+  check(warned.length === A.CHR_CITIZENS.length,
+    `a failed cast warned ${warned.length} times, expected one per row`);
+  check(warned.every((w) => /capsule/.test(w)), 'the warning does not say the seats fall back to a capsule');
+
+  /* One row failing must cost only that row. This is the property the brief
+   * asks for and the one a whole-cast failure cannot demonstrate. */
+  const partial = await A.loadCast(A.CHR_CITIZENS, {
+    loader: {
+      loadAsync: (url) => (/tall/.test(url)
+        ? Promise.reject(new Error('404 Not Found'))
+        : parse(url.replace(/^.*\//, '').replace(/\.glb$/, '')))
+    },
+    warn: () => {}
+  });
+  check(partial.ok === false, 'a partial cast reported ok');
+  check(partial.loaded.length === A.CHR_CITIZENS.length - 1,
+    `one missing variant cost ${A.CHR_CITIZENS.length - partial.loaded.length} variants`);
+  check(partial.fallbacks.length === 1 && partial.fallbacks[0].id === 'chr-citizen-tall',
+    'the wrong variant fell back');
+  say(`refusals      renamed socket, no VIS_ meshes, no scene, 404 — all ok:false, one warning each; ` +
+    `one bad file costs one variant`);
+
+  /* -- who stands where -------------------------------------------------- */
+
+  /*
+   * The mapping is arithmetic, and these are the properties that make it worth
+   * being arithmetic: total, stable, and independent of everything about the
+   * match except the seat number.
+   */
+  const seen = {};
+  let stable = true;
+  for (let seat = 0; seat < 60; seat++) {
+    const first = A.variantForSeat(seat);
+    const again = A.variantForSeat(seat);
+    if (!check(!!first, `seat ${seat} maps to nothing`)) continue;
+    if (first !== again) stable = false;
+    check(A.CHR_CITIZENS.indexOf(first) !== -1, `seat ${seat} maps outside the table`);
+    seen[first.id] = (seen[first.id] || 0) + 1;
+    check(first.id === A.CHR_CITIZENS[seat % A.CHR_CITIZENS.length].id,
+      `seat ${seat} does not cycle the table: got ${first.id}`);
+  }
+  check(stable, 'variantForSeat returned different answers for the same seat');
+  check(Object.keys(seen).length === A.CHR_CITIZENS.length,
+    `only ${Object.keys(seen).length} of ${A.CHR_CITIZENS.length} variants are ever used`);
+  /* The first N seats of an N-variant table use each exactly once, which is
+   * what makes a five-seat table show five different people. */
+  const firstRound = A.CHR_CITIZENS.map((_, i) => A.variantForSeat(i).id);
+  check(new Set(firstRound).size === A.CHR_CITIZENS.length,
+    `the first ${A.CHR_CITIZENS.length} seats repeat a variant: ${firstRound.join(', ')}`);
+  /* Defensive, not decorative: a negative or fractional seat must still land
+   * inside the table rather than returning undefined and blanking a citizen. */
+  for (const odd of [-1, -7, 3.7, 0]) {
+    check(!!A.variantForSeat(odd), `variantForSeat(${odd}) returned nothing`);
+  }
+
+  const source = fs.readFileSync(path.join(__dirname, '..', 'src', 'play', 'assets.js'), 'utf8');
+  check(source.indexOf('Math.random') === -1, 'assets.js uses the platform generator');
+  check(!/\.rng\(/.test(source), 'assets.js draws from the engine stream');
+  say(`mapping       seat n -> variant n mod ${A.CHR_CITIZENS.length}, total over 60 seats, ` +
+    `stable, every variant used, no randomness of any kind`);
+}
+
 /* ------------------------------------------------------------------ run */
 
 async function main() {
@@ -613,7 +954,29 @@ async function main() {
     say(`candidate     ${GLB} — file layer only; layers 2 and 3 run on the shipping asset`);
   }
 
-  console.log('\nenv-dais-a — the GLB contract\n');
+  /* The cast sweeps every citizen file and then the runtime seam that stamps
+   * them into seats. Skipped when a candidate GLB was passed on the command
+   * line: that mode is "check this one export", not "check the game". */
+  if (GLB === SHIPPING) {
+    say('');
+    const reports = {};
+    let allRead = true;
+    for (const id of CITIZENS.ids) {
+      const file = path.join(CITIZENS.dir, id + '.glb');
+      if (!fs.existsSync(file)) {
+        check(false, `citizen missing from the repository: ${file}`);
+        allRead = false;
+        continue;
+      }
+      const report = citizenFileLayer(id, readGlb(file));
+      if (!report) { allRead = false; continue; }
+      reports[id] = report;
+    }
+    if (allRead) await castLayer(reports);
+    else say('stopped       a citizen file layer failed — the cast layer reads those numbers');
+  }
+
+  console.log('\nenv-dais-a and the cast — the GLB contract\n');
   for (const line of lines) console.log('  ' + line);
   console.log('');
 
