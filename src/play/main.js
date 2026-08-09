@@ -46,6 +46,7 @@ import { createInteractions } from './interact.js';
 import { createPanels } from './panels.js';
 import { objectFor } from './objective.js';
 import { createPace, beatKey } from './pace.js';
+import { createMurmurs } from './murmur.js';
 import {
   createLightingDirector, lightingFor, publicEdges, STING_MS, LIGHT_LEAD_MS
 } from './lighting.js';
@@ -234,6 +235,12 @@ let castLibrary = null;
  * for a citizen whose GLB did not arrive. Sized to the calibration figure. */
 const CAPSULE_RADIUS = 0.34;
 
+/* How far below the nameplate a murmur bubble hangs, in metres. Below rather
+ * than above because the AYE/NAY badge already owns the space above the name,
+ * and 0.45 m is enough that a two-line bubble clears an 11 px nameplate at the
+ * distance the camera actually stands at. */
+const MURMUR_DROP = 0.45;
+
 function clearCast() {
   for (const c of citizens) {
     c.group.traverse((o) => {
@@ -376,10 +383,34 @@ function setRoster(view) {
     badgeLabel.position.set(0, labelY + 0.40, 0);
     group.add(badgeLabel);
 
+    /*
+     * The murmur bubble, and only for a citizen who can murmur.
+     *
+     * Your own seat gets no node at all rather than a hidden one: "the player
+     * speaks for themselves" is a structural fact of this layer, not a flag
+     * somebody has to remember to check. It hangs BELOW the nameplate so it
+     * cannot collide with the AYE/NAY badge above it, and it is anchored off
+     * the same SOCKET_label height as the name, so it sits at the right place
+     * on the hunched citizen and the tall one alike.
+     */
+    let murmurEl = null;
+    if (!p.isYou) {
+      murmurEl = document.createElement('div');
+      murmurEl.className = 'murmur hidden';
+      /* So a scripted review can say WHICH citizen a bubble is over. It matters
+       * because CSS2DRenderer only appends a label while its figure is inside
+       * the frustum: a murmur from somebody behind the camera has no node at
+       * all, and without the seat on the node that reads as a lost bubble. */
+      murmurEl.dataset.seat = String(p.id);
+      const murmurLabel = new CSS2DObject(murmurEl);
+      murmurLabel.position.set(0, labelY - MURMUR_DROP, 0);
+      group.add(murmurLabel);
+    }
+
     cast.add(group);
     citizens.push({
       id: p.id, isYou: p.isYou, group, pose, ring, skins, owns, nameEl, badgeEl,
-      nameLabel, badgeLabel,
+      nameLabel, badgeLabel, murmurEl,
       toppled: false, toppleLift,
       variant: variant ? variant.id : null, labelY
     });
@@ -431,6 +462,11 @@ function applyToScene(view) {
       c.ring.visible = false;
       c.nameEl.classList.add('dead');
       c.badgeEl.className = 'badge hidden';
+      /* The dead do not speak. The murmur controller already drops anything
+       * cued for a seat that has stopped being alive; this is the second half
+       * of the same rule, written where the body falls, so a bubble cannot
+       * outlive its citizen by even one frame. */
+      if (c.murmurEl) { c.murmurEl.className = 'murmur hidden'; c.murmurEl.textContent = ''; }
       continue;
     }
     c.nameEl.classList.remove('dead');
@@ -492,6 +528,14 @@ let gameOverShown = false;
 let pace = createPace(DEFAULT_SEED);
 /* The end of the current beat, on the same clock the render loop reads. */
 let holdUntil = 0;
+
+/*
+ * The square's table-talk. See src/play/murmur.js for the constraint it is
+ * built around — it is the same one pace.js has, one layer sharper, because
+ * the thing it drives (AI.chatter) draws from the engine's stream when it is
+ * handed the engine's game object. It is handed a projection instead.
+ */
+let murmurs = createMurmurs(DEFAULT_SEED, { chatter: AI.chatter });
 
 function holdRemaining() {
   return Math.max(0, holdUntil - performance.now());
@@ -590,6 +634,33 @@ function pumpAmbience() {
   const state = lightingFor(view, null);
   lighting.setState(state);
   audio.setLighting(state);
+}
+
+/*
+ * The third thing that ends on a clock, and it gets the same two callers as the
+ * other two for the same reason (see pumpAmbience). A bubble appears and expires
+ * on wall time and no game event fires when it does.
+ */
+function pumpMurmurs() {
+  if (!view) return;
+  if (murmurs.pump(performance.now(), view)) paintMurmurs();
+}
+
+/** Put what is being said over the heads of whoever is saying it. */
+function paintMurmurs() {
+  const live = new Map();
+  for (const m of murmurs.visible) live.set(m.playerId, m.text);
+  for (const c of citizens) {
+    if (!c.murmurEl) continue;
+    const text = live.get(c.id) || null;
+    if (text) {
+      if (c.murmurEl.textContent !== text) c.murmurEl.textContent = text;
+      c.murmurEl.className = 'murmur';
+    } else if (c.murmurEl.className !== 'murmur hidden') {
+      c.murmurEl.className = 'murmur hidden';
+      c.murmurEl.textContent = '';
+    }
+  }
 }
 
 const panels = createPanels(document, {
@@ -712,7 +783,23 @@ function refresh() {
    */
   const phaseChanged = litPhase !== null && litPhase !== view.phase;
   litPhase = view.phase;
+  /* Captured before ambience(), which is where previousView is advanced — the
+   * murmurs read the same two views publicEdges does, and must see the same
+   * pair. */
+  const spoken = previousView;
   ambience(view);
+  /*
+   * The talk, cued from the same public transition the light and the sound are
+   * cued from, and held back by the same clock. `notBefore` is the end of any
+   * deliberation beat in progress: a murmur about a tally the player has not
+   * walked to the podium to open yet would announce the result over the crowd's
+   * heads, which is exactly what heldEdges exists to stop the audio doing.
+   */
+  murmurs.observe(spoken, view, {
+    now: performance.now(),
+    notBefore: Math.max(performance.now(), holdUntil),
+    speed
+  });
   if (phaseChanged || holding()) {
     stagedView = view;
     stagedAt = Math.max(performance.now(), holdUntil) + LIGHT_LEAD_MS;
@@ -752,6 +839,10 @@ function restart(seed = DEFAULT_SEED, playerCount = DEFAULT_PLAYERS, humanIndex 
    * the engine's stream inside pace.js and shares nothing with it. */
   pace = createPace(dealSeed);
   holdUntil = 0;
+  /* A fresh mouth for a fresh match, seeded from the same integer, so a
+   * replayed seed hears the same square. Rebuilt rather than reset because
+   * setRoster is about to throw away every bubble element it was pointing at. */
+  murmurs = createMurmurs(dealSeed, { chatter: AI.chatter });
 
   gameOverShown = false;
   autopilotOn = false;      // a new match is played by hand until asked otherwise
@@ -855,10 +946,11 @@ function tick() {
   if (wasHolding && !held && view) objective = panels.renderObjective(view, presentation());
   wasHolding = held;
 
-  /* Both of these end on a clock too, and for the same reason they are pumped
-   * here as well as from the render loop. */
+  /* All three of these end on a clock too, and for the same reason they are
+   * pumped here as well as from the render loop. */
   pumpCast();
   pumpAmbience();
+  pumpMurmurs();
 
   if (session.over || held) return;
   const w = session.waitingFor();
@@ -1063,6 +1155,7 @@ function frame(now) {
   lighting.update(dt);
   pumpCast();
   pumpAmbience();
+  pumpMurmurs();
 
   const frozen = panels.isOpen || seated;
   if (frozen) { input.x = 0; input.z = 0; } else readKeyboard();
@@ -1491,6 +1584,37 @@ window.__play = {
   setFraming(fraction) {
     rig.tuning.screenBias = Math.max(0, Math.min(0.45, Number(fraction) || 0));
     return rig.tuning.screenBias;
+  },
+
+  /*
+   * The square's talk, read back two ways for the same reason the objective
+   * line is: the controller's own list says what SHOULD be up, and the DOM says
+   * what is. A review that reads only the first is checking the module, not the
+   * page. `onScreen` is scraped from the label layer, so a bubble that is
+   * display:none does not count as being said.
+   */
+  get murmurs() {
+    /*
+     * `display: none` matters as much as the `hidden` class here: CSS2DRenderer
+     * appends a label to #labels only while its object is inside the frustum
+     * and hides it with an inline display when it leaves, so a bubble on a
+     * citizen behind the camera is in the DOM and is not on screen. A readback
+     * that ignored that would report talk the player cannot see.
+     */
+    const nodes = Array.from(document.querySelectorAll('#labels .murmur'))
+      .filter((n) => !n.classList.contains('hidden') && n.style.display !== 'none' &&
+        n.textContent.trim());
+    return {
+      visible: murmurs.visible.map((m) => ({
+        id: m.id, seat: m.playerId, beat: m.beat, text: m.text
+      })),
+      onScreen: nodes.map((n) => n.textContent.trim()),
+      pending: murmurs.pending,
+      draws: murmurs.draws,
+      calls: murmurs.calls,
+      produced: murmurs.produced,
+      beatsSeen: murmurs.beatsSeen
+    };
   },
 
   /* What Tab can reach inside the open panel, in order. */

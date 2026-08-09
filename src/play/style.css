@@ -81,6 +81,32 @@ html, body {
   white-space: nowrap;
 }
 .badge.hidden { display: none; }
+
+/*
+ * A murmur: the square thinking out loud.
+ *
+ * Deliberately quieter than the nameplate in every dimension — 10 px against
+ * 11, --dim against #dfe4ee — because a name is a fact and a murmur is a noise.
+ * The backdrop is more opaque than the nameplate's (0.88 against 0.72) for the
+ * step-05 reason: every ratio here is computed against the worst case, a
+ * blown-out white scene behind a translucent chip, and the smaller, dimmer text
+ * needs the darker chip to clear AA at all. Worst case it is 5.55:1, against
+ * the nameplate's 6.21:1 — quieter, and still above the 5.2:1 floor this page
+ * has held since Gate 1.
+ */
+.murmur {
+  max-width: 180px;
+  font-size: 10px;
+  line-height: 1.35;
+  color: var(--dim);
+  background: rgba(10, 12, 17, 0.88);
+  border: 1px solid #242a35;
+  border-radius: 3px;
+  padding: 2px 6px;
+  text-align: center;
+  white-space: normal;
+}
+.murmur.hidden { display: none; }
 .badge.aye { background: #1d4a2c; color: #9ff0b8; border: 1px solid #2f7a48; }
 .badge.nay { background: #4a1d20; color: #f0a09f; border: 1px solid #7a2f33; }
 
