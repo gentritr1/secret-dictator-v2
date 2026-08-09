@@ -1,0 +1,115 @@
+/* asset-lab.html — a tool page. Legible, and nothing else. */
+
+* { box-sizing: border-box; }
+
+html, body {
+  margin: 0;
+  height: 100%;
+  background: #14161b;
+  color: #e6e9ef;
+  font: 13px/1.45 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  overflow: hidden;
+}
+
+#stage { position: fixed; inset: 0; }
+#stage canvas { display: block; }
+
+#panel {
+  position: fixed;
+  top: 0;
+  right: 0;
+  width: 320px;
+  height: 100%;
+  padding: 12px 14px 18px;
+  overflow-y: auto;
+  background: rgba(16, 18, 23, 0.94);
+  border-left: 1px solid #2b303a;
+}
+
+h1 {
+  margin: 0 0 10px;
+  font-size: 15px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: #ffb454;
+}
+
+h2 {
+  margin: 16px 0 6px;
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #8a93a8;
+  font-weight: 600;
+}
+
+label {
+  display: block;
+  margin: 0 0 4px;
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #8a93a8;
+}
+
+select {
+  width: 100%;
+  padding: 5px 6px;
+  font: inherit;
+  color: #e6e9ef;
+  background: #1c2028;
+  border: 1px solid #333a46;
+  border-radius: 3px;
+}
+
+.row { display: flex; flex-wrap: wrap; gap: 5px; }
+
+button {
+  flex: 1 0 auto;
+  padding: 5px 8px;
+  font: inherit;
+  color: #c6ccd9;
+  background: #1c2028;
+  border: 1px solid #333a46;
+  border-radius: 3px;
+  cursor: pointer;
+}
+button:hover { border-color: #4a5468; }
+button.on {
+  color: #14161b;
+  background: #ffb454;
+  border-color: #ffb454;
+}
+
+.keys { color: #8a93a8; font-size: 11px; }
+button.on .keys { color: #5a4212; }
+
+#stats, #report {
+  font-size: 12px;
+  color: #c6ccd9;
+}
+
+#stats div, #report div {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 1px 0;
+  border-bottom: 1px solid #1e222a;
+}
+
+#stats b, #report b {
+  font-weight: 600;
+  color: #e6e9ef;
+  text-align: right;
+  word-break: break-all;
+}
+
+#report .warn b { color: #e8695f; }
+#report .ok b { color: #6ddd8c; }
+
+#help {
+  margin: 16px 0 0;
+  font-size: 11px;
+  line-height: 1.5;
+  color: #8a93a8;
+}

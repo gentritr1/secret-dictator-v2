@@ -1,0 +1,4 @@
+{
+  "//": "Scopes src/lab to ESM, exactly as src/play and src/walk do. The repo root is \"type\": \"commonjs\" because the engine, the tests and the scripts are plain CommonJS for Node; this nested manifest keeps the lab's browser modules readable as ES modules by anything that looks at them from Node.",
+  "type": "module"
+}

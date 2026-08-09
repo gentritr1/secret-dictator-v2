@@ -1,0 +1,49 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Secret Dictator — asset lab</title>
+  <link rel="stylesheet" href="/src/lab/style.css" />
+</head>
+<body>
+  <!-- A tool page. It is deliberately plain: this is the instrument the
+       Blender pipeline's review gate is run on, and an instrument that has been
+       styled is an instrument you have to trust twice. -->
+  <div id="stage"></div>
+
+  <aside id="panel">
+    <h1>asset lab</h1>
+
+    <label for="c-asset">asset</label>
+    <select id="c-asset"></select>
+
+    <h2>camera <span class="keys">1–4</span></h2>
+    <div id="cameras" class="row"></div>
+
+    <h2>light <span class="keys">D U N S</span></h2>
+    <div id="lights" class="row"></div>
+
+    <h2>overlays</h2>
+    <div class="row">
+      <button id="c-collider" type="button">collider <span class="keys">C</span></button>
+      <button id="c-tone" type="button">tone map <span class="keys">T</span></button>
+    </div>
+
+    <h2>render</h2>
+    <div id="stats"></div>
+
+    <h2>asset</h2>
+    <div id="report"></div>
+
+    <p id="help">
+      Drag to orbit, wheel to zoom. A camera key snaps back to the fixed view.
+      The capsule is 1.70 m tall and 0.70 m wide; the grid is 1 m and the pole
+      bands are 0.25 m. Colliders are drawn from the same world-baked geometry
+      the game's BVH is built from, not from the COL_ nodes as authored.
+    </p>
+  </aside>
+
+  <script type="module" src="/src/lab/main.js"></script>
+</body>
+</html>
