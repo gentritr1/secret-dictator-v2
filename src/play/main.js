@@ -34,12 +34,14 @@
 
 import * as THREE from 'three';
 import { CSS2DRenderer, CSS2DObject } from 'three/examples/jsm/renderers/CSS2DRenderer.js';
+import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 
 import { SD, AI, Human, View } from '../engine/index.js';
 import { createController, defaultTuning } from '../walk/controller.js';
 import { createCameraRig } from '../walk/camera.js';
 import { createBvhWorld } from '../walk/bvh-world.js';
 import { buildSquare, seatPosition, SPAWN, DAIS, BELL, BENCH } from './square.js';
+import { ENV_DAIS_A, loadEnvironmentAsset } from './assets.js';
 import { createInteractions } from './interact.js';
 import { createPanels } from './panels.js';
 import { objectFor } from './objective.js';
@@ -112,9 +114,34 @@ sun.shadow.bias = -0.0008;
 scene.add(sun);
 scene.add(new THREE.HemisphereLight(0xa8bee0, 0x3a3630, 1.8));
 
-const { group: square, colliderGeometry } = buildSquare();
-scene.add(square);
-const world = createBvhWorld(colliderGeometry);
+/* ------------------------------------------------------------ the ground */
+
+/*
+ * The square is built exactly once, and what it is built out of depends on
+ * whether the production asset arrived. See buildGround() near the bottom of
+ * the file: the page waits for that answer before it deals a match, so there is
+ * one code path per boot rather than a graybox that turns into wood a moment
+ * later while the player is already standing on it.
+ *
+ * `world` is a let because it is only known after that answer; everything that
+ * consumes it is handed it per call (controller.advance, rig.update), which is
+ * the same seam src/walk/controller.js was written around.
+ */
+let world = null;
+/** The load report, for the console and for __play.environment. */
+let environment = null;
+
+/*
+ * Where the podium's panels open, in world space.
+ *
+ * The graybox value is the lectern's own position — the same number the
+ * procedural box uses, so nothing moved when this became a variable. When
+ * env-dais-a loads, SOCKET_podium replaces it: the asset says where its own
+ * speaking position is, which is the point of shipping a socket. The
+ * interactable reads it through a function (see interact.js: `position` may be
+ * one), so the swap needs no re-registration and no ordering rule.
+ */
+let podiumAnchor = { x: DAIS.x, y: 0, z: DAIS.z - 0.9 };
 
 /* ----------------------------------------------------------- your capsule */
 
@@ -142,7 +169,7 @@ avatar.add(youRing);
 
 scene.add(avatar);
 
-const controller = createController({ tuning, world });
+const controller = createController({ tuning });
 const rig = createCameraRig();
 scene.add(rig.camera);
 
@@ -546,7 +573,13 @@ const readyAt = (where) => (ctx) =>
  * idea what any of them are. */
 interactions.add({
   id: 'podium',
-  position: { x: DAIS.x, y: 0, z: DAIS.z - 0.9 },
+  /* A function, not a point: the anchor is the graybox lectern until
+   * env-dais-a's SOCKET_podium arrives, and reading it late means the two are
+   * never out of step. What it must NOT touch is `opensAt` below — where a
+   * panel opens is still objectFor(kind, gate), so moving the anchor moves the
+   * object and never the routing, and the line on screen cannot start naming
+   * something the podium does not do. */
+  position: () => podiumAnchor,
   radius: 3.0,
   canInteract: readyAt('podium'),
   getPrompt: (ctx) => {
@@ -765,9 +798,59 @@ ui.restart.addEventListener('click', () => {
 ui.speed.addEventListener('change', () => { speed = Number(ui.speed.value); });
 fillHumanChoices();
 
+/* ---------------------------------------------------------------- boot */
+
+/**
+ * Build the ground and the collision world, with or without the asset.
+ *
+ * The merge is where the two halves become one thing the player can hit: the
+ * procedural pieces the graybox still owns, plus every COL_* volume the GLB
+ * shipped, baked into world space by the loader. One BVH, one answer to "what
+ * am I standing on", exactly as before — the difference is only what went into
+ * it.
+ */
+function buildGround(env) {
+  const built = buildSquare(env ? { omit: env.replaces } : undefined);
+  scene.add(built.group);
+
+  const parts = [built.colliderGeometry];
+  if (env) {
+    scene.add(env.visual);
+    for (const part of env.colliderParts) parts.push(part);
+    podiumAnchor = { x: env.sockets.podium.x, y: env.sockets.podium.y, z: env.sockets.podium.z };
+  }
+
+  const merged = parts.length === 1 ? parts[0] : mergeGeometries(parts, false);
+  world = createBvhWorld(merged);
+  controller.setWorld(world);
+}
+
+/*
+ * Nothing is dealt until the asset question is answered, because the two
+ * answers build different collision worlds and the player spawns into one of
+ * them. `loadEnvironmentAsset` never rejects — a missing file, unreadable bytes
+ * or a renamed COL_ node all come back as `{ ok: false }` with one warning —
+ * so there is no failure mode here that leaves the page without a square.
+ */
+async function boot() {
+  const env = await loadEnvironmentAsset(ENV_DAIS_A);
+  environment = env;
+  buildGround(env.ok ? env : null);
+  restart(DEFAULT_SEED, DEFAULT_PLAYERS, DEFAULT_HUMAN);
+  requestAnimationFrame(frame);
+  if (env.ok) {
+    console.info(
+      `[assets] ${env.id} loaded — ${env.stats.visMeshes} visual meshes, ` +
+      `${env.stats.colMeshes} colliders, ${env.stats.triangles} tris, ` +
+      `materials ${env.stats.materials.join('/')}; placed at ` +
+      `(${env.place.x}, ${env.place.y}, ${env.place.z}) yaw ${env.place.yaw.toFixed(3)}; ` +
+      `podium socket at (${podiumAnchor.x.toFixed(3)}, ${podiumAnchor.y.toFixed(3)}, ${podiumAnchor.z.toFixed(3)}).`
+    );
+  }
+}
+
 resize();
-restart(DEFAULT_SEED, DEFAULT_PLAYERS, DEFAULT_HUMAN);
-requestAnimationFrame(frame);
+boot();
 
 /* --------------------------------------------------------- review handle */
 
@@ -878,6 +961,28 @@ window.__play = {
   where: () => controller.snapshot(),
 
   /*
+   * Walk, on a fixed clock, in world space — the walk.html idiom.
+   *
+   * `run(mark, seconds)` exists on __walk for the same reason: a measurement
+   * that depends on how long the reviewer took to type the next line is not a
+   * measurement. The input is a world vector rather than a key, so it does not
+   * cross the camera basis; the point of this call is the collision world, and
+   * the step-onto-dais proof is `walk(0, 1, 2)` from south of the dais with
+   * `y` coming back at the dais top.
+   */
+  walk(x, z, seconds = 2, dt = 1 / 60) {
+    const frames = Math.max(0, Math.round(seconds / dt));
+    let peakY = controller.state.position.y;
+    for (let i = 0; i < frames; i++) {
+      controller.advance(dt, { x, z }, world);
+      if (controller.state.position.y > peakY) peakY = controller.state.position.y;
+    }
+    smoothPrimed = false;
+    const snap = controller.snapshot();
+    return { frames, peakY, position: snap.position, grounded: snap.grounded, speed: snap.speed };
+  },
+
+  /*
    * Re-run targeting right now and report it.
    *
    * The render loop already does this every frame, but requestAnimationFrame
@@ -974,7 +1079,49 @@ window.__play = {
     const a = document.activeElement;
     return a ? { tag: a.tagName, text: (a.textContent || '').trim().slice(0, 40) } : null;
   },
-  marks: { spawn: SPAWN, podium: { x: DAIS.x, z: DAIS.z - 2.6 }, bell: BELL, bench: BENCH }
+  /*
+   * What the runtime asset loader did, in one object.
+   *
+   * `ok` false is a complete answer, not an error: it names the reason and the
+   * page is running the graybox fallback. The visual group and the geometries
+   * are deliberately not exposed — this is a report, and a reviewer who can
+   * reach into the scene graph from the console will eventually verify
+   * something they changed on the way in.
+   */
+  get environment() {
+    if (!environment) return { ok: false, reason: 'not-loaded-yet' };
+    return {
+      ok: environment.ok,
+      id: environment.id,
+      url: environment.url,
+      reason: environment.reason || null,
+      detail: environment.detail || null,
+      place: environment.place || null,
+      replaces: environment.replaces || [],
+      sockets: environment.sockets || null,
+      nodes: environment.nodes || [],
+      stats: environment.stats || null,
+      podiumAnchor: { x: podiumAnchor.x, y: podiumAnchor.y, z: podiumAnchor.z }
+    };
+  },
+
+  /*
+   * Named spots for a scripted walk-up. `podium` is a STANDING spot on the
+   * ground south of the dais and is deliberately still the fixed graybox
+   * number, so a review that compares against docs/step-05.md is comparing the
+   * same walk; `podiumAnchor` is the live interactable anchor, which is the
+   * socket once the asset loads. Standing on one must always target the other,
+   * and that is what the browser sweep checks.
+   */
+  marks: {
+    spawn: SPAWN,
+    podium: { x: DAIS.x, z: DAIS.z - 2.6 },
+    get podiumAnchor() { return { x: podiumAnchor.x, y: podiumAnchor.y, z: podiumAnchor.z }; },
+    bell: BELL,
+    bench: BENCH,
+    /* South of the dais, on the ground, for the step-onto-dais proof. */
+    daisApproach: { x: DAIS.x, y: 0, z: DAIS.z - 4.0 }
+  }
 };
 
 console.info(

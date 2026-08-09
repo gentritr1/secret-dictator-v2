@@ -10,6 +10,11 @@
  * real decisions, not a place worth looking at. Materials, proportions and
  * anything with an opinion belong to the art pass.
  *
+ * Gate 2 gave the art pass its first foothold: `buildSquare({ omit })` leaves
+ * named pieces out so a production GLB can take them over (src/play/assets.js).
+ * Called with no argument it builds exactly what it always built, which is what
+ * makes the graybox a real fallback rather than a claim.
+ *
  *   ground     40 x 40, with a low kerb wall on all four sides so walking off
  *              the edge is not a way to fall out of the game
  *   dais       a 0.22 m platform at the north end — under the step height, so
@@ -97,14 +102,29 @@ const PIECES = [
 
 /**
  * Build the square.
- * @returns {{ group: THREE.Group, colliderGeometry: THREE.BufferGeometry }}
+ *
+ * @param {{ omit?: string[] }} [options]  piece names a loaded asset has taken
+ *        over. Unknown names are a caller bug and throw, because the failure
+ *        they would otherwise cause is a dais rendered twice, one of them
+ *        invisible to the collider — which reads as a physics bug and is not
+ *        one.
+ * @returns {{ group: THREE.Group, colliderGeometry: THREE.BufferGeometry,
+ *             omitted: string[] }}
  */
-export function buildSquare() {
+export function buildSquare(options) {
+  const omit = (options && options.omit) ? options.omit.slice() : [];
+  for (const name of omit) {
+    if (!PIECES.some((p) => p.name === name)) {
+      throw new Error(`buildSquare: nothing named "${name}" to omit`);
+    }
+  }
+
   const group = new THREE.Group();
   group.name = 'square';
   const colliderParts = [];
 
   for (const piece of PIECES) {
+    if (omit.indexOf(piece.name) !== -1) continue;
     const geom = new THREE.BoxGeometry(piece.size[0], piece.size[1], piece.size[2]);
     const mesh = new THREE.Mesh(geom, new THREE.MeshLambertMaterial({ color: piece.color }));
     mesh.name = piece.name;
@@ -138,5 +158,5 @@ export function buildSquare() {
   grid.material.opacity = 0.45;
   group.add(grid);
 
-  return { group, colliderGeometry };
+  return { group, colliderGeometry, omitted: omit };
 }
