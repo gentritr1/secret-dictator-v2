@@ -37,6 +37,20 @@
  * a plain `{ ok: false, reason }` and one console warning. It never throws. The
  * caller builds the procedural square exactly as it did before this file
  * existed, and the match is fully playable.
+ *
+ * Gate 3 added the fourth rule, and it is about the NEXT four assets rather
+ * than this one:
+ *
+ * THE SQUARE IS A TABLE, NOT A SEQUENCE OF SPECIAL CASES. `ENVIRONMENT` below
+ * is the list of everything the square loads, one row each, and
+ * `loadEnvironment()` walks it. `env-lantern-a`, `env-facade-a`, a ground
+ * treatment and a citizen base are each one row — id, category, where it
+ * stands, which way it faces — and none of them may need a line of loader code
+ * or a line in main.js. That is the contract this refactor exists to make, and
+ * docs/step-07.md states it in the form the reviewer's Blender lane can check
+ * against. The single-asset entry points (`ENV_DAIS_A`, `buildEnvironment`,
+ * `loadEnvironmentAsset`) are unchanged and still the ones test/glb.test.js
+ * drives.
  */
 
 import * as THREE from 'three';
@@ -55,9 +69,18 @@ import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
  */
 export const ENV_DAIS_A = {
   id: 'env-dais-a',
+  category: 'environment',
   url: '/assets/models/environment/env-dais-a.glb',
 
   place: { x: 0, y: 0, z: 9, yaw: Math.PI },
+
+  /* What happens when this row does not load. `graybox` means the procedural
+   * square keeps the pieces in `replaces`, which is the fallback Gate 2 proved
+   * by taking the file away. The other answer is `capsule` — a labelled
+   * placeholder volume at `place` — which is what a citizen or a façade will
+   * want, because there is no procedural version of those to fall back to and
+   * an invisible missing building is worse than an obvious grey one. */
+  fallback: 'graybox',
 
   /* Which pieces of the procedural square this asset takes over. The graybox
    * still builds everything else — ground, kerbs, bell, bench, grid. */
@@ -78,6 +101,41 @@ export const ENV_DAIS_A = {
    * what it calls the empty. */
   sockets: { podium: 'SOCKET_podium' }
 };
+
+/**
+ * Everything the square loads. One row per asset, and nothing else.
+ *
+ * A row is `{ id, category, place: { x, y, z, yaw } }` plus whatever that asset
+ * needs the game to know about it: which graybox pieces it takes over, which
+ * nodes it may not arrive without, which sockets the game asks it for, and what
+ * to do when it is missing. `url` is derived from `category` and `id` — the
+ * pipeline fixes that path (`public/assets/models/<category>/<asset-id>.glb`),
+ * so writing it out again per row is one more thing that can disagree.
+ *
+ * IT SHIPS WITH ONE ROW ON PURPOSE. The lantern, the façade, the ground
+ * treatment and the citizen base are the reviewer's Blender lane and do not
+ * exist yet; inventing rows for them here would be inventing the assets. What
+ * this table promises is that each of them costs one row and no code:
+ *
+ *   { id: 'env-lantern-a', category: 'environment',
+ *     place: { x: 5.5, y: 0, z: 5.5, yaw: 0 },
+ *     requiredNodes: ['COL_post', 'SOCKET_LanternLight'],
+ *     sockets: { lantern: 'SOCKET_LanternLight' },
+ *     fallback: 'capsule' }
+ *
+ * The order matters in exactly one way: sockets are merged into one flat map
+ * and a second row may not claim a logical name an earlier row already took.
+ * That is a caller bug and it throws, for the same reason `buildSquare`'s
+ * unknown `omit` name throws — the failure it would otherwise cause is a
+ * podium anchored to the wrong asset, which reads as a targeting bug.
+ */
+export const ENVIRONMENT = [ENV_DAIS_A];
+
+/** `public/assets/models/<category>/<id>.glb`, per BLENDER_PIPELINE.md. */
+export function assetUrl(row) {
+  if (row.url) return row.url;
+  return `/assets/models/${row.category || 'environment'}/${row.id}.glb`;
+}
 
 /**
  * Build the runtime environment from an already-parsed glTF scene.
@@ -248,6 +306,99 @@ export async function loadEnvironmentAsset(spec = ENV_DAIS_A, options = {}) {
   const built = buildEnvironment(gltf.scene, spec);
   if (!built.ok) warn(graybox(spec, built));
   return built;
+}
+
+/**
+ * Load the whole table and fold it into one answer for the square.
+ *
+ * Every row is loaded in parallel and every row may fail independently: a
+ * missing lantern must not cost the square its dais. The result is the union of
+ * whatever arrived, in the shape `src/play/main.js` already consumed for one
+ * asset, plus the list of rows that fell back so a review can see them.
+ *
+ * @param {object[]} [table]    ENVIRONMENT by default
+ * @param {object} [options]    `{ loader, warn }`, forwarded to every row
+ * @returns {Promise<object>}
+ */
+export async function loadEnvironment(table = ENVIRONMENT, options = {}) {
+  const rows = table.map((row) => Object.assign({}, row, { url: assetUrl(row) }));
+  const results = await Promise.all(rows.map((row) => loadEnvironmentAsset(row, options)));
+
+  const loaded = [];
+  const fallbacks = [];
+  const visuals = [];
+  const colliderParts = [];
+  const replaces = [];
+  const sockets = {};
+  const placeholders = [];
+
+  for (let i = 0; i < rows.length; i++) {
+    const row = rows[i];
+    const built = results[i];
+    if (!built.ok) {
+      fallbacks.push({ id: row.id, reason: built.reason, detail: built.detail, fallback: row.fallback || 'graybox' });
+      /* `capsule` draws the placeholder; `graybox` leaves the procedural square
+       * to keep the pieces this row would have replaced, which it does simply
+       * by this row contributing nothing to `replaces`. */
+      if (row.fallback === 'capsule') placeholders.push(placeholderFor(row));
+      continue;
+    }
+    loaded.push(built);
+    visuals.push(built.visual);
+    for (const part of built.colliderParts) colliderParts.push(part);
+    for (const name of built.replaces) replaces.push(name);
+    for (const [logical, socket] of Object.entries(built.sockets)) {
+      if (sockets[logical]) {
+        throw new Error(
+          `loadEnvironment: two assets both claim the "${logical}" socket ` +
+          `(${sockets[logical].asset} and ${row.id}) — rename one in its .blend`);
+      }
+      sockets[logical] = Object.assign({ asset: row.id }, socket);
+    }
+  }
+
+  return {
+    ok: fallbacks.length === 0,
+    rows: rows.map((r) => r.id),
+    assets: results,
+    loaded,
+    fallbacks,
+    visuals,
+    placeholders,
+    colliderParts,
+    replaces,
+    sockets
+  };
+}
+
+/**
+ * The other fallback: an obvious grey volume where the missing asset should be.
+ *
+ * A dais that fails to load leaves a graybox dais behind, which is why
+ * `env-dais-a` asks for `graybox`. A citizen or a façade has no procedural
+ * version to fall back to, and an asset that simply is not there is a hole
+ * nobody notices until a review asks where the building went. This is the
+ * pipeline's own answer — refuse the production asset, keep something the
+ * player can see and walk around — for the assets that have no graybox.
+ *
+ * It is visual only and contributes no collision: a placeholder that blocked
+ * the player would make a missing asset into a movement bug.
+ */
+function placeholderFor(row) {
+  const size = row.placeholder || { width: 0.7, height: 1.7, depth: 0.7 };
+  const group = new THREE.Group();
+  group.name = row.id + '-placeholder';
+  const mesh = new THREE.Mesh(
+    new THREE.CapsuleGeometry(size.width / 2, Math.max(0.01, size.height - size.width), 6, 12),
+    new THREE.MeshLambertMaterial({ color: 0x6a7080 })
+  );
+  mesh.position.y = size.height / 2;
+  mesh.castShadow = true;
+  group.add(mesh);
+  const place = row.place || { x: 0, y: 0, z: 0, yaw: 0 };
+  group.position.set(place.x || 0, place.y || 0, place.z || 0);
+  group.rotation.y = place.yaw || 0;
+  return group;
 }
 
 function fail(spec, reason, detail) {
