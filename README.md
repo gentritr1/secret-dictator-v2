@@ -40,6 +40,7 @@ src/play/objective.js    the persistent objective line — a pure function of th
 src/play/seat.js         the one grammar: a permanent number per citizen, from roster order
 src/play/tray.js         the tray — 1280x84, three regions, and the rule that it is never blank
 src/play/card.js         the private card — 232x96, and the only 2D element with role colour
+src/play/ledger.js       the ledger — 420px, per-citizen entries, every row traceable, no verdicts
 src/play/pace.js         how long the square takes to answer — a clock, and only a clock
 src/play/murmur.js       the square's table-talk, and the queue every bubble shares
 src/play/floor-voice.js  the floor out loud: text_id -> prose, and when each beat lands
@@ -65,12 +66,15 @@ test/floor.test.js       the claim schema: allowlist, permutation, V1-V6, C1-C6,
 test/orator.test.js      the orator: invariance, read-only minds, zero refusals, and the re-scoped permutation gate
 test/murmur.test.js      the bubbles: both voices, one queue, one cap, and no role word in any of it
 test/hud.test.js         the HUD: never blank, one card size, one role channel, one number per citizen
+test/ledger.test.js      the ledger: every row traced, flags without verdicts, and a render that touches nothing
 scripts/driver-parity.js proves driver.js reproduces the self-test's numbers exactly
 scripts/simulate.js      headless batch simulator: statistics instead of assertions
 scripts/capture-reviews.mjs  the seven fixed asset captures, through asset-lab.html
 scripts/capture-cycle.mjs    the Gate 3 acceptance set: one government cycle, through play.html
 scripts/capture-hud.mjs      the Gate D3 acceptance set: the tray's phase states, the card's box,
                              and the warm-pixel budget measured with the HUD in the frame
+scripts/capture-ledger.mjs   the Gate D4 acceptance set: the caught lie looked up, the 60-second
+                             pause, a ballot answered with the panel open
 docs/step-01.md          learning log for the port
 docs/step-02.md          learning log for the playground
 docs/step-03.md          learning log for the character controller
@@ -82,6 +86,7 @@ docs/step-08.md          learning log for the murmur facade and its three-run pr
 docs/step-09.md          learning log for Discussion Gate D1: the structured claim schema
 docs/step-10.md          learning log for Discussion Gate D2: the bots start speaking
 docs/step-11.md          learning log for Discussion Gate D3: the tray, the private card, the sidebar's end
+docs/step-12.md          learning log for Discussion Gate D4: the ledger, and what pinning it pauses
 docs/STYLE_BIBLE.md      locked visual direction, palette, light meaning and anti-goals
 docs/BLENDER_PIPELINE.md one-asset-at-a-time Blender/MCP production and acceptance contract
 docs/ASSET_MANIFEST.md   provenance and production status for every visual asset
@@ -146,6 +151,7 @@ npm run test:glb                           # the shipping GLB's contract, three 
 npm run test:floor                         # the claim schema: what may be said, and that saying it changes nothing
 npm run test:orator                        # the orator: bots speak, some lie, and the match is unchanged
 npm run test:hud                           # the tray is never blank, the card never grows, one number per citizen
+npm run test:ledger                        # every ledger row traces to a public event, and none of them judges
 npm run parity                             # driver.js vs the self-test's exact numbers
 npm run verify                             # all of the above, plus the production build
 npm run simulate                           # 500 games, default seed
@@ -446,8 +452,8 @@ shows the keys. Whatever holds the decision owns the keyboard while it does — 
 is "Aye" here and "strafe left" everywhere else — and the body does not move
 behind it.
 
-**The HUD is three surfaces** (Gate D3, `docs/step-11.md`); the 330 px debug
-sidebar it replaced is gone.
+**The HUD is four surfaces** (Gates D3 and D4, `docs/step-11.md` and
+`docs/step-12.md`); the 330 px debug sidebar it replaced is gone.
 
 - The **tray**, 1280 × 84 along the bottom, permanent: the Reform and Seize
   tracks on the left, the contextual row in the middle, the ledger and keys
@@ -461,6 +467,26 @@ sidebar it replaced is gone.
 - The **centred card** for the three decisions that show you private material —
   the Speaker's three tiles, the Deputy's two, a Foresight read — and for the
   three ceremonies that need a page of public reading.
+- The **ledger**, 420 px on the right, opened with **L**: per-citizen entries
+  rather than a scroll of everything, the promoted rows (deck and discard, the
+  chaos state, what the next Seize arms) above them, and your own win condition
+  above those. `1–9` jumps to a citizen by their permanent number, `F` shows the
+  flagged only, `L` or `Esc` closes it.
+
+**Pinning the ledger pauses the presentation, not the game.** Bots stop
+deliberating, the light holds mid-crossfade, and the header says *paused* — but
+the engine has no clock to stop, so nothing is written, nothing expires unseen,
+and a decision you own can still be answered on the tray behind the panel.
+Measured: pinned for 60.9 s in a live match, the event log, the utterance record
+and the pending decision came back byte-identical.
+
+**A flag names a rule and stops.** A flagged citizen carries an amber mark and a
+count; the rule and the utterances and government it is built from are inside
+the entry. C3 — the Speaker and the Deputy telling two different stories about
+one government — is on **both** entries with the same id, because the record
+cannot say which of them lied and neither may the panel. Every row carries the
+ids it was folded from, and `test/ledger.test.js` resolves all of them: no
+score, no trust meter, no percentage, no orphan rows.
 
 **Every citizen owns a number for the whole match**, from the engine's roster
 order: stamped in brass on their nameplate, retired when they die, never reused,
@@ -564,10 +590,13 @@ alone, `stats` for `renderer.info`, `lighting()` for the live rig — and
 `lighting({ measure: true })` to render the scene into a small offscreen target
 and count the warm pixels for real — `tray` and `card` for the two permanent surfaces — each reported twice, as the
 module's own answer and as the DOM the page actually wrote, with the card's
-measured box beside its declared one — `ledger()` for everything the retirement
-table routed to the ledger and that is therefore on screen nowhere (deck,
-discard, the chaos track below its promotion point, the next power, the public
-log), `arm()` / `disarm()` to take and give back the tray's row without a
+measured box beside its declared one — `ledger()` for the board rows the retirement
+table routed off the permanent surfaces (deck, discard, the chaos track below
+its promotion point, the next power, the public log), `ledgerPanel` for the
+ledger itself — the model beside the DOM, with every rendered row and the ids it
+was folded from, so a review can check traceability against the running page —
+`pinLedger()` / `unpinLedger()` / `ledgerKey(k)` to drive it without a keyboard,
+`arm()` / `disarm()` to take and give back the tray's row without a
 keyboard, `edges()` for what the ambience last noticed, `audio.report()` / `audio.log` for what was played and when, and
 `setLighting(id)` to force a state for a capture. `setLighting` cannot *hold* a
 state: the next refresh aims the rig back at whatever the view says, so it
