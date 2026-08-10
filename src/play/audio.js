@@ -178,6 +178,42 @@ export function bedFor(lightingId) {
   return BED[lightingId] || BED.day;
 }
 
+/* -------------------------------------------------------- 4. the silences */
+
+/**
+ * THE SQUARE GOING QUIET, and it is a channel of its own.
+ *
+ * Two of the design doc's five moments are built out of taking the sound away
+ * rather than adding any:
+ *
+ *   the purge        "Total silence for 800 ms — the bed CUTS, not fades. One
+ *                     gavel. Nothing else: no particles, no shake, no red."
+ *   the accusation   "The murmur bed lifts and then drops out under the bubble
+ *                     — the square going quiet is the pressure, not a sting."
+ *
+ * They are different silences and the difference is the whole of this table.
+ * The purge is a HARD cut: the bed stops between one sample and the next, which
+ * is a thing a room full of people does when somebody is named and is
+ * unmistakably not a mixing error at 800 ms. The accusation is a DUCK: the bed
+ * drops to a tenth and comes back, because the square has not stopped existing,
+ * it has stopped talking.
+ *
+ * Both are expressed as a multiplier on the master gain rather than as a
+ * separate node, so mute and the volume slider still own the whole square —
+ * a "silence" that could be louder than the mute button is a bug waiting for a
+ * player who turned the sound off.
+ *
+ * A silence is also a TELL if its length can vary with anything hidden, which is
+ * why both numbers are constants in this file and why test/tell.test.js sweeps
+ * them alongside the cues and the bed.
+ */
+export const HUSH = {
+  /** The purge: to nothing, instantly, and back over a breath. */
+  purge: { to: 0, ms: 800, releaseMs: 900, hard: true },
+  /** The accusation: down to a tenth, and back when the bubble has been read. */
+  accusation: { to: 0.1, ms: 2600, releaseMs: 700, hard: false }
+};
+
 /* ------------------------------------------------------------- the engine */
 
 const DEFAULT_VOLUME = 0.7;
@@ -207,6 +243,9 @@ export function createAudio(options = {}) {
   const buffers = new Map();     // cue id -> AudioBuffer, once fetched
   const fired = [];              // a rolling log, for a scripted review
   let dropped = 0;               // cues that arrived before the first gesture
+  /* The silences, for a review that cannot hear one. See hush(). */
+  let hushing = null;
+  const hushLog = [];
 
   /**
    * Start the audio, from inside a real user gesture and nowhere else.
@@ -554,8 +593,53 @@ export function createAudio(options = {}) {
     return currentBed;
   }
 
+  /**
+   * Take the square's sound away for a moment, and give it back.
+   *
+   * @param {string} kind  a key of HUSH above
+   * @param {number} [ms]  override the declared length — the page's own clock
+   *        owns the moment, and a length declared in two places drifts.
+   *
+   * WHAT IT DOES NOT DO: it does not stop the cues. The purge's one gavel is
+   * fired by the page AFTER the silence ends, on the page's clock, rather than
+   * being scheduled here and swallowed — an 800 ms silence with a gavel muted
+   * inside it is 800 ms of silence and no gavel, which is not the moment.
+   *
+   * Re-entrancy: a second hush inside the first replaces it rather than
+   * stacking, because "quieter than silent" is not a thing — the same rule
+   * `steadyFlame` follows in src/play/lighting.js, for the same reason.
+   */
+  function hush(kind, ms) {
+    const spec = HUSH[kind] || HUSH.purge;
+    const length = (Number.isFinite(ms) ? ms : spec.ms) / 1000;
+    hushing = { kind, to: spec.to, until: 0 };
+    if (!started) return { kind, applied: false, ms: length * 1000 };
+    const now = ctx.currentTime;
+    const level = muted ? 0 : volume;
+    const g = master.gain;
+    g.cancelScheduledValues(now);
+    g.setValueAtTime(g.value, now);
+    if (spec.hard) {
+      /* A cut, not a fade: the value is stamped at `now`, so the bed stops
+       * between two samples. `setTargetAtTime` here would be a 20 ms fade and
+       * the whole point of the moment is that it is not one. */
+      g.setValueAtTime(level * spec.to, now);
+    } else {
+      g.linearRampToValueAtTime(level * spec.to, now + 0.12);
+    }
+    g.setValueAtTime(level * spec.to, now + length);
+    g.linearRampToValueAtTime(level, now + length + spec.releaseMs / 1000);
+    hushing.until = Math.round((now + length + spec.releaseMs / 1000) * 1000);
+    hushLog.push({ kind, at: Math.round(now * 1000), ms: Math.round(length * 1000), hard: !!spec.hard });
+    if (hushLog.length > 32) hushLog.shift();
+    return { kind, applied: true, ms: Math.round(length * 1000), hard: !!spec.hard };
+  }
+
   function setVolume(v) {
     volume = Math.max(0, Math.min(1, Number(v) || 0));
+    /* A volume change during a hush must not undo the hush — the scheduled
+     * ramp back is written against the level that was current when it started,
+     * so the honest answer is to restate the whole envelope from here. */
     if (started && !muted) master.gain.setTargetAtTime(volume, ctx.currentTime, 0.02);
     return volume;
   }
@@ -570,9 +654,14 @@ export function createAudio(options = {}) {
     start,
     cue,
     fire,
+    hush,
     setLighting,
     setVolume,
     setMuted,
+    /** The silences, so a scripted review can measure one it cannot hear. */
+    get hushes() { return hushLog.slice(); },
+    get hushing() { return hushing; },
+    get masterGain() { return started ? master.gain.value : null; },
     get started() { return started; },
     get muted() { return muted; },
     get volume() { return volume; },
@@ -600,7 +689,13 @@ export function createAudio(options = {}) {
         expectedSamples: CUE_IDS.filter((id) => CUES[id].url),
         droppedBeforeGesture: dropped,
         contextState: ctx ? ctx.state : 'none',
-        recent: fired.slice(-8)
+        recent: fired.slice(-8),
+        /* The fourth channel: the moments built out of taking the sound away.
+         * `masterGain` beside it is the live number, so a review can say the
+         * square was actually silent rather than that a silence was requested. */
+        silences: hushLog.slice(-8),
+        masterGain: started ? +master.gain.value.toFixed(4) : null,
+        hushSpec: HUSH
       };
     }
   };

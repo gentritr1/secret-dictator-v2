@@ -711,6 +711,42 @@ export function flickerAt(table, seconds, phase) {
 
 /* --------------------------------------------------------------- the rig */
 
+/* ------------------------------------------------------------- the staging */
+
+/**
+ * THE BEAM POINTED SOMEWHERE NEW.
+ *
+ * The design doc's juice map says the honest thing about four of its five
+ * moments: "the trial beam exists; four of these five are that rig pointed
+ * somewhere new, which is the cheapest kind of polish there is." So the rig
+ * grows three overrides and no fourth light story:
+ *
+ *   aim()      the beam travels off the dais and onto a citizen, and narrows.
+ *              The purge, and the curtain call's last figure.
+ *   focus()    one lantern lifts and every other pulls back. The accusation.
+ *   rim()      a second, COOLER pool, on a world point. Also the accusation —
+ *              "two lit people in a dark square is the grammar of an
+ *              accusation", and the second one is lit by being looked at.
+ *
+ * All three are OVERRIDES with a null resting state, and that is the whole of
+ * their safety: the lighting states table is untouched, every warm budget in it
+ * still means what it meant, and `release()` puts the rig back exactly where the
+ * state mapping had it. None of them can be reached from `weatherFor` or
+ * `lanternPlanFor`, so the readability floor docs/step-13.md §3 describes is
+ * unchanged — the three-way split is still guaranteed by the shape of the code.
+ *
+ * WHY THE RIM IS NOT WARM. `RIM_COLOR` is hue 216 degrees, deliberately outside
+ * the 15-70 the style bible's classifier counts as the amber family. The square
+ * measured 8.08% warm against a 10% ceiling at this gate's branch point
+ * (docs/step-14.md), and the accusation is the most frequent dramatic beat in
+ * the game; a second AMBER pool on the most frequent beat would have spent the
+ * remaining headroom on it. It is also the better picture, and the doc says so
+ * in the same breath — "a second, cooler warm rim".
+ */
+export const AIM_SECONDS = 0.62;
+export const FOCUS_SECONDS = 0.5;
+export const RIM_SECONDS = 0.45;
+
 /** How long a state takes to arrive, in seconds. Exponential, never linear. */
 export const TRANSITION_SECONDS = 1.9;
 /** How long a tile sting holds before the base state takes back over. */
@@ -790,6 +826,41 @@ export function createLightingDirector(scene, options = {}) {
   beam.shadow.bias = -0.0015;
   scene.add(beam);
   scene.add(beam.target);
+
+  /*
+   * The staging overrides. All three rest at null and all three are pure
+   * presentation: nothing here is reachable from the state table, the weather or
+   * the flame, and `release()` is a complete undo.
+   *
+   * `aimLive` / `aimWant` are the beam's own two points — where it hangs and
+   * what it looks at — carried as live/target pairs so a travel across the
+   * square is a crossfade like everything else in this file rather than a cut.
+   */
+  const homeFrom = new THREE.Vector3(focus.x, beamHeight, focus.z + 0.7);
+  const homeAt = new THREE.Vector3(focus.x, focus.y, focus.z - 0.4);
+  const aimLiveFrom = homeFrom.clone();
+  const aimLiveAt = homeAt.clone();
+  const aimWantFrom = homeFrom.clone();
+  const aimWantAt = homeAt.clone();
+  /* A multiplier on the state's declared cone, so narrowing composes with a
+   * mood change instead of fighting it. 1 is the state's own angle. */
+  let aimAngleLive = 1;
+  let aimAngleWant = 1;
+  let aimSeconds = AIM_SECONDS;
+  let aimed = null;         // what aim() was last asked for, for the readback
+
+  /* One lantern lifted, the rest pulled back. Per-entry, live and wanted. */
+  let focusName = null;
+  let focusLift = 1;
+  let focusPull = 1;
+  const focusLive = [];     // parallel to `lanterns`
+  let focusSeconds = FOCUS_SECONDS;
+
+  /* The cool second pool. Built on first use — a match that never stages an
+   * accusation never allocates a light for one. */
+  let rim = null;
+  let rimWant = 0;
+  let rimSeconds = RIM_SECONDS;
 
   /* Live values, lerped toward the target every frame. Colours are three.js
    * Colors so the interpolation happens in the renderer's linear working space
@@ -878,6 +949,10 @@ export function createLightingDirector(scene, options = {}) {
       for (const body of entry.bodies) body.material.dispose();
     }
     lanterns.length = 0;
+    /* The focus array is parallel to `lanterns` by index, so it has to be
+     * emptied with them or a re-attach would start with the previous rig's
+     * multipliers applied to different posts. */
+    focusLive.length = 0;
   }
 
   /**
@@ -918,6 +993,7 @@ export function createLightingDirector(scene, options = {}) {
         phase: rank / Math.max(1, LANTERN_ORDER.length),
         bodies: claimFlame(owner)
       });
+      focusLive.push(1);
     });
     weather = Object.assign({}, weather, { lanterns: lanterns.length });
     return lanterns.map((l) => l.name);
@@ -975,6 +1051,155 @@ export function createLightingDirector(scene, options = {}) {
     return 1 - amp * flickerAt(flameTable, flameSeconds, phase);
   }
 
+  /* ---------------------------------------------------------- the staging */
+
+  /**
+   * Point the beam at a world position and narrow it.
+   *
+   * @param {object|null} spec `{ at: {x,y,z}, angle, height, seconds, instant }`
+   *        — `angle` is a MULTIPLIER on whatever cone the current state
+   *        declares, not an absolute, so a purge staged during `drafting` (a
+   *        0.20 cone) and one staged during `power` (0.24) both narrow by the
+   *        same proportion and neither can accidentally open the beam wider than
+   *        its own mood. Null puts it back over the dais.
+   */
+  function aim(spec) {
+    if (!spec) {
+      aimed = null;
+      aimWantFrom.copy(homeFrom);
+      aimWantAt.copy(homeAt);
+      aimAngleWant = 1;
+      aimSeconds = AIM_SECONDS;
+      return null;
+    }
+    const at = spec.at || {};
+    const h = Number.isFinite(spec.height) ? spec.height : beamHeight;
+    aimWantAt.set(at.x || 0, Number.isFinite(at.y) ? at.y : 0.9, at.z || 0);
+    /* Hung slightly toward the middle of the square rather than dead overhead,
+     * so a figure lit this way is modelled instead of flattened — the same
+     * offset the dais beam has, kept in the same direction. */
+    aimWantFrom.set(at.x || 0, h, (at.z || 0) + 0.7);
+    aimAngleWant = Number.isFinite(spec.angleScale) ? spec.angleScale : 1;
+    aimSeconds = Number.isFinite(spec.seconds) ? spec.seconds : AIM_SECONDS;
+    aimed = { at: { x: aimWantAt.x, y: aimWantAt.y, z: aimWantAt.z }, angleScale: aimAngleWant };
+    if (spec.instant || aimSeconds <= 0) {
+      aimLiveFrom.copy(aimWantFrom);
+      aimLiveAt.copy(aimWantAt);
+      aimAngleLive = aimAngleWant;
+      push();
+    }
+    return aimed;
+  }
+
+  /**
+   * One lantern lifts, every other lantern pulls back.
+   *
+   * The lift and the pull are ONE gesture and are taken together on purpose:
+   * the accusation's picture is "the speaker's lantern warms, everyone else
+   * stays cold", and a version that only lifted would be a version that spent
+   * warm budget on the most frequent beat in the game. Four at 0.55 against one
+   * at 1.35 is less lit lantern than the square had a moment earlier.
+   *
+   * @param {object|null} spec `{ name, lift, pull, seconds, instant }` — `name`
+   *        is a logical socket from LANTERN_ORDER. A name no lantern has is not
+   *        an error: every lantern simply pulls back, which is still a legible
+   *        picture (the square goes quiet) rather than a thrown exception in a
+   *        render loop.
+   */
+  function setFocus(spec) {
+    if (!spec) {
+      focusName = null;
+      focusLift = 1;
+      focusPull = 1;
+      focusSeconds = FOCUS_SECONDS;
+      return null;
+    }
+    focusName = spec.name || null;
+    focusLift = Number.isFinite(spec.lift) ? spec.lift : 1;
+    focusPull = Number.isFinite(spec.pull) ? spec.pull : 1;
+    focusSeconds = Number.isFinite(spec.seconds) ? spec.seconds : FOCUS_SECONDS;
+    if (spec.instant || focusSeconds <= 0) {
+      for (let i = 0; i < lanterns.length; i++) focusLive[i] = wantedFocus(i);
+      push();
+    }
+    return { name: focusName, lift: focusLift, pull: focusPull };
+  }
+
+  function wantedFocus(i) {
+    if (!focusName) return 1;
+    return lanterns[i] && lanterns[i].name === focusName ? focusLift : focusPull;
+  }
+
+  /**
+   * The cool second pool, on a world point.
+   *
+   * A point light rather than a spot, and small: it is a RIM on a figure, and
+   * the moment it starts throwing a pool on the cobbles it is a second light
+   * story, which the style bible bans. It never casts a shadow, for the same
+   * reason the lanterns do not.
+   */
+  function setRim(spec) {
+    if (!spec) {
+      rimWant = 0;
+      rimSeconds = RIM_SECONDS;
+      return null;
+    }
+    const at = spec.at || {};
+    if (!rim) {
+      rim = new THREE.PointLight(spec.color || 0x9db6e0, 0, spec.distance || 4.6, 2);
+      rim.castShadow = false;
+      rim.name = 'stage:rim';
+      rim.visible = false;
+      scene.add(rim);
+    }
+    rim.color.setHex(spec.color || 0x9db6e0);
+    rim.distance = spec.distance || 4.6;
+    rim.position.set(at.x || 0, Number.isFinite(at.y) ? at.y : 1.5, at.z || 0);
+    rimWant = Number.isFinite(spec.intensity) ? spec.intensity : 5.2;
+    rimSeconds = Number.isFinite(spec.seconds) ? spec.seconds : RIM_SECONDS;
+    if (spec.instant || rimSeconds <= 0) { rim.intensity = rimWant; push(); }
+    return { at: { x: rim.position.x, y: rim.position.y, z: rim.position.z }, intensity: rimWant };
+  }
+
+  /** Give the rig back to the state mapping. One call, all three overrides. */
+  function release(instant) {
+    aim(null);
+    setFocus(null);
+    setRim(null);
+    if (instant) {
+      aimLiveFrom.copy(aimWantFrom);
+      aimLiveAt.copy(aimWantAt);
+      aimAngleLive = 1;
+      for (let i = 0; i < lanterns.length; i++) focusLive[i] = 1;
+      if (rim) { rim.intensity = 0; rim.visible = false; }
+      push();
+    }
+    return true;
+  }
+
+  /** Advance the three overrides. Same exponential blend as the crossfade. */
+  function updateStaging(dt) {
+    const step = Math.max(0, dt);
+    const b = (seconds) => (seconds <= 0 ? 1 : 1 - Math.exp(-step / (seconds / Math.log(20))));
+
+    const ba = b(aimSeconds);
+    aimLiveFrom.lerp(aimWantFrom, ba);
+    aimLiveAt.lerp(aimWantAt, ba);
+    aimAngleLive += (aimAngleWant - aimAngleLive) * ba;
+
+    const bf = b(focusSeconds);
+    for (let i = 0; i < lanterns.length; i++) {
+      if (focusLive[i] === undefined) focusLive[i] = 1;
+      focusLive[i] += (wantedFocus(i) - focusLive[i]) * bf;
+    }
+
+    if (rim) {
+      rim.intensity += (rimWant - rim.intensity) * b(rimSeconds);
+      /* Below a thousandth it is not a light, it is a uniform slot. */
+      rim.visible = rim.intensity > 0.001;
+    }
+  }
+
   function readInto(slot, id) {
     const s = LIGHTING_STATES[id] || LIGHTING_STATES.unknown;
     slot.hemiSky.setHex(s.hemi.sky);
@@ -1012,8 +1237,15 @@ export function createLightingDirector(scene, options = {}) {
      * FLICKER for why one-sided, and why every warm budget in this file stays
      * an upper bound because of it. */
     beam.intensity = live.beamIntensity * flameMultiplier(FLICKER.beam, 0);
-    beam.angle = live.beamAngle;
+    /* The staging's cone multiplier rides on top of the state's own angle, so a
+     * narrow beam is narrow relative to whatever mood is on screen. Clamped to
+     * three.js's legal range rather than trusted: a caller passing a zero
+     * multiplier would otherwise produce a spot with no cone at all, which
+     * renders as nothing and reads as the light having failed. */
+    beam.angle = Math.max(0.02, Math.min(Math.PI / 2, live.beamAngle * aimAngleLive));
     beam.penumbra = live.beamPenumbra;
+    beam.position.copy(aimLiveFrom);
+    beam.target.position.copy(aimLiveAt);
 
     /*
      * The lanterns, and the whole of the weather's reach.
@@ -1027,8 +1259,16 @@ export function createLightingDirector(scene, options = {}) {
     for (let i = 0; i < lanterns.length; i++) {
       const entry = lanterns[i];
       const lit = i >= weather.out;
+      /*
+       * The staging's focus, and note where it sits: AFTER the weather. A
+       * lantern that a Seize put out stays out — being the accuser does not
+       * relight a dead lamp, because the weather is the board and the board does
+       * not care who is talking. `focusLive` defaults to 1, so a square with no
+       * accusation running multiplies by one and is the square it was.
+       */
+      const aimAt = focusLive[i] === undefined ? 1 : focusLive[i];
       entry.light.intensity = lit
-        ? live.lanternIntensity * flameMultiplier(FLICKER.lantern, entry.phase)
+        ? live.lanternIntensity * flameMultiplier(FLICKER.lantern, entry.phase) * aimAt
         : 0;
       /* A dead lantern is a dead object as far as the renderer is concerned:
        * three.js still uploads a zero-intensity light into the uniform block,
@@ -1047,7 +1287,8 @@ export function createLightingDirector(scene, options = {}) {
        * the trial rather than being a constant sticker.
        */
       const flameLevel = lit
-        ? (live.lanternIntensity / LANTERN_REFERENCE) * flameMultiplier(FLICKER.lantern, entry.phase)
+        ? (live.lanternIntensity / LANTERN_REFERENCE) *
+          flameMultiplier(FLICKER.lantern, entry.phase) * aimAt
         : 0;
       for (const body of entry.bodies) {
         body.material.emissiveIntensity = body.base * Math.min(1.15, flameLevel);
@@ -1130,6 +1371,11 @@ export function createLightingDirector(scene, options = {}) {
     const step = Math.max(0, dt);
     flameSeconds += step;
     if (steadyLeft > 0) steadyLeft = Math.max(0, steadyLeft - step);
+    /* The staging runs whether or not the mood is still crossfading: a purge
+     * that lands mid-fade must still take the beam, and an accusation staged
+     * while the square is going from dusk to the trial must still lift its
+     * lantern. Same reason the flame and the weather run above. */
+    updateStaging(step);
 
     if (arrived) {
       /* Arrived, but the flame and the weather still have to reach the lights:
@@ -1281,6 +1527,13 @@ export function createLightingDirector(scene, options = {}) {
     setWeather,
     steadyFlame,
     setSeed,
+    /* The staging: the beam pointed somewhere new, one lantern lifted, and a
+     * cool second pool. All three rest at null; `release()` is a complete undo
+     * and the state table never learns they happened. See AIM_SECONDS above. */
+    aim,
+    setFocus,
+    setRim,
+    release,
     /** The state on screen right now — the target only once the fade lands. */
     get state() { return currentId; },
     get target() { return targetId; },
@@ -1326,8 +1579,38 @@ export function createLightingDirector(scene, options = {}) {
           lit: i >= weather.out,
           at: { x: entry.light.position.x, y: entry.light.position.y, z: entry.light.position.z },
           intensity: round(entry.light.intensity),
-          declared: round(live.lanternIntensity)
+          declared: round(live.lanternIntensity),
+          /* What the staging is doing to THIS post right now — 1 when nothing
+           * is staged, which is the whole match except during an accusation. */
+          focus: round(focusLive[i] === undefined ? 1 : focusLive[i])
         })),
+        /*
+         * The three staging overrides, read off the LIGHTS rather than off what
+         * was asked for. `asked` is the request and the rest is what three.js
+         * is being handed this frame; they differ for exactly as long as the
+         * travel takes, which is the one place the difference is the feature.
+         */
+        staging: {
+          aim: {
+            asked: aimed,
+            at: { x: round(beam.target.position.x), y: round(beam.target.position.y),
+              z: round(beam.target.position.z) },
+            from: { x: round(beam.position.x), y: round(beam.position.y), z: round(beam.position.z) },
+            angle: round(beam.angle),
+            angleScale: round(aimAngleLive),
+            home: !aimed
+          },
+          focus: { name: focusName, lift: focusLift, pull: focusPull },
+          rim: rim
+            ? {
+              on: rim.visible,
+              color: '#' + rim.color.getHexString(),
+              intensity: round(rim.intensity),
+              wanted: round(rimWant),
+              at: { x: round(rim.position.x), y: round(rim.position.y), z: round(rim.position.z) }
+            }
+            : { on: false, intensity: 0, wanted: 0 }
+        },
         flame: {
           /* 1 is dead still — the Reform response at full strength. */
           steadiness: round(steadiness()),
@@ -1345,6 +1628,7 @@ export function createLightingDirector(scene, options = {}) {
       if (probe) probe.dispose();
       probe = null;
       probeBuffer = null;
+      if (rim) { scene.remove(rim); rim.dispose(); rim = null; }
       releaseLanterns();
     }
   };
