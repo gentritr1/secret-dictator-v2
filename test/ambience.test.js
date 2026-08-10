@@ -240,7 +240,34 @@ async function main() {
      * in the browser, because a budget nobody counts against is a wish. */
     check(s.warmBudget <= 0.10,
       id + ' declares a warm budget of ' + s.warmBudget + ', over the 0.10 night ceiling');
-    /* "One dominant light story." One lantern-warm source, and it is the beam. */
+    /*
+     * "One dominant light story."
+     *
+     * THIS CHECK CHANGED SHAPE at Gate 13 and the change is deliberate rather
+     * than a relaxation. Until this gate there were three lights and the rule
+     * was arithmetic: count the lantern-warm sources, allow one, and it is the
+     * beam. Real lanterns are now hung on the two `SOCKET_flame` sockets, which
+     * would have made that count 2 and failed — and "delete the assertion the
+     * new feature breaks" is exactly the move a review is supposed to catch.
+     *
+     * So the law is restated rather than removed, and in two halves that are
+     * together STRICTER than the one they replace:
+     *
+     *   (a) the original count is UNCHANGED and still runs. hemi, sun and beam
+     *       may between them light exactly one lantern-warm source, and it is
+     *       still the beam. Nothing about the sky or the ambient got a licence.
+     *   (b) the lanterns are admitted as PRACTICALS, and are held under a
+     *       numeric cap that did not exist before: every lantern in the square
+     *       burning at once must total no more than LANTERN_SHARE of the beam.
+     *       A practical that can out-shine the beam is a second light story
+     *       under another name.
+     *
+     * What (b) is not: a photometric proof. A point light at 2.4 m and a spot
+     * at 7.4 m do not have comparable candela numbers, and the real answer to
+     * "is this frame over-lit" is the warm-pixel measurement in the browser.
+     * This is the cheap structural backstop that fails a table edit, and it is
+     * described that way in src/play/lighting.js too.
+     */
     var warmSources = 0;
     if (isLanternWarm(s.hemi.sky) && s.hemi.intensity > 0) warmSources++;
     if (isLanternWarm(s.hemi.ground) && s.hemi.intensity > 0) warmSources++;
@@ -248,11 +275,182 @@ async function main() {
     if (s.beam.intensity > 0) warmSources++;    // the beam is #f8d868 by construction
     check(warmSources <= 1,
       id + ' lights ' + warmSources + ' lantern-warm sources; the night states get one');
+
+    var lantern = (s.lantern && s.lantern.intensity) || 0;
+    check(lantern > 0, id + ' is a night state with every lantern dark — ' +
+      'the practicals are meant to be lit at night and near-off by day');
+    check(lantern * L.LANTERN_ORDER.length <= s.beam.intensity * L.LANTERN_SHARE,
+      id + ' burns ' + L.LANTERN_ORDER.length + ' lanterns at ' + lantern + ' (' +
+      (lantern * L.LANTERN_ORDER.length) + ' total) against a beam of ' + s.beam.intensity +
+      ' — over the ' + L.LANTERN_SHARE + ' practical share, which makes them a second light story');
+
     check(s.sun.intensity < 1.0,
       id + ' has a sun at ' + s.sun.intensity + ' — a night state with a real sun in it');
   });
+
+  /* The lantern table itself, over every state and not just the night ones. */
+  check(isLanternWarm(L.LANTERN_COLOR),
+    'the lantern colour is not in the lantern-glow family');
+  check(L.LANTERN_ORDER.length > 0, 'no lantern is declared in the extinguish order');
+  check(new Set(L.LANTERN_ORDER).size === L.LANTERN_ORDER.length,
+    'the extinguish order names the same lantern twice, so one Seize would put out nothing');
+  LIGHTING_IDS.forEach(function (id) {
+    var s = LIGHTING_STATES[id];
+    check(s.lantern && typeof s.lantern.intensity === 'number',
+      id + ' declares no lantern intensity — a state with no answer is a lantern flicking on by accident');
+    check(s.lantern.intensity >= 0, id + ' declares a negative lantern intensity');
+  });
+  /* "Near-off in day." The day reference has no lit lanterns in it at all, and
+   * `unknown` is daylight by construction, so both are exactly zero. */
+  ['day', 'unknown'].forEach(function (id) {
+    check(LIGHTING_STATES[id].lantern.intensity === 0,
+      id + ' lights a lantern; the daylight states are the ones that must not');
+  });
+  /* The glass's reference point has to be a state that exists, or the flame
+   * body is scaled against a number nobody chose. */
+  check(L.LANTERN_REFERENCE > 0, 'the lantern glass has no reference intensity');
+  check(LIGHTING_IDS.some(function (id) {
+    return LIGHTING_STATES[id].lantern.intensity === L.LANTERN_REFERENCE;
+  }), 'LANTERN_REFERENCE (' + L.LANTERN_REFERENCE + ') is not any state\'s declared intensity');
+  check(LIGHTING_IDS.every(function (id) {
+    return LIGHTING_STATES[id].lantern.intensity <= L.LANTERN_REFERENCE;
+  }), 'a state burns a lantern above the reference, so its glass would clamp and stop tracking');
+  check(L.LANTERN_RANGE.distance > 0 && L.LANTERN_RANGE.decay > 0,
+    'the lantern range is not a range');
+
   say('table         ' + LIGHTING_IDS.length + ' states, ' + NIGHT_STATES.length +
-    ' of them night frames: warm budget <= 0.10, one lantern-warm source each, no pure black');
+    ' of them night frames: warm budget <= 0.10, one dominant lantern-warm source each, ' +
+    L.LANTERN_ORDER.length + ' practicals under a ' + L.LANTERN_SHARE +
+    ' share of the beam, dark by day, no pure black');
+
+  /* ---------------------------------------------- 3b. the board as weather */
+
+  /*
+   * Every Seize puts out one lantern, permanently, and nothing re-lights it.
+   *
+   * Checked as an exhaustive sweep over more Seizes than the rules can produce
+   * (the board holds six) and over every lantern count from none to twice the
+   * declared order, because "degrades sanely when there are fewer lanterns than
+   * Seizes" is the branch nobody will hit until somebody deletes a placement
+   * row.
+   */
+  var lastOut = -1;
+  for (var have = 0; have <= L.LANTERN_ORDER.length * 2; have++) {
+    lastOut = -1;
+    for (var sz = 0; sz <= 8; sz++) {
+      var w = L.weatherFor({ seize: sz }, have);
+      check(w.out >= lastOut, 'the weather re-lit a lantern going from ' + (sz - 1) +
+        ' Seizes to ' + sz + ' (' + lastOut + ' -> ' + w.out + ') — nothing may re-light one');
+      check(w.out <= have, 'the weather put out ' + w.out + ' of ' + have + ' lanterns');
+      check(w.out === Math.min(sz, have),
+        'with ' + sz + ' Seizes and ' + have + ' lanterns the weather put out ' + w.out);
+      check(w.out + w.overflow === sz,
+        'the weather lost ' + (sz - w.out - w.overflow) + ' Seizes rather than reporting them as overflow');
+      /* The order is a PREFIX of the declared one, always. */
+      check(w.extinguished.join() === L.LANTERN_ORDER.slice(0, w.out).join(),
+        'the extinguish order is not a prefix of LANTERN_ORDER at ' + sz + ' Seizes');
+      lastOut = w.out;
+    }
+  }
+  check(L.weatherFor(null).out === 0, 'no view at all put a lantern out');
+  check(L.weatherFor({ seize: 0 }).out === 0, 'an empty board put a lantern out');
+  /* A Reform is not a Seize: the ONLY input is the Seize count, so a board with
+   * five Reforms and one Seize is one lantern down and no more. */
+  check(L.weatherFor({ seize: 1, reform: 5 }).out === 1,
+    'Reforms on the board changed the weather; only Seizes may');
+
+  /*
+   * THE READABILITY FLOOR, and this is the assertion the whole feature turns on.
+   *
+   * "Atmospheric darkness may deepen, but citizens, board and interactables keep
+   * controlled rim light and readable silhouettes." That is guaranteed here
+   * structurally rather than by eye: the weather may only ever touch the lantern
+   * channel, so for every state and every possible weather the ambient, the sun,
+   * the beam, the fog and the background must be byte-identical to the state's
+   * own declared rig. If they are, no number of Seizes can take the square below
+   * its own darkest designed frame — which is `chaos`, and `chaos` is readable.
+   */
+  var floorChecked = 0;
+  LIGHTING_IDS.forEach(function (id) {
+    var s = LIGHTING_STATES[id];
+    var declared = JSON.stringify({
+      hemi: s.hemi, sun: s.sun, beam: s.beam, fog: s.fog, background: s.background
+    });
+    for (var sz = 0; sz <= 8; sz++) {
+      var w = L.weatherFor({ seize: sz });
+      var plan = L.lanternPlanFor(id, w);
+      floorChecked++;
+      /* The plan is lantern entries and nothing else — no key in it can name a
+       * channel the floor depends on. */
+      plan.forEach(function (entry) {
+        check(Object.keys(entry).sort().join() === 'intensity,lit,name',
+          'the lantern plan for ' + id + ' carries a field beyond the lantern itself: ' +
+          Object.keys(entry).join());
+        check(entry.intensity <= s.lantern.intensity,
+          id + ' at ' + sz + ' Seizes burns a lantern ABOVE its declared intensity');
+        check(entry.lit === (entry.intensity > 0) || s.lantern.intensity === 0,
+          id + ' has a lantern that is lit at zero intensity, or dark at some');
+      });
+      /* And the state's own rig is untouched by any of it. */
+      check(JSON.stringify({
+        hemi: s.hemi, sun: s.sun, beam: s.beam, fog: s.fog, background: s.background
+      }) === declared,
+      'the weather changed a non-lantern channel of ' + id + ' at ' + sz + ' Seizes');
+    }
+    /* Every state keeps a floor of its own regardless of weather: something in
+     * the frame is still lighting the citizens. */
+    check(s.hemi.intensity > 0, id + ' has no ambient at all — silhouettes would go black');
+  });
+  /* And the darkest designed frame is still blue, still lit, and still has the
+   * beam the accused stands in. */
+  NIGHT_STATES.forEach(function (id) {
+    check(LIGHTING_STATES[id].beam.intensity > 0,
+      id + ' has no beam; with the lanterns out there would be no warm light at all');
+  });
+  say('weather       ' + floorChecked + ' state x weather compositions: Seizes only, ' +
+    'monotonic, prefix order, saturating at the lanterns that exist — and 0 of them ' +
+    'touched the ambient, the sun, the beam, the fog or the background');
+
+  /* ------------------------------------------------------------ 3c. flame */
+
+  /*
+   * The flicker, and the one property that makes it safe to have at all.
+   *
+   * ONE-SIDED: the multiplier is never above 1, so every warm budget in the
+   * table stays an upper bound on the frame rather than a statement about the
+   * average frame. A two-sided flicker would quietly invalidate every warm
+   * measurement this project has taken.
+   */
+  var table = L.flickerTable(1000);
+  var again = L.flickerTable(1000);
+  var other = L.flickerTable(1001);
+  check(table.length === again.length, 'two flicker tables from one seed differ in length');
+  var identical = true, differs = false;
+  for (var i = 0; i < table.length; i++) {
+    if (table[i] !== again[i]) identical = false;
+    if (table[i] !== other[i]) differs = true;
+    check(table[i] >= 0 && table[i] <= 1, 'flicker sample ' + i + ' is outside [0, 1]');
+  }
+  check(identical, 'the flicker is not reproducible from its seed');
+  check(differs, 'two different seeds produced the same flicker — the seed is not reaching it');
+  var lo = Infinity, hi = -Infinity;
+  for (var t2 = 0; t2 < 40; t2 += 0.01) {
+    var v = L.flickerAt(table, t2, 0.37);
+    lo = Math.min(lo, v); hi = Math.max(hi, v);
+    check(v >= 0 && v <= 1, 'the flicker read ' + v + ' at t=' + t2);
+    check(1 - L.FLICKER.lantern * v <= 1,
+      'the flicker BRIGHTENED a lantern at t=' + t2 + ' — the budget is no longer an upper bound');
+    check(1 - L.FLICKER.beam * v <= 1, 'the flicker brightened the beam at t=' + t2);
+  }
+  check(hi - lo > 0.4, 'the flicker barely moves (' + lo.toFixed(3) + '..' + hi.toFixed(3) +
+    ') — a flame nobody can see is not a flame');
+  check(L.FLICKER.lantern > L.FLICKER.beam,
+    'the beam flickers as hard as the lanterns; the dominant light should be the steady one');
+  check(L.REFORM_STEADY_MS > 0 && L.REFORM_EASE_MS > 0 && L.REFORM_EASE_MS <= L.REFORM_STEADY_MS,
+    'the Reform steadying window is not a window');
+  say('flame         512-sample seeded table, reproducible and seed-sensitive, range ' +
+    lo.toFixed(3) + '..' + hi.toFixed(3) + ', one-sided at every sample: a flicker can only ' +
+    'ever take light away, so the warm budgets stay upper bounds');
 
   /* --------------------------------------------------- 5. the sound table */
 
@@ -274,6 +472,31 @@ async function main() {
   });
   check(A.bedFor('day').gain === 0,
     'daylight is not silent — the day bed is the one that must be, since there is no bird recording to use');
+
+  /*
+   * The three layers, and the property that matters about the first one.
+   *
+   * TOWN is the constant bed. It is not keyed to the state, the phase, the
+   * weather or anything else, which is checked the only way a constant can be:
+   * it is a plain object of numbers with no function anywhere near it, and no
+   * lighting state may have an entry that overrides it. A constant layer is the
+   * only part of the ambience that cannot carry information by construction
+   * rather than by argument, and that is why it is the one allowed to play in
+   * daylight where the phase layer is silent.
+   */
+  check(typeof A.TOWN.gain === 'number' && A.TOWN.gain >= 0 && A.TOWN.gain <= 0.05,
+    'the constant town layer has an unusable gain: ' + A.TOWN.gain);
+  check(A.TOWN.cutoff >= 60 && A.TOWN.cutoff <= 600,
+    'the town layer is not a LOW bed at ' + A.TOWN.cutoff + ' Hz');
+  check(A.TOWN.gain < Math.max.apply(null, LIGHTING_IDS.map(function (id) { return A.bedFor(id).gain; })),
+    'the constant town layer is louder than the loudest phase bed — the layer that ' +
+    'carries no information should not be the one in front');
+  LIGHTING_IDS.forEach(function (id) {
+    check(A.BED[id] && A.BED[id].town === undefined,
+      'lighting state ' + id + ' overrides the constant town layer, which makes it not constant');
+  });
+  check(typeof A.TOWN.drone === 'number' && A.TOWN.drone > 0 && A.TOWN.drone < 200,
+    'the town drone is not a low tone');
 
   /* cuesFor: the five moments and nothing else. */
   var none = { gavel: false, tally: false, sting: null };
@@ -370,6 +593,13 @@ async function main() {
       if (audited < 400) {
         audited++;
         auditReads(function (v) { return lightingFor(v); }, view, 'lightingFor');
+        /* The weather is the newest reader of the view and it gets the same
+         * treatment. It should touch exactly one field — `seize` — and the
+         * audit says so rather than the comment doing. */
+        var weatherSeen = auditReads(function (v) { return L.weatherFor(v, 2); }, view, 'weatherFor');
+        check(Object.keys(weatherSeen).join() === 'seize',
+          'weatherFor read ' + Object.keys(weatherSeen).join(', ') +
+          ' — the board as weather is meant to be one public count and nothing else');
         if (prev) {
           auditReads(function (v) { return publicEdges(prev, v); }, view, 'publicEdges (next)');
           auditReads(function (v) { return publicEdges(v, view); }, prev, 'publicEdges (prev)');
