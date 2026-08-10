@@ -147,6 +147,7 @@ npm run test:interact                      # the interaction contract
 npm run test:objective                     # the objective line: mapping, routing, leaks
 npm run test:pace                          # the deliberation clock cannot change a match
 npm run test:ambience                      # the lighting map and the sound cues: mapped, lawful, leak-free
+npm run test:tell                          # no presentation channel correlates with a hidden role
 npm run test:glb                           # the shipping GLB's contract, three layers deep
 npm run test:floor                         # the claim schema: what may be said, and that saying it changes nothing
 npm run test:orator                        # the orator: bots speak, some lie, and the match is unchanged
@@ -235,6 +236,28 @@ public prose — one sting per tile enacted, one tally per election held, one
 gavel per nomination made — which is how a real bug surfaced: two consecutive
 elections can produce a byte-identical tally, so an edge keyed on "the tally
 changed" silently missed one.
+
+`npm run test:tell` is the law the design review wrote and nothing enforced:
+**given the same public record, every presentation channel is byte-identical,
+whatever the hidden roles behind it happen to be.** It sweeps all of them at
+once — which lanterns burn and at what intensity, the lighting id step by step,
+the bed's gain and cutoff, which cues fire and in what order, whether a sting
+fired and how long it holds, the bot deliberation band drawn for real, and the
+seeded flicker table by checksum — permuting the hidden roles at every moment of
+every match and comparing as JSON.
+
+The interesting part is that it does not trust itself. The channels are pure
+functions of a player-safe view, so their agreeing under permutation is close to
+tautological, and a sweep that only did that would be a green light with nothing
+behind it. So it also (a) compares the *view* under permutation, making "the
+same public record" a checked fact rather than an assumption, and (b) **mutation-
+tests its own detector**: seven deliberately injected tells — the lanterns going
+out from the other side when the Dictator sits odd, the bed dropping 40 Hz for a
+Rebel nominee, a sting held 200 ms longer, a trial lit as a power play, a
+swallowed gavel, a flicker salted with the Dictator's seat, bots deliberating
+15% longer over a fellow conspirator — must each be caught, and an eighth
+control mutant that changes nothing must be caught by nothing. A gate that
+cannot fail is not a gate.
 
 `npm run test:glb` is the gate on the one source file nobody reads. An art asset
 is authored in another program and arrives as bytes — `Bin 0 -> 89732 bytes` is
