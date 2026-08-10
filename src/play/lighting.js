@@ -110,7 +110,19 @@ export const NIGHT_STATES = ['trial', 'result:passed', 'result:failed', 'draftin
  * A socket in this list that no asset provides is simply absent — see
  * `attachLanterns`. Nothing here assumes the lantern GLB loaded.
  */
-export const LANTERN_ORDER = ['lanternWest', 'lanternEast'];
+/*
+ * Which lantern the next Seize takes, in order.
+ *
+ * Grown from two to five when the placements landed. The order is deliberate
+ * rather than alphabetical: the square goes dark from its EDGES inward. The
+ * gate lamp at the southern approach dies first and the two flanking the dais
+ * die last, so the light retreats toward the platform as the Rebels advance —
+ * the board becoming weather, with the last thing still burning being the thing
+ * everyone is arguing over.
+ */
+export const LANTERN_ORDER = [
+  'lanternGate', 'lanternSouthWest', 'lanternSouthEast', 'lanternWest', 'lanternEast'
+];
 
 /** STYLE_BIBLE "Lantern glow", the same hex the beam is built from. */
 export const LANTERN_COLOR = 0xf8d868;
@@ -319,7 +331,18 @@ export const LIGHTING_STATES = {
     hemi: { sky: 0x3a4066, ground: 0x282840, intensity: 1.0 },
     sun: { color: 0x243354, intensity: 0.22, dir: [0.30, 0.55, -0.78] },
     beam: { intensity: 34, angle: 0.20, penumbra: 0.7 },
-    lantern: { intensity: 6 },   /* the beam is an ember and the posts are nearly all there is; still capped under it */
+    /*
+     * 4.0, not 6. Chaos is the one state where the beam is nearly an ember, so
+     * it has the least room over its practicals — and when LANTERN_ORDER grew
+     * from two lamps to five, five at 6 came to 30 against a beam of 34 and the
+     * share cap failed. That is the assertion doing its job: the same lamp that
+     * is a highlight beside two is a second light story beside five.
+     *
+     * Dimming the lamp is the fix; raising LANTERN_SHARE would have been
+     * deleting the law that caught it. Nothing else in the table needed to move
+     * — every other night state carries a brighter beam.
+     */
+    lantern: { intensity: 4.0 },
     background: 0x121222,
     fog: { color: 0x121222, near: 16, far: 56 },
     warmBudget: 0.10

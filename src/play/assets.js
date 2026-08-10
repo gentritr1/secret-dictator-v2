@@ -163,6 +163,43 @@ export const ENVIRONMENT = [
     requiredNodes: [],
     scenery: true,          // stands beyond reach: no collider, and none wanted
     fallback: 'omit' },
+  /*
+   * Three more lanterns, so the weather rule has something to take.
+   *
+   * Gate 13 built "every Seize permanently puts out a lantern" against the two
+   * that existed, and said plainly that with two sockets the design doc's image
+   * — nearly dark by the fifth Seize — cannot happen; the mechanism saturates
+   * after two and the rest of the match has nothing left to lose. These are the
+   * placements it asked for. `LANTERN_ORDER` in lighting.js decides which goes
+   * out first; the socket names here are what it names.
+   */
+  { id: 'env-lantern-a', category: 'environment',
+    place: { x: -9.4, y: 0, z: 2.0, yaw: 0 },
+    requiredNodes: ['COL_post', 'SOCKET_flame'],
+    sockets: { lanternSouthWest: 'SOCKET_flame' },
+    fallback: 'capsule' },
+  { id: 'env-lantern-a', category: 'environment',
+    place: { x: 9.4, y: 0, z: 2.0, yaw: 0 },
+    requiredNodes: ['COL_post', 'SOCKET_flame'],
+    sockets: { lanternSouthEast: 'SOCKET_flame' },
+    fallback: 'capsule' },
+  { id: 'env-lantern-a', category: 'environment',
+    place: { x: 0, y: 0, z: -6.0, yaw: Math.PI },
+    requiredNodes: ['COL_post', 'SOCKET_flame'],
+    sockets: { lanternGate: 'SOCKET_flame' },
+    fallback: 'capsule' },
+  /* The two landmarks the concept brief has carried since the first four
+   * square studies. Neither is interactive; both exist so the square reads as
+   * somewhere rather than as a plaza-shaped volume. Placed off-axis on
+   * opposite sides so the space is not symmetrical. */
+  { id: 'env-well-a', category: 'environment',
+    place: { x: -7.6, y: 0, z: 1.4, yaw: Math.PI / 7 },
+    requiredNodes: ['COL_well'],
+    fallback: 'capsule' },
+  { id: 'env-tree-a', category: 'environment',
+    place: { x: 8.2, y: 0, z: -1.2, yaw: -Math.PI / 5 },
+    requiredNodes: ['COL_trunk'],
+    fallback: 'capsule' },
   /* Two placements of one lantern asset, flanking the dais where the dusk
    * reference puts them. Same GLB, distinct logical socket names — the flame
    * sockets are where the lighting director may hang real lights later; until
