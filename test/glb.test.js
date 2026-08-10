@@ -940,11 +940,36 @@ async function castLayer(reports) {
     check(!!A.variantForSeat(odd), `variantForSeat(${odd}) returned nothing`);
   }
 
+  /*
+   * -- and the PLAYER'S OWN BODY takes the same mapping ---------------------
+   *
+   * The human used to be a white capsule with an orange nose, which was the
+   * last primitive on screen. It is now the citizen its seat implies, through
+   * this same arithmetic and no special case — which matters beyond tidiness in
+   * a deduction game: a body that was visibly the odd one out would be a
+   * channel, and "which figure is the human" is a question the crowd should not
+   * be able to answer by shape.
+   *
+   * The scene-graph half of this — that the human seat really renders a figure
+   * and not a placeholder — cannot be asserted here, because a merged geometry
+   * hanging off an avatar group only exists in a browser. It is
+   * `__play.cast.you` and it is checked in scripts/capture-juice.mjs.
+   */
+  const humanSeats = [0, 1, 2, 3, 4, 9];
+  for (const seat of humanSeats) {
+    const mine = A.variantForSeat(seat);
+    check(!!mine && A.CHR_CITIZENS.indexOf(mine) !== -1,
+      `the human at seat ${seat} maps outside the table — they would fall back to the capsule`);
+    check(mine.id === A.CHR_CITIZENS[seat % A.CHR_CITIZENS.length].id,
+      `the human at seat ${seat} takes a different variant from a bot in the same seat`);
+  }
+
   const source = fs.readFileSync(path.join(__dirname, '..', 'src', 'play', 'assets.js'), 'utf8');
   check(source.indexOf('Math.random') === -1, 'assets.js uses the platform generator');
   check(!/\.rng\(/.test(source), 'assets.js draws from the engine stream');
   say(`mapping       seat n -> variant n mod ${A.CHR_CITIZENS.length}, total over 60 seats, ` +
-    `stable, every variant used, no randomness of any kind`);
+    `stable, every variant used, no randomness of any kind; the human's own seat ` +
+    `takes the same mapping, with no special case`);
 }
 
 /* ------------------------------------------------------------------ run */

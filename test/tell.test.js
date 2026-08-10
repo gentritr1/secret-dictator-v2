@@ -26,6 +26,27 @@
  *   pace               the bot deliberation band and the beat, drawn for real
  *   flame              the seeded flicker table, by checksum
  *
+ * …and, since the juice map, the four channels the STAGING adds. The previous
+ * version of this file named the gap in its own last paragraph — "a future
+ * animation, camera move or shader that took a role would need its own row" —
+ * and the juice map is that future arriving, so the rows are here:
+ *
+ *   framing            the camera's push, its yaw and every offset in the
+ *                      accusation's schedule, including which of them is last
+ *   stagger            the ballot reveal: which seat lands when, in what order,
+ *                      and what the running count reads as each one does
+ *   silence            how long the square is quiet, and how hard the cut is
+ *   curtain            the game-over reveal: who turns, in what order, who is
+ *                      held last — and, far more importantly, that the plan is
+ *                      EMPTY at every moment before the engine has disclosed
+ *
+ * The curtain call is the sharpest of the four and the reason it is worth a row
+ * of its own: it is the one surface in the project that is ALLOWED to show a
+ * role, so the thing to prove is not that it hides one but that it shows one
+ * only when `view.reveal` is populated — i.e. at game over and never a moment
+ * earlier. A curtain call that leaked one step early would be the largest tell
+ * the game could have.
+ *
  * HOW IT IS RUN, AND THE THING IT CANNOT SEE
  * ------------------------------------------
  * At every step of every match the hidden roles are permuted in place, the view
@@ -205,6 +226,65 @@ var MUTANTS = [
         rec.pace = Object.assign({}, rec.pace, { delay: rec.pace.delay * 1.15 });
       }
     }
+  },
+
+  /* ---- the five the juice map's own channels needed ------------------- */
+
+  {
+    name: 'the camera pushes 20% further when the accuser is a Rebel',
+    channel: 'framing',
+    apply: function (rec, G, view) {
+      if (isRebelSeat(G, view.speaker)) {
+        rec.framing = Object.assign({}, rec.framing, { push: rec.framing.push * 1.2 });
+      }
+    }
+  },
+  {
+    name: 'the ballots land Rebels first',
+    channel: 'stagger',
+    apply: function (rec, G) {
+      if (!rec.ballots.steps.length) return;
+      var sorted = rec.ballots.steps.slice().sort(function (a, b) {
+        var ra = isRebelSeat(G, a.id) ? 0 : 1;
+        var rb = isRebelSeat(G, b.id) ? 0 : 1;
+        return ra - rb || a.seat - b.seat;
+      });
+      /* The TIMES stay where they were and only the order of the seats moves:
+       * the subtle version of this tell, and the one a stagger measured in
+       * milliseconds would sail straight past. */
+      rec.ballots = Object.assign({}, rec.ballots, {
+        steps: sorted.map(function (s, i) {
+          return Object.assign({}, s, { at: rec.ballots.steps[i].at });
+        })
+      });
+    }
+  },
+  {
+    name: 'the purge silence runs 120 ms longer when a Loyalist is taken',
+    channel: 'silence',
+    apply: function (rec, G, view) {
+      if (view.nominee != null && !isRebelSeat(G, view.nominee)) {
+        rec.silence = Object.assign({}, rec.silence, { purgeMs: rec.silence.purgeMs + 120 });
+      }
+    }
+  },
+  {
+    name: 'the reveal warms up early — one curtain step while the Dictator is Speaker',
+    channel: 'curtain',
+    apply: function (rec, G, view) {
+      if (view.speaker === dictatorSeat(G)) {
+        rec.curtain = Object.assign({}, rec.curtain, { of: rec.curtain.of + 1 });
+      }
+    }
+  },
+  {
+    name: 'the tile takes 90 ms longer to reach the board while the Dictator holds the gavel',
+    channel: 'framing',
+    apply: function (rec, G, view) {
+      if (view.speaker === dictatorSeat(G)) {
+        rec.tile = Object.assign({}, rec.tile, { travelMs: rec.tile.travelMs + 90 });
+      }
+    }
   }
 ];
 
@@ -227,7 +307,25 @@ var ALLOWED = [
   'waitingFor', 'waitingFor.kind', 'waitingFor.gate',
   'lastVote', 'lastVote.passed', 'lastVote.speaker', 'lastVote.nominee',
   'lastVote.aye', 'lastVote.aye.length', 'lastVote.nay', 'lastVote.nay.length',
-  'nominee', 'reform', 'seize', 'lastEnacted', 'lastEnacted.tile'
+  'nominee', 'reform', 'seize', 'lastEnacted', 'lastEnacted.tile',
+  /*
+   * The staging's own reads, and the whole of them. Every one is something the
+   * square was told out loud or can see by looking:
+   *
+   *   players / .id / .seat / .alive   the roster and who is standing. There is
+   *                                    no role in the projection's roster —
+   *                                    src/engine/view.js maps id, seat, name,
+   *                                    alive and isYou, and nothing else.
+   *   limits.*                         the board's size, printed on the tray
+   *   reveal / .id / .role             NULL until game over, and the engine's
+   *                                    own disclosure at it. This is the one
+   *                                    entry on this list that is role-shaped,
+   *                                    and the curtain mutant below exists to
+   *                                    prove it cannot be read a moment early.
+   */
+  'players', 'players.length', 'players.id', 'players.seat', 'players.alive',
+  'limits', 'limits.reformToWin', 'limits.seizeToWin',
+  'reveal', 'reveal.length', 'reveal.id', 'reveal.role', 'reveal.team', 'reveal.alive'
 ];
 var SKIP_KEYS = { then: 1, toJSON: 1, constructor: 1, inspect: 1, valueOf: 1, toString: 1 };
 
@@ -265,6 +363,7 @@ async function main() {
   var L = await import('../src/play/lighting.js');
   var A = await import('../src/play/audio.js');
   var P = await import('../src/play/pace.js');
+  var S = await import('../src/play/stage.js');
 
   /**
    * EVERY PRESENTATION CHANNEL THE AMBIENCE PRODUCES, for one moment.
@@ -294,7 +393,54 @@ async function main() {
         beat: pace.beatFor(waiting, 1),
         lead: L.LIGHT_LEAD_MS,
         transition: L.TRANSITION_SECONDS
-      }
+      },
+
+      /* ---- the staging, four channels ------------------------------- */
+
+      /*
+       * FRAMING. The accusation's whole schedule at a fixed trigger time, so
+       * every offset in it — and which one is LAST — is compared. `reduced` is
+       * taken both ways, because a moment that behaved differently for a player
+       * who asked for less motion would be a second channel to leak through.
+       */
+      framing: {
+        push: S.ACCUSE.push,
+        yaw: S.ACCUSE.yaw,
+        lastMs: S.ACCUSE_LAST_MS,
+        full: S.accusationPlan(0, false),
+        reduced: S.accusationPlan(0, true),
+        lantern: { lift: S.ACCUSE.lanternLift, pull: S.ACCUSE.lanternPull, rim: S.ACCUSE.rimColor }
+      },
+      /* STAGGER. Which seat's ballot lands when, and the count as it climbs. */
+      ballots: S.ballotPlanFor(view),
+      /* SILENCE. How long the square is quiet, and how hard each cut is. */
+      silence: {
+        purgeMs: A.HUSH.purge.ms, purgeHard: A.HUSH.purge.hard, purgeTo: A.HUSH.purge.to,
+        accuseMs: A.HUSH.accusation.ms, accuseTo: A.HUSH.accusation.to,
+        gavelAt: S.PURGE.gavelAt, narrowMs: S.PURGE.narrowMs, angle: S.PURGE.angle
+      },
+      /*
+       * CURTAIN. Empty at every moment except game over — which is the whole
+       * assertion, and it is why `of` is in the record rather than only the
+       * steps: a plan that gained a single step early would move this number.
+       */
+      curtain: S.curtainFor(view),
+      /*
+       * And the tile's travel, which is a framing decision with a clock in it.
+       * The constants are in the record whether or not a tile is landing this
+       * moment, deliberately: a mutant that could only fire on the handful of
+       * steps where a sting happens to coincide with a particular seat holding
+       * the gavel is a mutant that might go a whole sweep without being caught,
+       * and "never caught" is indistinguishable from "cannot be caught".
+       */
+      tile: {
+        travelMs: S.TILE.travelMs,
+        settleMs: S.TILE.settleMs,
+        plan: sting ? S.tilePlanFor(view, sting) : null
+      },
+      /* Who the beam would find. Two player-safe views compared, exactly as the
+       * public edges are: a seat that was standing and is not. */
+      purge: S.purgeFor(prev, view)
     };
   }
 
@@ -313,6 +459,16 @@ async function main() {
   var seizesSeen = 0;
   var lanternsOutSeen = 0;
   var lightsSeen = {};
+  /* The staging's own exercise floors, for the same reason the ambience's exist:
+   * a channel that was never produced is a channel this sweep did not test, and
+   * a green light with nothing behind it is the failure mode this file was
+   * written against. */
+  var ballotRevealsSeen = 0;
+  var ballotsLandedSeen = 0;
+  var purgesSeen = 0;
+  var curtainsSeen = 0;
+  var curtainLeaks = 0;
+  var tilePlansSeen = 0;
 
   for (var g = 0; g < GAMES; g++) {
     var count = 5 + (g % 6);
@@ -345,6 +501,27 @@ async function main() {
       lightsSeen[recA.light] = (lightsSeen[recA.light] || 0) + 1;
       if (recA.weather.out > 0) lanternsOutSeen++;
       seizesSeen = Math.max(seizesSeen, recA.weather.seizes);
+
+      if (recA.ballots.total) { ballotRevealsSeen++; ballotsLandedSeen += recA.ballots.total; }
+      if (recA.purge != null) purgesSeen++;
+      if (recA.tile.plan) tilePlansSeen++;
+      if (recA.curtain.of) {
+        curtainsSeen++;
+        /*
+         * THE STRUCTURAL ASSERTION, and it is the one this row exists for. The
+         * curtain call is the only surface in the project allowed to show a
+         * role, so what has to be proved is not that it hides one — it does not
+         * — but that it is EMPTY at every moment before the engine has
+         * disclosed. Checked here, against the phase, on every single step of
+         * every match rather than only under permutation: a permutation compares
+         * two runs and would happily agree that both leaked.
+         */
+        if (view.phase !== 'game_over') {
+          curtainLeaks++;
+          check(false, 'the curtain call had ' + recA.curtain.of + ' steps in phase ' +
+            view.phase + ' — role identity staged before the engine disclosed it');
+        }
+      }
 
       /* --- the composed pipeline, through the recording Proxy --- */
       if (audited < 300) {
@@ -440,6 +617,41 @@ async function main() {
         if (!session.advanceBots()) break;
       }
     }
+
+    /*
+     * ONE MORE PROJECTION, AFTER THE MATCH.
+     *
+     * The loop above exits the instant `session.over` turns true, so it never
+     * projects a game-over view — which meant the curtain channel was swept
+     * 1,769 times and produced a plan zero times. A row that is only ever
+     * checked in its empty state proves that the empty state is empty and
+     * nothing else. Found by the exercise floor, not by reading the loop.
+     *
+     * There is no permutation here on purpose: at game over the engine has
+     * disclosed every role, so a "hidden" role is a contradiction and permuting
+     * would be testing that the game hides something it is required to show.
+     * What is checked is the SHAPE — that the plan names everybody exactly once,
+     * that the Dictator is last, and that the order is otherwise seat order.
+     */
+    var finalView = View.viewFor(G, human, { waitingFor: null });
+    var finalCurtain = S.curtainFor(finalView);
+    if (finalCurtain.of) {
+      curtainsSeen++;
+      var seats = finalCurtain.steps.map(function (s) { return s.id; });
+      check(seats.length === finalView.players.length,
+        'the curtain call named ' + seats.length + ' of ' + finalView.players.length + ' citizens');
+      check(new Set(seats).size === seats.length, 'a citizen took two bows');
+      var dictators = finalCurtain.steps.filter(function (s) { return s.role === 'dictator'; });
+      check(dictators.length !== 1 || finalCurtain.steps[finalCurtain.steps.length - 1].role === 'dictator',
+        'the Dictator did not turn last at seed ' + seed);
+      var rest = finalCurtain.steps.filter(function (s) { return s.role !== 'dictator'; })
+        .map(function (s) { return s.id; });
+      var sorted = rest.slice().sort(function (a, b) { return a - b; });
+      check(JSON.stringify(rest) === JSON.stringify(sorted),
+        'everybody but the Dictator must turn in seat order, and did not at seed ' + seed);
+      check(finalCurtain.lastAt === (finalCurtain.of - 1) * S.CURTAIN.step,
+        'the curtain call\'s last bow is not ' + S.CURTAIN.step + ' ms per figure');
+    }
   }
 
   /* ------------------------------------------------------------ verdicts */
@@ -465,6 +677,26 @@ async function main() {
     'only ' + Object.keys(lightsSeen).length + ' lighting states occurred; the light sequence ' +
     'channel was barely swept');
 
+  /* …and the same floors for the four staging channels. */
+  check(ballotRevealsSeen > 20, 'only ' + ballotRevealsSeen +
+    ' moments had a tally to reveal; the stagger channel was barely swept');
+  check(ballotsLandedSeen > 100, 'only ' + ballotsLandedSeen +
+    ' ballots were ever planned; the stagger channel was barely swept');
+  check(purgesSeen > 0, 'the sweep never saw a purge, so the silence channel never fired');
+  check(tilePlansSeen > 0, 'the sweep never planned a tile onto the board');
+  check(curtainsSeen > 0, 'the sweep never reached a curtain call, so the one surface ' +
+    'allowed to show a role was never produced at all');
+  check(curtainLeaks === 0, curtainLeaks +
+    ' moments staged a curtain call before game over');
+
+  /*
+   * The accusation's own cap, asserted where the channel is rather than only in
+   * test/stage.test.js: the brief's number is 700 ms and it is a promise about
+   * what the player sees, so it belongs beside the record that carries it.
+   */
+  check(S.ACCUSE_LAST_MS <= 700, 'the accusation\'s last beat lands at ' + S.ACCUSE_LAST_MS +
+    ' ms, past the 700 ms the brief caps it at');
+
   /* The mutation test, and it cuts both ways. */
   MUTANTS.forEach(function (m, mi) {
     if (m.control) {
@@ -484,9 +716,15 @@ async function main() {
     ' permutations changed the player-safe view itself (the record the channels are given)');
   say('channels      ' + channelMismatches + ' of ' + permutations +
     ' permutations changed any of: lantern states, light sequence, bed selection, cues, ' +
-    'sting timing, pace, flame');
+    'sting timing, pace, flame, framing, stagger, silence, curtain');
   say('exercise      ' + Object.keys(lightsSeen).length + ' lighting states, up to ' +
     seizesSeen + ' Seizes on a board, ' + lanternsOutSeen + ' moments with a lantern out');
+  say('staging       ' + ballotRevealsSeen + ' ballot reveals (' + ballotsLandedSeen +
+    ' ballots planned, ' + 'stagger ' + S.BALLOT.stagger + ' ms), ' + purgesSeen + ' purges (' +
+    A.HUSH.purge.ms + ' ms of hard silence each), ' + tilePlansSeen + ' tiles onto the board, ' +
+    curtainsSeen + ' curtain calls — and ' + curtainLeaks + ' staged before game over');
+  say('accusation    last beat at ' + S.ACCUSE_LAST_MS + ' ms of a 700 ms cap; reduced motion ' +
+    'lands at ' + (S.accusationPlan(0, true).lastAt) + ' ms and can only be earlier');
   say('reads         ' + audited + ' audits of the WHOLE composed pipeline through a recording ' +
     'Proxy, every read inside ' + ALLOWED.length + ' allowed public paths');
   MUTANTS.forEach(function (m, mi) {
