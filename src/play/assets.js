@@ -148,6 +148,21 @@ export const ENVIRONMENT = [
     requiredNodes: ['COL_ground'],
     replaces: ['ground'],
     fallback: 'graybox' },
+  /*
+   * The painted skyline. Two rings of rooftop flats at 26 m and 38 m, standing
+   * outside everything the player can reach — scenery, no collider, no socket.
+   *
+   * The style bible asks for "backdrop, not skybox realism": distant roofs read
+   * as painted flats against the sky gradient, which is the toy-theatre steal
+   * the whole direction was chosen for. Two rings rather than one because a
+   * single row of cut-outs reads as a fence; the near ring is the darker of the
+   * two so the far one falls back in depth.
+   */
+  { id: 'env-backdrop-a', category: 'environment',
+    place: { x: 0, y: 0, z: 0, yaw: 0 },
+    requiredNodes: [],
+    scenery: true,          // stands beyond reach: no collider, and none wanted
+    fallback: 'omit' },
   /* Two placements of one lantern asset, flanking the dais where the dusk
    * reference puts them. Same GLB, distinct logical socket names — the flame
    * sockets are where the lighting director may hang real lights later; until
@@ -548,7 +563,18 @@ export function buildEnvironment(gltfScene, spec) {
     colliderParts.push(baked);
   }
 
-  if (!colliderParts.length) {
+  /*
+   * A production asset without collision is nearly always a broken export —
+   * a building the player walks through reads as a bug, and refusing it is why
+   * this check exists. The exception is scenery that stands where the player
+   * can never go: the painted skyline has no collider because it must not have
+   * one, and inventing a token COL_ box to satisfy a guard would put a 60 m
+   * collision wall in the world to make a check happy.
+   *
+   * So the row declares it, in the same place it declares everything else, and
+   * the guard still fires for every asset that has not.
+   */
+  if (!colliderParts.length && !spec.scenery) {
     return fail(spec, 'no-collision', 'no COL_* geometry to build a collision world from');
   }
 
@@ -660,9 +686,16 @@ export async function loadEnvironment(table = ENVIRONMENT, options = {}) {
     const built = results[i];
     if (!built.ok) {
       fallbacks.push({ id: row.id, reason: built.reason, detail: built.detail, fallback: row.fallback || 'graybox' });
-      /* `capsule` draws the placeholder; `graybox` leaves the procedural square
+      /* Three modes, and the third is deliberate rather than a fallthrough.
+       *
+       * `capsule` draws the placeholder; `graybox` leaves the procedural square
        * to keep the pieces this row would have replaced, which it does simply
-       * by this row contributing nothing to `replaces`. */
+       * by this row contributing nothing to `replaces`; `omit` draws nothing at
+       * all. `omit` is only ever correct for scenery that is purely decorative
+       * and has no procedural counterpart — the painted skyline is the case it
+       * was added for. An obvious grey placeholder beats an invisible missing
+       * building, but a placeholder standing where a 60 m horizon should be is
+       * worse than the honest absence, and the warning still names the failure. */
       if (row.fallback === 'capsule') placeholders.push(placeholderFor(row));
       continue;
     }
