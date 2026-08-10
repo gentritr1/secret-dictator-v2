@@ -149,7 +149,38 @@ export const ENVIRONMENT = [
     requiredNodes: ['COL_post', 'SOCKET_flame'],
     sockets: { lanternEast: 'SOCKET_flame' },
     fallback: 'capsule' }
-];
+].concat(facadeRow());
+
+/*
+ * The town wall: one 4 m half-timber bay, repeated around the kerb.
+ *
+ * Gate 3 measured the square against the concept art and found the day/dusk
+ * gap was ALBEDO, not light — grey boxes cannot be amber plaster, and no
+ * lighting change was ever going to close it. This is that measurement's
+ * answer: warm plaster and dark timber, standing where the void was.
+ *
+ * Duplicated rather than abstracted, per BLENDER_PIPELINE Gate 4 — a repeated
+ * module earns an abstraction only once the repetition is real. Sockets are
+ * NOT claimed: two rows may not both claim `lamp`, and nothing hangs a light
+ * on a façade yet. Each bay faces the square: the north wall turns south
+ * (yaw PI), the side walls turn inward.
+ */
+function facadeRow() {
+  const BAY = 4.5;              // bay width plus its own frame
+  const WALL = 13.6;            // just outside the kerb at 13
+  const rows = [];
+  const add = (x, z, yaw) => rows.push({
+    id: 'env-facade-a', category: 'environment',
+    place: { x, y: 0, z, yaw },
+    requiredNodes: ['COL_wall'],
+    fallback: 'capsule'
+  });
+  /* North: the backdrop behind the dais, the wall the crowd faces. */
+  for (const i of [-1, 0, 1]) add(i * BAY, WALL, Math.PI);
+  /* East and west: enough to close the frame, not a full street. */
+  for (const i of [-1, 1]) { add(WALL, i * BAY, -Math.PI / 2); add(-WALL, i * BAY, Math.PI / 2); }
+  return rows;
+}
 
 /** `public/assets/models/<category>/<id>.glb`, per BLENDER_PIPELINE.md. */
 export function assetUrl(row) {
