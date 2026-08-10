@@ -49,7 +49,8 @@ import { createPace, beatKey } from './pace.js';
 import { createMurmurs } from './murmur.js';
 import { createFloorVoice } from './floor-voice.js';
 import {
-  createLightingDirector, lightingFor, publicEdges, STING_MS, LIGHT_LEAD_MS, NIGHT_STATES
+  createLightingDirector, lightingFor, publicEdges, weatherFor, LANTERN_ORDER,
+  STING_MS, LIGHT_LEAD_MS, NIGHT_STATES
 } from './lighting.js';
 import { announceFor } from './tray.js';
 import { seatNumber } from './seat.js';
@@ -911,6 +912,27 @@ function applyAmbience(next, edges, own) {
     stingTile = null;
   }
 
+  /*
+   * THE BOARD IS THE WEATHER. One line, and it is a read of `view.seize` — the
+   * count everybody in the square can already see. Set here rather than in
+   * refresh() on purpose: applyAmbience is the HELD path, so a lantern goes out
+   * when the square is told about the Seize, not when the engine happens to
+   * have written it. Same clock as the sting, the tally and the murmurs.
+   *
+   * `lighting.lanternCount` rather than the declared order's length, so a
+   * square whose lantern asset did not load saturates at the lanterns it
+   * actually has instead of pretending to put out lights that were never hung.
+   */
+  lighting.setWeather(weatherFor(next, lighting.lanternCount));
+
+  /*
+   * And the Reform's answer, which adds no light: it holds the flames that are
+   * still burning still, for REFORM_STEADY_MS. See lighting.js for why this one
+   * of the three candidate responses. It is fired from the same public edge the
+   * sting is — a tile went on the board and the square was told which.
+   */
+  if (edges.sting === 'reform') lighting.steadyFlame();
+
   const sting = nowMs() < stingUntil ? stingTile : null;
   const state = lightingFor(next, { sting });
   lighting.setState(state);
@@ -1127,6 +1149,17 @@ function restart(seed = DEFAULT_SEED, playerCount = DEFAULT_PLAYERS, humanIndex 
   heldEdges = null;
   wasHeld = false;
   lighting.setState('day', { instant: true });
+  /*
+   * A new deal re-lights the square, and it is the only thing in the game that
+   * does. The weather is `view.seize` and the new board is empty, so this is
+   * bookkeeping rather than a rule — but it has to happen BEFORE the first
+   * refresh(), or one frame of the new match is lit by the old match's board.
+   *
+   * The flame is reseeded from the same integer the pace and the mouth are, so
+   * a replayed seed flickers, talks and waits identically.
+   */
+  lighting.setWeather(weatherFor(null, lighting.lanternCount));
+  lighting.setSeed(dealSeed);
   audio.setLighting('day');
 
   controller.teleport(SPAWN.x, SPAWN.y, SPAWN.z);
@@ -1722,6 +1755,28 @@ function buildGround(env) {
   if (env.sockets.podium) {
     podiumAnchor = { x: env.sockets.podium.x, y: env.sockets.podium.y, z: env.sockets.podium.z };
   }
+  /*
+   * Real lights on the lantern posts, hung on the sockets the asset published.
+   *
+   * Handed the whole socket map rather than two named entries, because which
+   * lanterns exist is `LANTERN_ORDER`'s business and not this file's — a third
+   * lantern is a placement row and a string in lighting.js, and nothing here
+   * changes. If the lantern GLB did not load there are no sockets, the director
+   * hangs nothing, and the square is exactly the square it was before this gate.
+   */
+  const hung = lighting.attachLanterns(env.sockets, env.loaded);
+  if (hung.length < LANTERN_ORDER.length) {
+    console.warn(
+      `[lighting] ${hung.length} of ${LANTERN_ORDER.length} declared lantern sockets got a light ` +
+      `(${LANTERN_ORDER.filter((n) => hung.indexOf(n) === -1).join(', ')} absent) — ` +
+      'the square is lit and playable; the weather saturates at the lanterns that exist.'
+    );
+  } else {
+    console.info(
+      `[lighting] ${hung.length} lantern lights hung on ${hung.join(', ')}; ` +
+      'every Seize puts one out, in that order, for the rest of the match.'
+    );
+  }
 
   const merged = parts.length === 1 ? parts[0] : mergeGeometries(parts, false);
   world = createBvhWorld(merged);
@@ -2227,6 +2282,11 @@ window.__play = {
   lighting(opts) {
     const snap = lighting.snapshot();
     snap.mapped = view ? lightingFor(view, { sting: stingTile && nowMs() < stingUntil ? stingTile : null }) : null;
+    /* What the weather WOULD be for the current view, beside what the rig is
+     * actually doing (`snap.weather`). They differ for exactly as long as a
+     * deliberation beat holds the Seize back, which is the one place the
+     * difference is the feature. */
+    snap.weatherMapped = view ? weatherFor(view, lighting.lanternCount) : null;
     snap.sting = nowMs() < stingUntil ? stingTile : null;
     snap.lead = LIGHT_LEAD_MS;
     snap.castStaged = !!stagedView;
