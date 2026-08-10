@@ -435,6 +435,39 @@ export function createFloorVoice(deps = {}) {
 
     /** Every ledger entry, for a review. A pure fold — see floor.js. */
     ledger() { return recorder.ledger(); },
+
+    /**
+     * Everything the ledger panel renders, as one projection.
+     *
+     * The entries are `Floor.ledger()` — the panel RENDERS that fold, it does
+     * not recompute it — plus the parts of the record those entries are ids
+     * into: the utterances they name, the governments and powers they sat in,
+     * and the flags. A copy rather than the live record, for the reason __play
+     * has always handed out projections: a surface that can be written to is a
+     * surface somebody will write to.
+     *
+     * Everything in here came through `Floor.publicSnapshot`, so a permutation
+     * of the roles this seat may not know leaves all of it byte-identical —
+     * which is what makes the ledger's own permutation gate a statement about
+     * the RENDER rather than a second test of the record.
+     */
+    source() {
+      const record = recorder.record;
+      const copy = (v) => JSON.parse(JSON.stringify(v));
+      return {
+        day: record.day,
+        entries: recorder.ledger(),
+        utterances: copy(record.utterances),
+        governments: copy(record.governments),
+        powers: copy(record.powers),
+        purges: copy(record.purges),
+        /* Floors are a trace target: `basis: silence` and `about: silence` both
+         * reference the floors somebody was quiet on, so a row can point at one
+         * and a reviewer must be able to resolve it. */
+        floors: copy(record.floors),
+        flags: copy(recorder.flags())
+      };
+    },
     /** The allowlist instrument, run over the live record. */
     audit() { return recorder.audit(); }
   };

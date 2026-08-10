@@ -209,9 +209,28 @@ function tracksFor(view) {
   };
 }
 
-/** The ledger affordance. `ready` is false until the next gate builds it. */
-function ledgerHint() {
-  return { key: 'L', label: 'ledger', ready: false, keysKey: '?', keysLabel: 'keys' };
+/**
+ * The ledger affordance, and the one piece of onboarding in the HUD.
+ *
+ * D3 drew this dim because the key opened nothing. It opens the ledger now, so
+ * it is live — and it carries one extra word until the ledger has been opened
+ * once, because `L ledger` does not tell a first-time player that the panel is
+ * where their WIN CONDITION lives. That sentence used to be a paragraph on the
+ * sidebar; D3 left it as a hover tooltip, which is not discoverable at all.
+ *
+ * `seen` comes from the page (presentation), never from game state, and the
+ * hint reverts to the plain `L ledger` for the rest of the match and every
+ * match after it. One new concept, once — the design doc's onboarding rule,
+ * which is that there is no tutorial screen.
+ */
+function ledgerHint(seen) {
+  return {
+    key: 'L',
+    label: seen ? 'ledger' : 'ledger · how you win',
+    ready: true,
+    keysKey: '?',
+    keysLabel: 'keys'
+  };
 }
 
 function make(tracks, id, kind, line, note, keys, act, waitingOn) {
@@ -236,11 +255,21 @@ function make(tracks, id, kind, line, note, keys, act, waitingOn) {
  *        `armed`    you have taken the pending tray decision (pressed E at the
  *                   object that owes it), so its keys are live
  *        `announce` a sentence the page is holding for one beat, or null
+ *        `ledgerSeen` the ledger has been opened at least once, so its hint
+ *                   stops saying what is in it. Presentation, not game state.
  * @returns {{id:string, kind:string, line:string, note:string, keys:Array,
  *            act:boolean, tracks:object, waitingOn:number[], ledger:object}}
  */
 export function trayFor(view, presentation) {
   const p = presentation || {};
+  const out = rowFor(view, p);
+  /* The right-hand region is the same in every state, so it is written once
+   * here rather than threaded through nine returns. */
+  out.ledger = ledgerHint(!!p.ledgerSeen);
+  return out;
+}
+
+function rowFor(view, p) {
   const tracks = tracksFor(view);
 
   if (!view) {

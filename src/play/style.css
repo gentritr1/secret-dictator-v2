@@ -349,11 +349,148 @@ html, body {
   color: var(--gold); border: 1px solid var(--brass); border-radius: 2px;
   padding: 0 4px; margin-right: 5px; font-weight: 700;
 }
-/* The ledger is the next gate. The affordance is drawn so the composition is
- * the shipped one, and it is drawn DIM and does nothing — a live key that
- * opened nothing would be exactly the lie the never-blank rule is about. */
+/* D3 drew this dim, because the key opened nothing and a live key that opens
+ * nothing is exactly the lie the never-blank rule is about. It opens the ledger
+ * now, so the dim state is unreachable; the rule stays as the affordance's off
+ * state rather than being deleted and re-derived by the next surface. */
 #tray .hint.off { opacity: 0.4; }
 #tray .hint.off b { color: var(--dim); border-color: var(--line); }
+
+/* ------------------------------------------------------------- the ledger */
+
+/*
+ * 420px on the right, clear of the tray, opened on purpose.
+ *
+ * A reading surface, so it is the quietest thing in the game: parchment type on
+ * the panel's own dark, brass hairlines, and warm spent on exactly one thing —
+ * the flag mark. That is the style bible's rule about warm meaning information,
+ * applied to a panel whose entire job is to hold information: if the amber were
+ * decoration here, the one mark that matters would be invisible in it.
+ *
+ * NO ROLE COLOUR. The private card is the only 2D element in the game permitted
+ * the role channel, and test/ledger.test.js sweeps this panel's markup for the
+ * r-* classes in every state of fifty matches.
+ */
+#ledger {
+  position: fixed;
+  /*
+   * Below the controls and below the objective line, never over either.
+   *
+   * The objective line is frozen by acceptance criterion — position, size and
+   * behaviour unchanged — and it is the one sentence that is always on screen,
+   * so a panel that covered its right end would break the older rule to satisfy
+   * the newer one. 112px is the bottom of a TWO-line objective (top 52 + two
+   * 19px lines + 14px of padding + the border), not of the one-line case that
+   * happens to be on screen while you are measuring.
+   */
+  top: 112px; right: 12px; bottom: 96px;
+  width: 420px;
+  display: flex; flex-direction: column;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 3px;
+  color: var(--parchment);
+  font-size: 11px; line-height: 1.45;
+  overflow: hidden;
+}
+#ledger.hidden { display: none; }
+#ledger:focus { outline: none; }
+#ledger:focus-visible { outline: 2px solid var(--gold); outline-offset: -2px; }
+
+#ledger .lh {
+  display: flex; align-items: baseline; gap: 10px;
+  padding: 9px 14px;
+  border-bottom: 1px solid var(--brass);
+  flex: 0 0 auto;
+}
+#ledger .lh h2 {
+  margin: 0; font-size: 11px; font-weight: 700;
+  letter-spacing: 0.18em; text-transform: uppercase; color: var(--parchment);
+}
+#ledger .lh .day { color: var(--dim); font-size: 11px; }
+/* The one word that says the square has stopped because you asked it to. */
+#ledger .lh .pause {
+  margin-left: auto; color: var(--gold); font-weight: 700;
+  letter-spacing: 0.1em; text-transform: uppercase; font-size: 10px;
+}
+
+/* Your own standing objective, above everything the square said, because it is
+ * the question all of that is evidence about. */
+#ledger .obj {
+  padding: 9px 14px;
+  border-bottom: 1px solid #1c212b;
+  flex: 0 0 auto;
+}
+#ledger .obj .ol {
+  display: block; color: var(--dim); font-size: 10px;
+  text-transform: uppercase; letter-spacing: 0.12em;
+}
+#ledger .obj .ov { color: var(--gold); font-size: 12px; }
+
+#ledger .prom {
+  display: flex; flex-wrap: wrap; gap: 4px 18px;
+  padding: 8px 14px;
+  border-bottom: 1px solid #1c212b;
+  flex: 0 0 auto;
+}
+#ledger .pr .pl {
+  color: var(--dim); font-size: 10px; text-transform: uppercase;
+  letter-spacing: 0.1em; margin-right: 6px;
+}
+#ledger .pr .pv { color: #c6ccd9; font-variant-numeric: tabular-nums; }
+
+#ledger .cits { flex: 1 1 auto; overflow-y: auto; padding: 4px 0 8px; }
+
+#ledger .ent {
+  padding: 8px 14px;
+  border-top: 1px solid #1c212b;
+}
+#ledger .ent:first-child { border-top: none; }
+/* Where 1-9 just landed. A hairline, not a fill: the jump is a reading
+ * position, and a highlighted block would outrank the flag marks. */
+#ledger .ent.at { box-shadow: inset 2px 0 0 var(--gold); background: #171b23; }
+#ledger .ent.gone { opacity: 0.62; }
+#ledger .ent.gone .nm { text-decoration: line-through; }
+
+#ledger .ent header { display: flex; align-items: baseline; gap: 8px; }
+#ledger .ent .num {
+  color: var(--gold); border: 1px solid var(--brass); border-radius: 2px;
+  padding: 0 4px; font-weight: 700; font-size: 10px;
+}
+#ledger .ent .nm { color: var(--ink); font-weight: 700; letter-spacing: 0.06em; }
+#ledger .ent .me { color: var(--dim); font-size: 10px; }
+#ledger .ent .out { color: var(--dimmer); font-size: 10px; }
+/* The mark, and only the mark. Everything about the flag is in the entry. */
+#ledger .ent .flag {
+  margin-left: auto; color: var(--chaos); font-size: 10px;
+  letter-spacing: 0.06em;
+}
+
+#ledger .lg { display: flex; gap: 8px; margin-top: 5px; }
+#ledger .lg .gl {
+  flex: 0 0 76px; color: var(--dim); font-size: 10px;
+  text-transform: uppercase; letter-spacing: 0.08em; padding-top: 1px;
+}
+#ledger .lg .gr { flex: 1 1 auto; min-width: 0; }
+#ledger .lr { margin-bottom: 2px; }
+#ledger .lr .t { display: block; color: var(--parchment); }
+/* What was actually said, rendered from the same text_id the bubble used. */
+#ledger .lr .s { display: block; color: var(--dim); font-size: 10px; }
+#ledger .lr.mark .t { color: var(--chaos); }
+#ledger .lr.ref { padding-left: 10px; border-left: 1px solid #262c38; }
+
+#ledger .lf {
+  display: flex; flex-wrap: wrap; align-items: center; gap: 10px;
+  padding: 8px 14px;
+  border-top: 1px solid var(--brass);
+  color: var(--dim); font-size: 10px;
+  flex: 0 0 auto;
+}
+#ledger .lf .filter { color: var(--chaos); }
+#ledger .lf .key b {
+  color: var(--gold); border: 1px solid var(--brass); border-radius: 2px;
+  padding: 0 4px; margin-right: 4px; font-weight: 700;
+}
 
 /* ----------------------------------------------------------- the controls */
 

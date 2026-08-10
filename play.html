@@ -24,6 +24,13 @@
        names who the square is waiting for. See src/play/tray.js. -->
   <div id="tray"></div>
 
+  <!-- The ledger: 420px on the right, opened with L and closed with L or Esc.
+       Per-citizen entries folded from the public record, the three promoted
+       rows above them, and your own win condition above those. Pinning it
+       pauses the presentation, not the game — the header says "paused" and the
+       tray's row stays live behind it. See src/play/ledger.js. -->
+  <aside id="ledger" class="hidden"></aside>
+
   <div id="controls">
     <label for="c-seed">seed</label>
     <input id="c-seed" type="number" min="0" step="1" value="1000" />
@@ -69,7 +76,9 @@
     what you are facing · then <b>1–9</b> names that citizen (their own
     number, on their nameplate), <b>A/Y</b> aye, <b>N</b> nay, <b>↵</b>
     continue, Tab moves between answers on a card, <b>Esc</b> steps back
-    without answering
+    without answering · <b>L</b> opens the ledger — what the square has said,
+    and how you win — which pauses the square while it is open, then
+    <b>1–9</b> jumps to a citizen and <b>F</b> shows the flagged only
   </p>
 
   <!-- Whichever decision the rules are waiting on. Opened by walking up to

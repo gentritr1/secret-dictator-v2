@@ -36,6 +36,7 @@
 import { objectiveFor } from './objective.js';
 import { trayFor, surfaceFor } from './tray.js';
 import { cardFor } from './card.js';
+import { ledgerFor, WIN_CONDITION } from './ledger.js';
 import { seatFromKey, seatKey, seatNumber } from './seat.js';
 
 const TILE_LABEL = { reform: 'REFORM', seize: 'SEIZE' };
@@ -47,11 +48,14 @@ const POWER_BLURB = {
   purge: 'If they are the Dictator, the Loyalists take the Republic at once.'
 };
 
-const ROLE_BLURB = {
-  loyalist: 'Five Reforms, or purge the Dictator. You know nobody.',
-  rebel: 'Six Seizes, or seat the Dictator as Deputy once three Seizes are down.',
-  dictator: 'You are what the Rebels are playing for. Do not get purged.'
-};
+/*
+ * The win condition now lives at the top of the ledger, which is where a
+ * sentence explaining how you WIN belongs — see src/play/ledger.js. The card
+ * keeps it as the role line's tooltip because a tooltip that is a SECOND way to
+ * read something is a courtesy, where a tooltip that is the ONLY way is the D3
+ * regression this gate fixed. One constant, so the two cannot drift.
+ */
+const ROLE_BLURB = WIN_CONDITION;
 
 function esc(s) {
   return String(s).replace(/[&<>"]/g, (c) => (
@@ -66,6 +70,7 @@ export function createPanels(doc, { onSubmit, onClose } = {}) {
     prompt: doc.getElementById('prompt'),
     panel: doc.getElementById('panel'),
     objective: doc.getElementById('objective'),
+    ledger: doc.getElementById('ledger'),
     help: doc.getElementById('help')
   };
 
@@ -92,6 +97,23 @@ export function createPanels(doc, { onSubmit, onClose } = {}) {
   let armed = false;
   /* Whatever had focus when the panel opened, so closing can give it back. */
   let returnFocusTo = null;
+
+  /*
+   * The ledger. Open and pinned are the same state — `L` opens the panel and
+   * holds the presentation in one gesture, and there is no third thing for a
+   * second key to mean.
+   *
+   * `seen` is the one bit that outlives a close: the tray's hint says what is in
+   * the ledger until the ledger has been opened once. It is presentation, it
+   * survives a restart on purpose (a player does not become a first-timer again
+   * when they deal a new match), and nothing reads it but the hint.
+   */
+  let ledgerOpen = false;
+  let ledgerSeen = false;
+  let ledgerState = { flaggedOnly: false, focus: null };
+  let ledger = null;
+  let lastLedgerSig = null;
+  let ledgerReturnFocusTo = null;
 
   const nameOf = (view, id) => {
     if (id == null) return '—';
@@ -155,8 +177,10 @@ export function createPanels(doc, { onSubmit, onClose } = {}) {
    */
   function renderTray(view, presentation) {
     if (!el.tray) return null;
-    tray = trayFor(view, Object.assign({ armed: armed }, presentation || {}));
-    const sig = JSON.stringify([tray.id, tray.line, tray.note, tray.keys, tray.tracks, tray.act]);
+    tray = trayFor(view, Object.assign({ armed: armed, ledgerSeen: ledgerSeen },
+      presentation || {}));
+    const sig = JSON.stringify([tray.id, tray.line, tray.note, tray.keys, tray.tracks,
+      tray.act, tray.ledger]);
     if (sig === lastTraySig) return tray;
     lastTraySig = sig;
 
@@ -187,6 +211,180 @@ export function createPanels(doc, { onSubmit, onClose } = {}) {
         `<span class="hint"><b>${esc(tray.ledger.keysKey)}</b> ${esc(tray.ledger.keysLabel)}</span>` +
       '</div>';
     return tray;
+  }
+
+  /* ----------------------------------------------------------- the ledger */
+
+  /**
+   * The 420px right-hand panel: per-citizen entries, and the three promoted
+   * rows above them.
+   *
+   * Everything it says comes from src/play/ledger.js, which is a pure function
+   * of the player-safe view and a projection of the public record. This
+   * function knows nothing about a flag, a claim or a ballot; it writes rows.
+   *
+   * The one rule enforced HERE rather than there is the role channel: no
+   * `r-loyalist` / `r-rebel` / `r-dictator` class is emitted by this function,
+   * in any state, because the private card is the only 2D element in the game
+   * permitted role colour. The ledger's warm is `flag` amber and nothing else.
+   */
+  function renderLedger(view, source) {
+    if (!el.ledger) return null;
+    if (!ledgerOpen) {
+      el.ledger.classList.add('hidden');
+      return null;
+    }
+    ledger = ledgerFor(view, source, ledgerState);
+    const sig = JSON.stringify(ledger);
+    if (sig === lastLedgerSig) return ledger;
+    lastLedgerSig = sig;
+
+    const rowHtml = (r) =>
+      `<div class="lr${r.mark ? ' mark' : ''}${r.ref ? ' ref' : ''}"` +
+      ` data-trace="${esc(r.trace.join(' '))}">` +
+      `<span class="t">${esc(r.text)}</span>` +
+      (r.said ? `<span class="s">${esc(r.said)}</span>` : '') +
+      '</div>';
+
+    const groupHtml = (g) =>
+      `<div class="lg" data-group="${esc(g.id)}">` +
+      `<div class="gl">${esc(g.label)}</div>` +
+      `<div class="gr">${g.rows.map(rowHtml).join('')}</div></div>`;
+
+    const entryHtml = (c) =>
+      `<section class="ent${c.focused ? ' at' : ''}${c.alive ? '' : ' gone'}"` +
+      ` id="led-${c.seat}" data-seat="${c.seat}">` +
+      '<header><span class="num">' + esc(c.key) + '</span>' +
+      `<span class="nm">${esc(String(c.name).toUpperCase())}</span>` +
+      (c.you ? '<span class="me">you</span>' : '') +
+      (c.dead ? `<span class="out" data-trace="${esc(c.dead.trace.join(' '))}">` +
+        `${esc(c.dead.text)}</span>` : '') +
+      /* A mark and a count. The rule, the refs and the government are inside
+       * the entry; nothing out here characterises anybody. */
+      (c.flagCount
+        ? `<span class="flag">⚑ ${c.flagCount} flag${c.flagCount > 1 ? 's' : ''}</span>`
+        : '') +
+      '</header>' + c.groups.map(groupHtml).join('') + '</section>';
+
+    const promoted = ledger.promoted.map((r) =>
+      `<div class="pr" data-trace="${esc(r.trace.join(' '))}">` +
+      `<span class="pl">${esc(r.label)}</span>` +
+      `<span class="pv">${esc(r.text)}</span></div>`).join('');
+
+    el.ledger.classList.remove('hidden');
+    el.ledger.className = 'led' + (ledger.flaggedOnly ? ' filtered' : '');
+    el.ledger.innerHTML =
+      '<header class="lh"><h2 id="ledger-title">the ledger</h2>' +
+      `<span class="day">day ${esc(ledger.day)}</span>` +
+      /* The word the wireframe puts in the header, so the state is never
+       * ambiguous: the square has stopped moving because you asked it to. */
+      `<span class="pause">${ledger.paused ? 'paused' : ''}</span></header>` +
+      (ledger.objective
+        ? `<div class="obj" data-trace="${esc(ledger.objective.trace.join(' '))}">` +
+          `<span class="ol">${esc(ledger.objective.label)}</span>` +
+          `<span class="ov">${esc(ledger.objective.text)}</span></div>`
+        : '') +
+      `<div class="prom">${promoted}</div>` +
+      `<div class="cits">${ledger.citizens.map(entryHtml).join('')}</div>` +
+      '<footer class="lf">' +
+      (ledger.flaggedOnly
+        ? `<span class="filter">showing ${ledger.flaggedCount} of ` +
+          `${ledger.total} — flagged only</span>` : '') +
+      ledger.keys.map((k) => `<span class="key"><b>${esc(k.key)}</b> ${esc(k.label)}</span>`)
+        .join('') + '</footer>';
+
+    /* Jumping to a citizen has to actually put them in front of the reader;
+     * the highlight alone is a jump that did not happen. Guarded, because the
+     * headless suites drive this file against a five-element stub document. */
+    if (ledgerState.focus !== null && el.ledger.querySelector) {
+      const at = el.ledger.querySelector('#led-' + ledgerState.focus);
+      if (at && at.scrollIntoView) at.scrollIntoView({ block: 'nearest' });
+    }
+    return ledger;
+  }
+
+  /**
+   * Open the ledger, or give the square back.
+   *
+   * A real dialog — labelled, focusable, focus moved in and handed back — but
+   * NOT `aria-modal`, and the outside is not made inert, because the spec is
+   * explicit that the tray's contextual row stays live behind it: a decision you
+   * own can be answered with the ledger open, which is exactly when you want to
+   * answer it. Claiming modality here and then keeping the tray live would be a
+   * lie a screen reader repeats.
+   */
+  function openLedger(view, source) {
+    if (ledgerOpen) return false;
+    ledgerOpen = true;
+    ledgerSeen = true;
+    ledgerReturnFocusTo = doc.activeElement || null;
+    lastLedgerSig = null;
+    if (el.ledger && el.ledger.setAttribute) {
+      el.ledger.setAttribute('role', 'dialog');
+      el.ledger.setAttribute('aria-labelledby', 'ledger-title');
+      el.ledger.setAttribute('tabindex', '-1');
+    }
+    renderLedger(view, source);
+    if (el.ledger && el.ledger.focus) el.ledger.focus();
+    return true;
+  }
+
+  function closeLedger() {
+    if (!ledgerOpen) return false;
+    ledgerOpen = false;
+    ledger = null;
+    lastLedgerSig = null;
+    /* The filter and the jump are a reading position, not a setting: the next
+     * open starts at the top with everybody, which is where a question starts. */
+    ledgerState = { flaggedOnly: false, focus: null };
+    if (el.ledger) {
+      el.ledger.classList.add('hidden');
+      el.ledger.innerHTML = '';
+      if (el.ledger.removeAttribute) {
+        el.ledger.removeAttribute('role');
+        el.ledger.removeAttribute('aria-labelledby');
+      }
+    }
+    const back = ledgerReturnFocusTo;
+    ledgerReturnFocusTo = null;
+    if (back && back.focus && (!doc.contains || doc.contains(back))) {
+      try { back.focus(); } catch (err) { /* a detached node; nothing to give back to */ }
+    }
+    return true;
+  }
+
+  /**
+   * Keys while the ledger is open. Same contract as the other two handlers:
+   * true means consumed.
+   *
+   * The digits are the interesting case. `1-9` jumps to a citizen here and
+   * names one on an armed tray row, and both are correct — so the ARMED ROW
+   * WINS, and the page routes to it first (see src/play/main.js). Arming is a
+   * deliberate act taken to answer something; jumping is navigation and has a
+   * scroll bar. Esc gives the row back before it closes the ledger, for the
+   * same reason.
+   */
+  function handleLedgerKey(e, view, source) {
+    if (!ledgerOpen) return false;
+    if (e.key === 'Escape') { closeLedger(); return true; }
+    if (/^l$/i.test(e.key)) { closeLedger(); return true; }
+    if (/^f$/i.test(e.key)) {
+      ledgerState.flaggedOnly = !ledgerState.flaggedOnly;
+      lastLedgerSig = null;
+      renderLedger(view, source);
+      return true;
+    }
+    const id = seatFromKey(e.key);
+    if (id !== null) {
+      /* A number that names nobody in this match answers nothing, exactly as it
+       * does on the tray and in the panel. It is still their number. */
+      if (!view || !view.players.some((p) => p.id === id)) return true;
+      ledgerState.focus = id;
+      lastLedgerSig = null;
+      renderLedger(view, source);
+      return true;
+    }
+    return false;
   }
 
   /*
@@ -433,7 +631,7 @@ export function createPanels(doc, { onSubmit, onClose } = {}) {
    * being able to orbit the camera while reading a decision is not a leak of
    * focus, it is the whole point of the camera.
    */
-  const OUTSIDE = ['card', 'tray', 'controls'];
+  const OUTSIDE = ['card', 'tray', 'controls', 'ledger'];
 
   function setOutsideInert(on) {
     for (const id of OUTSIDE) {
@@ -673,6 +871,13 @@ export function createPanels(doc, { onSubmit, onClose } = {}) {
     renderObjective,
     renderTray,
     renderCard,
+    renderLedger,
+    openLedger,
+    closeLedger,
+    handleLedgerKey,
+    get isLedgerOpen() { return ledgerOpen; },
+    get ledgerSeen() { return ledgerSeen; },
+    get ledger() { return ledger; },
     setPrompt,
     open,
     close,
@@ -699,6 +904,7 @@ export function createPanels(doc, { onSubmit, onClose } = {}) {
       lastObjectiveId = null;
       lastTraySig = null;
       lastCardSig = null;
+      lastLedgerSig = null;
       armed = false;
     }
   };
