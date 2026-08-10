@@ -422,13 +422,23 @@ async function main() {
     check(html.indexOf('id="panel-title"') !== -1,
       'the panel has no labelled title for aria-labelledby to point at');
 
-    /* Every advertised target is on screen by name, AND the value the button
-     * carries is the value the session accepts — the step-04 handshake bug one
-     * layer further out: a panel may not invent a shape submit() will refuse. */
+    /*
+     * Every advertised target is on screen by NUMBER AND NAME, and the value
+     * the button carries is the value the session accepts — the step-04
+     * handshake bug one layer further out: a panel may not invent a shape
+     * submit() will refuse.
+     *
+     * The number is part of the assertion as of Gate D3: a citizen is named by
+     * their permanent roster number everywhere they are named, and the panel's
+     * kbd hint is that number rather than the option's position in this list.
+     */
     emergency.waiting.options.forEach(function (id) {
       var name = emergency.view.players.find(function (p) { return p.id === id; }).name;
-      check(html.indexOf('>' + name + ' ') !== -1 || html.indexOf('>' + name + '<') !== -1,
-        'the Emergency Vote panel omits target ' + name + ' (seat ' + id + ')');
+      var label = (id + 1) + ' ' + name;
+      check(html.indexOf('>' + label + ' ') !== -1 || html.indexOf('>' + label + '<') !== -1,
+        'the Emergency Vote panel omits target ' + label + ' (seat ' + id + ')');
+      check(html.indexOf('<kbd>' + (id + 1) + '</kbd>') !== -1,
+        'the Emergency Vote panel does not offer seat ' + id + ' its own number as a key');
       check(html.indexOf("data-value='" + JSON.stringify(id) + "'") !== -1,
         'the Emergency Vote panel does not offer seat ' + id + ' as a submittable value');
       check(emergency.session.isLegal(id, emergency.waiting),

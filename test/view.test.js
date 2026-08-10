@@ -530,28 +530,48 @@ async function renderCheck() {
 
   var v = View.viewFor(G, 0);
   panels.renderHud(v);
-  var card = doc.made.role.innerHTML;
+  /*
+   * The private card, which is where the sidebar's role block went in Gate D3.
+   * Same question as before, one element further on: does the projection's
+   * knowledge actually reach the screen, and does it reach only the seat
+   * entitled to it. The card is also the only 2D element in the game allowed to
+   * carry role colour, so it is the only place this can be asked.
+   */
+  var card = doc.made.card.innerHTML;
 
   /* Matched against the markup, not the prose: the Loyalist blurb contains the
    * literal words "You know nobody", so a /you know/i probe passes on the one
    * card that must NOT have the line. Wrong assertion, not wrong code — but a
    * test that green-lights the opposite of what it claims is worth naming. */
-  check(card.indexOf('class="known"') !== -1,
-    'the role card does not render the allies line at all');
-  check(card.indexOf('>rebel<') !== -1, 'the role card does not show the viewer their own role');
+  check(card.indexOf('class="know"') !== -1,
+    'the private card does not render the "who you know" line at all');
+  check(card.indexOf('>rebel<') !== -1, 'the private card does not show the viewer their own role');
 
   var allies = Object.keys(v.known).map(Number).filter(function (id) { return id !== 0; });
   check(allies.length > 0, 'the Rebel view carried no allies to render');
   allies.forEach(function (id) {
     var name = v.players.find(function (p) { return p.id === id; }).name;
-    check(card.indexOf(name) !== -1,
-      'the role card omits ally ' + name + ' (seat ' + id + ')');
-    check(card.indexOf(v.known[id]) !== -1,
-      'the role card omits ally ' + name + '\'s role (' + v.known[id] + ')');
+    check(card.indexOf((id + 1) + ' ' + name) !== -1,
+      'the private card omits ally ' + name + ' (seat ' + id + ', number ' + (id + 1) + ')');
   });
-  check(card.indexOf(v.known[SD.dictator(G).id]) !== -1 &&
-        card.indexOf(G.players[SD.dictator(G).id].name) !== -1,
-    'the role card does not name the Dictator to a Rebel');
+  /*
+   * The Dictator, by mark rather than by word.
+   *
+   * The card has 232 px and one line for this, so "3 Chen dictator" does not
+   * fit and the Dictator carries a brass mark instead — which is the thing a
+   * Rebel scans for anyway. The assertion is therefore that the mark sits on
+   * the Dictator and on nobody else, which is a stronger statement than the old
+   * "the word appears somewhere in the card".
+   */
+  var dictName = G.players[SD.dictator(G).id].name;
+  check(card.indexOf(dictName + ' ✦') !== -1,
+    'the private card does not mark the Dictator to a Rebel');
+  allies.forEach(function (id) {
+    if (id === SD.dictator(G).id) return;
+    var name = v.players.find(function (p) { return p.id === id; }).name;
+    check(card.indexOf(name + ' ✦') === -1,
+      'the private card marks ' + name + ' as the Dictator');
+  });
 
   /* The mirror image: a Loyalist's card must name nobody but themselves. */
   var LG = null;
@@ -561,20 +581,23 @@ async function renderCheck() {
   }
   if (check(!!LG, 'could not deal a Loyalist human in 400 seeds')) {
     panels.renderHud(View.viewFor(LG, 0));
-    var lcard = doc.made.role.innerHTML;
-    check(lcard.indexOf('class="known"') === -1,
-      'a Loyalist\'s role card renders an allies line');
+    var lcard = doc.made.card.innerHTML;
+    /* The line is always there — a card whose third line came and went would be
+     * a card that changes height — so what it says is the assertion. */
+    check(lcard.indexOf('you know nobody') !== -1,
+      'a Loyalist\'s private card does not say they know nobody');
+    check(lcard.indexOf('✦') === -1, 'a Loyalist\'s private card marks a Dictator');
     check(lcard.indexOf('>loyalist<') !== -1,
-      'a Loyalist\'s role card does not show their own role');
+      'a Loyalist\'s private card does not show their own role');
     LG.players.forEach(function (p) {
       if (p.id === 0) return;
       check(lcard.indexOf(p.name) === -1,
-        'a Loyalist\'s role card names ' + p.name);
+        'a Loyalist\'s private card names ' + p.name);
     });
   }
 
-  say('role card     rendered through the real panels.js: a Rebel\'s card names every ally and');
-  say('              the Dictator with their roles; a Loyalist\'s names nobody but themselves');
+  say('private card  rendered through the real panels.js: a Rebel\'s card names every ally by');
+  say('              their permanent number and marks the Dictator; a Loyalist\'s names nobody');
 }
 
 /* ------------------------------------------------------------------- out */
