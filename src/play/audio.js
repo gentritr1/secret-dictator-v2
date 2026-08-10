@@ -1,5 +1,23 @@
 /*
- * Minimal sound: five moments and one bed.
+ * Sound in three layers: a bed that never changes, a bed that follows the
+ * square, and the moments.
+ *
+ *   1. TOWN     the constant layer. One low filtered breath plus a barely-there
+ *               drone, at ONE gain for the whole match, never ramped and never
+ *               keyed to anything. This is the room tone of an outdoor place:
+ *               it is what makes the square feel like somewhere rather than
+ *               like a renderer, and because it is constant it can carry no
+ *               information at all. See TOWN below for what it revises.
+ *   2. BED      the phase layer. Filtered wind, keyed to the LIGHTING STATE, so
+ *               there is exactly one place in the project that decides what the
+ *               square is doing. Silent by day — see BED.
+ *   3. CUES     the moments. Five one-shots, fired off public edges. Unchanged
+ *               by this gate; nothing new was invented, because "deliberate
+ *               quiet is required" and a sixth sound with no moment to attach
+ *               to would be filler.
+ *
+ * All three run through one master gain, so the volume slider and the mute
+ * button own the whole square and not two thirds of it.
  *
  * THE SAME TRUST BOUNDARY AS THE LIGHT, and for a sharper reason
  * --------------------------------------------------------------
@@ -96,7 +114,34 @@ export function cuesFor(edges, own) {
   return out;
 }
 
-/* ---------------------------------------------------------------- the bed */
+/* ------------------------------------------------------- 1. the constant */
+
+/**
+ * The town: the layer that never changes.
+ *
+ * A very low-passed breath of noise with a faint 62 Hz drone under it, at a
+ * fixed gain from the moment the audio starts until the tab closes. It is not
+ * keyed to the phase, the state, the weather or anything else — which is the
+ * point twice over. Musically it is what stops the day from sounding like a
+ * muted renderer; structurally, a layer that is constant is a layer that
+ * cannot be a tell, and it is the only part of the ambience about which that
+ * is true by construction rather than by argument.
+ *
+ * WHAT THIS REVISES, said out loud because it was a decided thing.
+ * docs/step-07.md chose total silence in daylight, on the reasoning that "the
+ * first time the square makes a sound of its own is the first vote". That
+ * reasoning survives at the level it was about — the WIND still starts at dusk
+ * and the day still has no weather in it (`BED.day.gain` is still exactly 0,
+ * and the gate that asserts it is untouched) — but the day is no longer
+ * digital silence, because the original design asks for a constant bed and a
+ * room tone that switches off in the morning is not one.
+ *
+ * It is one constant. Setting `gain: 0` here restores the shipped behaviour
+ * exactly, and nothing else in the file has to change.
+ */
+export const TOWN = { gain: 0.014, cutoff: 190, drone: 62, droneGain: 0.006 };
+
+/* ------------------------------------------------------ 2. the phase layer */
 
 /**
  * The ambient bed, one entry per lighting state.
@@ -151,6 +196,9 @@ export function createAudio(options = {}) {
   let bedGain = null;
   let bedFilter = null;
   let bedSource = null;
+  let townGain = null;
+  let townSource = null;
+  let townDrone = null;
   let started = false;
   let muted = false;
   let volume = DEFAULT_VOLUME;
@@ -174,6 +222,7 @@ export function createAudio(options = {}) {
       master = ctx.createGain();
       master.gain.value = muted ? 0 : volume;
       master.connect(ctx.destination);
+      buildTown();
       buildBed();
       started = true;
     } catch (error) {
@@ -188,7 +237,65 @@ export function createAudio(options = {}) {
     return true;
   }
 
-  /* Two seconds of deterministic low noise, looped. Deterministic on purpose:
+  /*
+   * Layer 1: the town, built once and never touched again.
+   *
+   * Four seconds rather than the bed's two, and filtered harder, so the two
+   * loops do not share a period — a 2 s breath under a 2 s wind beats audibly
+   * every two seconds, which is the one way a constant layer can draw attention
+   * to itself. Its own salt, for the same reason pace.js has one: two streams
+   * from one constant would make the town a delayed copy of the wind.
+   *
+   * There is no ramp anywhere in here on purpose. `setLighting` does not know
+   * this node exists.
+   */
+  function buildTown() {
+    if (TOWN.gain <= 0) return;
+    const seconds = 4;
+    const buffer = ctx.createBuffer(1, ctx.sampleRate * seconds, ctx.sampleRate);
+    const data = buffer.getChannelData(0);
+    let s = 0xc2b2ae35;
+    let low = 0;
+    for (let i = 0; i < data.length; i++) {
+      s |= 0; s = (s + 0x6d2b79f5) | 0;
+      let t = Math.imul(s ^ (s >>> 15), 1 | s);
+      t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+      const white = (((t ^ (t >>> 14)) >>> 0) / 4294967296) * 2 - 1;
+      low = low * 0.985 + white * 0.015;
+      data[i] = low * 14;
+    }
+    const fade = Math.floor(ctx.sampleRate * 0.35);
+    for (let i = 0; i < fade; i++) {
+      const k = i / fade;
+      data[i] = data[i] * k + data[data.length - fade + i] * (1 - k);
+    }
+
+    townSource = ctx.createBufferSource();
+    townSource.buffer = buffer;
+    townSource.loop = true;
+
+    const filter = ctx.createBiquadFilter();
+    filter.type = 'lowpass';
+    filter.frequency.value = TOWN.cutoff;
+    filter.Q.value = 0.5;
+
+    townGain = ctx.createGain();
+    townGain.gain.value = TOWN.gain;
+    townSource.connect(filter).connect(townGain).connect(master);
+    townSource.start();
+
+    /* The drone: one sine, far enough down that it is felt rather than heard.
+     * It is what makes the layer read as a town rather than as tape hiss. */
+    townDrone = ctx.createOscillator();
+    const droneGain = ctx.createGain();
+    townDrone.type = 'sine';
+    townDrone.frequency.value = TOWN.drone;
+    droneGain.gain.value = TOWN.droneGain;
+    townDrone.connect(droneGain).connect(master);
+    townDrone.start();
+  }
+
+  /* Layer 2. Two seconds of deterministic low noise, looped. Deterministic on purpose:
    * src/play/ contains no unseeded randomness at all — a gate this project has
    * relied on since Step 4 — and a bed built from the platform's generator
    * would be the first. This is the same mulberry32 shape the engine and
@@ -480,6 +587,15 @@ export function createAudio(options = {}) {
         started, muted, volume,
         bed: currentBed,
         bedGain: bedFor(currentBed).gain,
+        /* The three layers, named, so a scripted review can say which one it is
+         * asking about. `town` is constant by contract — if this number ever
+         * differs between two readings of the same session, that is a bug and
+         * a potential tell. */
+        layers: {
+          town: { constant: true, gain: TOWN.gain, live: townGain ? townGain.gain.value : 0 },
+          bed: { constant: false, gain: bedFor(currentBed).gain, cutoff: bedFor(currentBed).cutoff },
+          cues: CUE_IDS.length
+        },
         samples: Array.from(buffers.keys()).sort(),
         expectedSamples: CUE_IDS.filter((id) => CUES[id].url),
         droppedBeforeGesture: dropped,
