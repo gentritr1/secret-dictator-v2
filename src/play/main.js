@@ -49,8 +49,10 @@ import { createPace, beatKey } from './pace.js';
 import { createMurmurs } from './murmur.js';
 import { createFloorVoice } from './floor-voice.js';
 import {
-  createLightingDirector, lightingFor, publicEdges, STING_MS, LIGHT_LEAD_MS
+  createLightingDirector, lightingFor, publicEdges, STING_MS, LIGHT_LEAD_MS, NIGHT_STATES
 } from './lighting.js';
+import { announceFor } from './tray.js';
+import { seatNumber } from './seat.js';
 import { createAudio } from './audio.js';
 
 const NAMES = ['Alice', 'Bo', 'Chen', 'Dara', 'Eze', 'Fin', 'Gita', 'Hale', 'Ivo', 'Juno'];
@@ -67,20 +69,26 @@ const LN20 = Math.log(20);
 const STEP_SMOOTH = 0.07;      // presentation only; see docs/step-03.md
 
 /*
- * The HUD covers the left of the window, so the camera frames the body to the
- * right of centre — otherwise the thing the player is steering spends the match
- * behind a panel of text.
+ * Framing: the sidebar is gone, so the correction it needed is gone with it.
  *
- * HUD_PX is the width in src/play/style.css. Putting the subject in the middle
- * of what is left needs a shift of (HUD_PX / 2) / windowWidth; FRAMING_BIAS is
- * how much of that correction is actually applied, and it is deliberately less
- * than all of it — full correction reads as a camera that is looking somewhere
- * else. Both are here rather than in camera.js because the HUD is this page's
- * problem: `screenBias` defaults to 0 and walk.html never sets it.
+ * Until this gate a fixed 330 px HUD covered the left of the window for the
+ * whole match, so a subject centred in the WINDOW was not centred in the part
+ * of the window the player could see, and the camera aimed past the body to
+ * push it right (`rig.tuning.screenBias`, see src/walk/camera.js).
+ *
+ * Nothing on screen does that any more. The private card is 232 x 96 px in the
+ * top-left corner — it covers 1.9% of a 1280 x 720 frame and none of the band
+ * the body walks through — and the tray is 84 px along the bottom, which is a
+ * horizontal band and would need a vertical bias the rig does not have and does
+ * not want (raising the aim point would tilt the whole square). So the bias is
+ * ZERO: play.html now frames exactly as walk.html does, which is what the
+ * composition change actually asks for.
+ *
+ * The number is kept as a named constant rather than deleted so the decision is
+ * visible in the file where it was made, and `__play.setFraming()` still exists
+ * for a review that wants to argue with it live.
  */
-const HUD_PX = 330;
-const FRAMING_BIAS = 0.6;
-const MAX_FRAMING_BIAS = 0.18;   // a narrow window must not swing the camera off
+const SCREEN_BIAS = 0;
 
 const COLOR = {
   citizen: 0x8d96a8,
@@ -365,9 +373,27 @@ function setRoster(view) {
     owns.materials.push(ring.material);
     group.add(ring);
 
+    /*
+     * The nameplate, and the one grammar stamped on it.
+     *
+     * The number in the left third, hairline-separated from the name, is the
+     * key you press to name this citizen — the same number the tray offers, the
+     * same number the panel's kbd hint shows, and (next gate) the same number
+     * the ledger sorts by. It comes from roster order, it never changes, and it
+     * is not reused when its owner dies. See src/play/seat.js.
+     *
+     * Under the name sit at most three marks: gavel, deputy, term-limited. All
+     * brass or dim, never coloured — a coloured mark on a plate would be a
+     * second channel that could correlate with allegiance, which is the thing
+     * the whole HUD spends its palette rules avoiding.
+     */
     const nameEl = document.createElement('div');
     nameEl.className = 'tag' + (p.isYou ? ' me' : '');
-    nameEl.textContent = p.name + (p.isYou ? ' (you)' : '');
+    nameEl.innerHTML =
+      `<span class="num">${seatNumber(p.id)}</span>` +
+      `<span class="nm"></span><span class="marks"></span>`;
+    nameEl.querySelector('.nm').textContent = p.name + (p.isYou ? ' (you)' : '');
+    const markEl = nameEl.querySelector('.marks');
     const nameLabel = new CSS2DObject(nameEl);
     /*
      * SOCKET_label, not a constant. The four figures are 1.48 m to 1.96 m tall
@@ -411,6 +437,7 @@ function setRoster(view) {
     cast.add(group);
     citizens.push({
       id: p.id, isYou: p.isYou, group, pose, ring, skins, owns, nameEl, badgeEl,
+      markEl, marks: '',
       nameLabel, badgeLabel, murmurEl,
       toppled: false, toppleLift,
       variant: variant ? variant.id : null, labelY
@@ -443,6 +470,27 @@ function applyToScene(view) {
      * page dead. The ordering in restart() makes it not happen; this makes it
      * not matter. */
     if (!p) continue;
+
+    /*
+     * The brass marks, which is where the retired `speaker` and `deputy` rows
+     * went: you look at people, not at a row about people.
+     *
+     * Every mark on a plate is also in the public log — the gavel when the
+     * morning report names its holder, the deputy when the ballots pass, the
+     * term limits when the session opens — so a plate can say nothing the
+     * square has not been told.
+     */
+    const marks = [];
+    if (p.alive) {
+      if (c.id === view.speaker && view.phase !== 'game_over') marks.push('gavel');
+      if (c.id === view.deputy) marks.push('deputy');
+      if (view.termLimited.indexOf(c.id) !== -1) marks.push('limited');
+    }
+    const markText = marks.join(' · ');
+    if (c.marks !== markText) {
+      c.marks = markText;
+      if (c.markEl) c.markEl.textContent = markText;
+    }
 
     if (!p.alive) {
       if (!c.toppled && !c.isYou) {
@@ -569,9 +617,32 @@ function holdRemaining() {
 function holding() {
   return holdRemaining() > 0;
 }
+
+/*
+ * The tray's one-beat announcement: the retired "next power" row.
+ *
+ * When a Seize lands the tray says what the board has just armed, holds it for
+ * ANNOUNCE_MS, and then goes back to whatever it was saying. It is presentation
+ * only — a sentence and a clock — and it is the third thing on this page that
+ * ends on a timer with no game event to mark it, so it is pumped from both
+ * loops exactly as the beat, the sting and the murmurs are.
+ */
+const ANNOUNCE_MS = 3000;
+let announceText = null;
+let announceUntil = 0;
+function announcing() {
+  return performance.now() < announceUntil ? announceText : null;
+}
+
 /** What the page is doing that the view cannot know. A clock, not game state. */
 function presentation() {
-  return { holding: holding() };
+  return {
+    holding: holding(),
+    announce: announcing(),
+    /* The card dims to 35% in the night states; the light is the only thing
+     * that knows which those are. */
+    night: NIGHT_STATES.indexOf(lighting.target) !== -1
+  };
 }
 
 /**
@@ -751,6 +822,18 @@ function applyAmbience(next, edges, own) {
   if (edges.sting) {
     stingTile = edges.sting;
     stingUntil = performance.now() + STING_MS;
+    /*
+     * The tray's one beat of news, cued off the same public edge the light and
+     * the sound are: a Seize has landed, and the board has armed whatever that
+     * Seize grants. `edges.granted` is what the PREVIOUS view called
+     * `nextPower` — the power for seize + 1, which is exactly the one that just
+     * came due — captured before the projection moved on. Every word of it is
+     * already in the public log the moment the power is granted.
+     */
+    if (edges.sting === 'seize') {
+      announceText = announceFor(next.seize, edges.granted || null);
+      announceUntil = performance.now() + ANNOUNCE_MS;
+    }
   } else if (performance.now() >= stingUntil) {
     stingTile = null;
   }
@@ -784,13 +867,19 @@ function applyAmbience(next, edges, own) {
  */
 function ambience(next) {
   const edges = publicEdges(previousView, next);
+  /* Which power the Seize now landing grants, read off the view being replaced
+   * — `nextPower` is the power for seize + 1, so the outgoing projection is the
+   * only one that still knows. Captured here because previousView advances on
+   * the next line and a held edge can be applied seconds later. */
+  edges.granted = previousView ? previousView.nextPower : null;
   previousView = next;
 
   if (holding()) {
     heldEdges = {
       gavel: (heldEdges && heldEdges.gavel) || edges.gavel,
       tally: (heldEdges && heldEdges.tally) || edges.tally,
-      sting: edges.sting || (heldEdges && heldEdges.sting) || null
+      sting: edges.sting || (heldEdges && heldEdges.sting) || null,
+      granted: edges.granted || (heldEdges && heldEdges.granted) || null
     };
     wasHeld = true;
     audio.fire(NO_EDGES, ownSubmission);
@@ -878,6 +967,13 @@ function refresh() {
     if (!waiting || waiting.kind !== panels.openKind) panels.close();
     else panels.open(view, waiting);
   }
+  /* And the same rule for the tray's row: a row still holding live keys for a
+   * decision that has been answered would offer a key that submits into the
+   * next one. Disarming answers nothing — the decision, if it is still pending,
+   * simply goes back to offering E. */
+  if (panels.isArmed && (!waiting || panels.surfaceFor(waiting.kind) !== 'tray')) {
+    panels.disarm(view, presentation());
+  }
   /* The result screen is the one panel that opens itself, so it opens exactly
    * once per match and closing it means closed. */
   if (view.phase === 'game_over' && !gameOverShown) {
@@ -923,6 +1019,8 @@ function restart(seed = DEFAULT_SEED, playerCount = DEFAULT_PLAYERS, humanIndex 
   gameOverShown = false;
   autopilotOn = false;      // a new match is played by hand until asked otherwise
   seated = false;
+  announceText = null;
+  announceUntil = 0;
 
   /*
    * A fresh match starts in daylight, snapped rather than faded. Crossfading
@@ -952,7 +1050,7 @@ function restart(seed = DEFAULT_SEED, playerCount = DEFAULT_PLAYERS, humanIndex 
    * five threw inside the redraw and left the page dead. */
   view = View.viewFor(G, human, { waitingFor: session.waitingFor() });
   setRoster(view);
-  panels.resetLog();
+  panels.resetCaches();
   panels.close();
   refresh();
   syncControls(G.seed, count, human);
@@ -1023,8 +1121,16 @@ function tick() {
    * keeps running either way.
    */
   const held = holding();
-  if (wasHolding && !held && view) objective = panels.renderObjective(view, presentation());
+  if (wasHolding && !held && view) {
+    const p = presentation();
+    objective = panels.renderObjective(view, p);
+    panels.renderTray(view, p);
+  }
   wasHolding = held;
+  /* The announcement beat is the same shape: it ends on a clock, in a pane that
+   * may not be painting. The tray is re-derived here so a scripted review sees
+   * it expire on time. */
+  if (view && !held) panels.renderTray(view, presentation());
 
   /* All three of these end on a clock too, and for the same reason they are
    * pumped here as well as from the render loop. */
@@ -1078,6 +1184,27 @@ const opensAt = (ctx) =>
   (ctx.waiting ? objectFor(ctx.waiting.kind, ctx.waiting.gate) : null);
 
 /**
+ * What E does, now that there are two surfaces to open onto.
+ *
+ * The routing rule is src/play/tray.js's `surfaceFor`, and it is asked rather
+ * than restated: four decisions (nominate, vote, block response, power target)
+ * take the tray's contextual row, and the three that show you private material
+ * — the Speaker's three tiles, the Deputy's two, a Foresight read — plus the
+ * three acknowledgement ceremonies take the middle of the screen and a
+ * deliberate close.
+ *
+ * Either way the gesture is the same one it has always been: walk to the object
+ * the objective line names, press E. What changes is where the answer is given,
+ * not how you ask for it.
+ */
+function takeDecision(ctx) {
+  if (!ctx.waiting) return false;
+  return panels.surfaceFor(ctx.waiting.kind) === 'tray'
+    ? panels.arm(ctx.view, ctx.waiting)
+    : panels.open(ctx.view, ctx.waiting);
+}
+
+/**
  * Live only when the square is genuinely ready to answer.
  *
  * `!ctx.holding` is the deliberation beat: for its duration the rules already
@@ -1110,7 +1237,7 @@ interactions.add({
       ? ctx.waiting.kind + ':' + ctx.waiting.gate : ctx.waiting.kind;
     return `E — ${PODIUM_LABEL[key] || PODIUM_LABEL[ctx.waiting.kind] || ctx.waiting.kind}`;
   },
-  interact: (ctx) => panels.open(ctx.view, ctx.waiting)
+  interact: (ctx) => takeDecision(ctx)
 });
 
 interactions.add({
@@ -1119,7 +1246,7 @@ interactions.add({
   radius: 2.6,
   canInteract: readyAt('bell'),
   getPrompt: (ctx) => `E — ring the bell: ${BELL_LABEL[ctx.waiting.gate] || 'continue'}`,
-  interact: (ctx) => panels.open(ctx.view, ctx.waiting)
+  interact: (ctx) => takeDecision(ctx)
 });
 
 /* Rules-free on purpose. If the contract only ever carried decisions it would
@@ -1140,6 +1267,7 @@ function interactionContext() {
 /* ------------------------------------------------------------------ input */
 
 const keys = new Set();
+const help = document.getElementById('help');
 const HELD = {
   forward: ['KeyW', 'ArrowUp'],
   back: ['KeyS', 'ArrowDown'],
@@ -1186,6 +1314,28 @@ window.addEventListener('keydown', (e) => {
    */
   if (panels.isOpen) {
     if (panels.handleKey(e, view, waiting)) e.preventDefault();
+    return;
+  }
+
+  /*
+   * The armed tray row owns the keyboard for exactly the keys it is showing.
+   *
+   * Same rule the panel has and the same reason: A is "Aye" here and "strafe
+   * left" in the controller. The row is armed only because the player pressed E
+   * at the object that owes the decision, the body is frozen while it is, and
+   * Esc gives both back without answering anything.
+   */
+  if (panels.isArmed) {
+    if (panels.handleTrayKey(e, view, waiting)) { e.preventDefault(); return; }
+  }
+
+  /* The keys line, on demand. `?` is offered by the tray's right-hand region
+   * and is the only thing there that currently does anything — `L` is drawn
+   * dim, because the ledger is the next gate and a live key that opened nothing
+   * would be the exact lie the never-blank rule exists to prevent. */
+  if (e.key === '?' || (e.key === '/' && e.shiftKey)) {
+    if (help) help.classList.toggle('shown');
+    e.preventDefault();
     return;
   }
 
@@ -1246,7 +1396,10 @@ function frame(now) {
   pumpAmbience();
   pumpMurmurs();
 
-  const frozen = panels.isOpen || seated;
+  /* An armed tray row freezes the body exactly as an open panel does. It is the
+   * same contract — while a decision has the keyboard, the character does not —
+   * and it is what makes it impossible to strafe left into an Aye. */
+  const frozen = panels.isOpen || panels.isArmed || seated;
   if (frozen) { input.x = 0; input.z = 0; } else readKeyboard();
   controller.advance(dt, input, world);
 
@@ -1282,8 +1435,19 @@ function frame(now) {
    * calls refresh() when it does. Re-deriving the line here is what makes it
    * flip back from "the square is counting them" to "open them at the podium"
    * at the same instant the podium lights up. It rewrites the DOM only when the
-   * sentence actually changes. */
-  if (view) objective = panels.renderObjective(view, presentation());
+   * sentence actually changes.
+   *
+   * The tray and the card are re-derived on the same terms and for the same
+   * reason, with two more clocks of their own: the announcement beat expires
+   * without a game event, and so does the night dimming when the light finishes
+   * crossfading. Both are signature-cached, so an unchanged tray costs a
+   * JSON.stringify and no DOM write. */
+  if (view) {
+    const p = presentation();
+    objective = panels.renderObjective(view, p);
+    panels.renderTray(view, p);
+    panels.renderCard(view, p);
+  }
 
   renderer.render(scene, rig.camera);
   labelRenderer.render(scene, rig.camera);
@@ -1295,11 +1459,9 @@ function resize() {
   renderer.setSize(w, h);
   labelRenderer.setSize(w, h);
   rig.resize(w, h);
-  /* Recomputed on every resize because the correction is a fraction of the
-   * window: the same 330 px is a third of a small window and a fifth of a big
-   * one, and a constant bias would be wrong at both. */
-  rig.tuning.screenBias = Math.min(MAX_FRAMING_BIAS,
-    (HUD_PX / 2) / Math.max(1, w) * FRAMING_BIAS);
+  /* No sidebar, no correction. See SCREEN_BIAS at the top of this file: the
+   * body is framed dead centre, exactly as walk.html frames it. */
+  rig.tuning.screenBias = SCREEN_BIAS;
 }
 window.addEventListener('resize', resize);
 
@@ -1639,9 +1801,88 @@ window.__play = {
     };
   },
 
-  /* The framing bias in use, so a reviewer can see and change it live. */
+  /*
+   * The tray, both ways, for the same reason the objective line is reported
+   * both ways: the module's own answer beside the DOM the page actually wrote.
+   * If these disagree the render is broken, not the mapping.
+   */
+  get tray() {
+    const node = document.getElementById('tray');
+    const t = panels.tray;
+    return {
+      id: t ? t.id : null,
+      kind: t ? t.kind : null,
+      line: t ? t.line : null,
+      note: t ? t.note : null,
+      keys: t ? t.keys.map((k) => k.key + (k.label ? ' ' + k.label : '')) : [],
+      act: t ? t.act : false,
+      tracks: t ? t.tracks : null,
+      waitingOn: t ? t.waitingOn : [],
+      armed: panels.isArmed,
+      onScreen: node ? node.textContent.replace(/\s+/g, ' ').trim() : null,
+      /* The row, as the player reads it: line one, with its keys. */
+      row: node && node.querySelector('.l1')
+        ? node.querySelector('.l1').textContent.replace(/\s+/g, ' ').trim() : null
+    };
+  },
+
+  /*
+   * The private card, the same way, plus the one measurement its acceptance
+   * criterion is about: the box on screen, in pixels, in whatever state the
+   * match is in. A card that grew when the tiles arrived would show up here as
+   * two different heights.
+   */
+  get card() {
+    const node = document.getElementById('card');
+    const c = panels.card;
+    const box = node && node.getBoundingClientRect ? node.getBoundingClientRect() : null;
+    return {
+      number: c ? c.number : null,
+      name: c ? c.name : null,
+      role: c ? c.role : null,
+      know: c ? c.knowText : null,
+      hand: c ? c.hand : null,
+      lines: c ? c.lines : null,
+      night: c ? c.night : false,
+      declared: c ? c.box : null,
+      measured: box
+        ? { width: Math.round(box.width), height: Math.round(box.height),
+            top: Math.round(box.top), left: Math.round(box.left) }
+        : null,
+      onScreen: node ? node.textContent.replace(/\s+/g, ' ').trim() : null
+    };
+  },
+
+  /**
+   * Everything the retirement table routed to the ledger, which is the NEXT
+   * gate and is therefore on screen nowhere.
+   *
+   * This is the deliberate half of "the sidebar is gone": deck, discard, the
+   * chaos track below its promotion point, the next power and the public log
+   * are all still readable — they are simply not furniture. When the ledger
+   * lands it is a fold over exactly this, and the acceptance test for THIS gate
+   * is that none of it appears on screen in the meantime.
+   */
+  ledger() {
+    if (!view) return null;
+    return {
+      deck: view.deckCount,
+      discard: view.discardCount,
+      chaos: { n: view.chaos, of: view.limits.chaosLimit },
+      nextPower: view.nextPower,
+      log: view.log.map((e) => ({ day: e.day, kind: e.kind, text: e.text }))
+    };
+  },
+
+  /** Press E on a tray decision, and give the row back, without a keyboard. */
+  arm() { return panels.arm(view, waiting); },
+  disarm() { return panels.disarm(view, presentation()); },
+  get armed() { return panels.isArmed; },
+
+  /* The framing bias in use, so a reviewer can see and change it live. Zero
+   * since the sidebar was retired — see SCREEN_BIAS. */
   get framing() {
-    return { screenBias: rig.tuning.screenBias, hudPx: HUD_PX, of: FRAMING_BIAS };
+    return { screenBias: rig.tuning.screenBias, declared: SCREEN_BIAS };
   },
 
   /*

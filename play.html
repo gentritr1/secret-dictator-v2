@@ -12,17 +12,17 @@
   <div id="stage"></div>
   <div id="labels"></div>
 
-  <!-- The HUD is a v0 instrument, not a screen of the finished game. Everything
-       in it is filled from the player-safe view model in src/engine/view.js;
-       nothing on this page can see the game object. -->
-  <aside id="hud">
-    <h1>Secret Dictator <span class="sub">the square</span></h1>
-    <div id="role"></div>
-    <h2>the board</h2>
-    <div id="status"></div>
-    <h2>what the square has heard</h2>
-    <ol id="log"></ol>
-  </aside>
+  <!-- The private card: 232 x 96px, top-left, three lines at rest and a fourth
+       while you hold tiles. The only private thing on screen and the only 2D
+       element in the game permitted role colour. Filled from src/play/card.js,
+       which reads the player-safe view and no game object. -->
+  <div id="card"></div>
+
+  <!-- The tray: 1280 x 84px, along the bottom, there for the whole match.
+       Tracks on the left, the contextual row in the middle, the ledger and keys
+       hints on the right. Never blank — when nothing is being asked of you it
+       names who the square is waiting for. See src/play/tray.js. -->
+  <div id="tray"></div>
 
   <div id="controls">
     <label for="c-seed">seed</label>
@@ -61,10 +61,15 @@
        decided by what you are standing in front of. -->
   <div id="prompt" class="hidden"></div>
 
+  <!-- The keys, on demand: `?` toggles this, which is what the tray's right-hand
+       region offers. Hidden by default because a permanent legend is the thing
+       the tray was built to stop needing. -->
   <p id="help">
-    WASD or arrows to walk · drag to orbit · wheel to zoom · <b>E</b> to use
-    what you are facing · in a panel: 1–9 pick, A/Y aye, N nay, ↵ continue,
-    Tab moves between answers, Esc closes without answering
+    WASD or arrows to walk · drag to orbit · wheel to zoom · <b>E</b> to take
+    what you are facing · then <b>1–9</b> names that citizen (their own
+    number, on their nameplate), <b>A/Y</b> aye, <b>N</b> nay, <b>↵</b>
+    continue, Tab moves between answers on a card, <b>Esc</b> steps back
+    without answering
   </p>
 
   <!-- Whichever decision the rules are waiting on. Opened by walking up to

@@ -1,10 +1,18 @@
 /*
- * play.html — v0 debug styling.
+ * play.html — the product HUD.
  *
- * Legibility only. No type scale, no palette, no motion: Step 8 is the art
- * pass, and anything decided here would have to be undecided there. The one
- * thing this file is careful about is that everything stays readable over a
- * 3D scene, because a panel you cannot read is a decision you cannot make.
+ * The 330 px debug sidebar is gone as of Gate D3 (docs/step-11.md). What
+ * replaced it is three surfaces and a rule apiece:
+ *
+ *   #card   232 x 96, top-left. The only private thing on screen, and the only
+ *           2D element in the game permitted role colour. It never grows.
+ *   #tray   1280 x 84, along the bottom. Never blank: when it is not your move
+ *           it names who the square is waiting for and offers no keys.
+ *   #panel  the centre, for the three decisions that show you private material
+ *           and the three ceremonies that need a page of public reading.
+ *
+ * Everything still stays readable over a 3D scene, because a panel you cannot
+ * read is a decision you cannot make.
  *
  * Gate 1 contrast pass (docs/step-05.md), inside these tokens and no new ones:
  *
@@ -21,6 +29,12 @@
  *   - Hierarchy: the objective line and the phase are the two loudest elements
  *     and everything else steps down. Warm (--gold) means "you must act", which
  *     is the STYLE_BIBLE rule (warm light is attention) applied to type.
+ *
+ * The phase row died with the sidebar, so the hierarchy is now the objective
+ * line and the tray's contextual row when it is warm — and it is warm only when
+ * the square is genuinely waiting on this seat. Everything the tray says when
+ * it is NOT your move is parchment, quieter and a size down, which is the same
+ * rule read the other way.
  */
 
 :root {
@@ -35,6 +49,15 @@
   --chaos: #d9a441;
   --gold: #ffb454;
   --good: #6ddd8c;
+  /* Parchment, from the style bible's measured palette (#d8d4c8, "reading
+   * surfaces, low opacity") — the tray's quiet voice. Not a new colour: it is
+   * the one the bible already names for exactly this, arriving in this file the
+   * first time the page has a reading surface that is not a debug row. */
+  --parchment: #d8d4c8;
+  /* Brass is a hairline, never a fill. This hex is already in the file — it is
+   * the objective line's warm border — and is named here because the tray, the
+   * card and the nameplates all draw the same edge. */
+  --brass: #6a5a2a;
 }
 
 * { box-sizing: border-box; }
@@ -60,6 +83,16 @@ html, body {
 
 /* -------------------------------------------------------------- 3D labels */
 
+/*
+ * The nameplate, and the one grammar stamped on it.
+ *
+ * The number sits in the left third in brass, hairline-separated from the name:
+ * it is the key you press to name this citizen, it comes from roster order, and
+ * it is retired rather than reused when they die. Under the name, at most three
+ * marks — gavel, deputy, term-limited — all brass or dim and NEVER coloured,
+ * because a coloured mark on a plate would be a channel that could correlate
+ * with allegiance.
+ */
 .tag {
   color: #dfe4ee;
   background: rgba(12, 14, 19, 0.72);
@@ -68,9 +101,27 @@ html, body {
   border-radius: 3px;
   white-space: nowrap;
   font-size: 11px;
+  text-align: center;
 }
-.tag.me { color: var(--gold); border-color: #5a4a2a; }
-.tag.dead { text-decoration: line-through; opacity: 0.5; }
+.tag .num {
+  color: var(--gold);
+  font-weight: 700;
+  padding-right: 5px;
+  margin-right: 5px;
+  border-right: 1px solid var(--brass);
+}
+.tag .marks {
+  display: block;
+  font-size: 9px;
+  letter-spacing: 0.08em;
+  color: var(--dimmer);
+}
+.tag .marks:empty { display: none; }
+.tag.me .nm { color: var(--gold); }
+.tag.dead .nm { text-decoration: line-through; }
+/* The dead keep their number. The plate dims; the number does not go grey with
+ * it, because the number is still theirs and still nobody else's. */
+.tag.dead { opacity: 0.5; }
 
 .badge {
   font-size: 10px;
@@ -132,73 +183,177 @@ html, body {
 .badge.aye { background: #1d4a2c; color: #9ff0b8; border: 1px solid #2f7a48; }
 .badge.nay { background: #4a1d20; color: #f0a09f; border: 1px solid #7a2f33; }
 
-/* ------------------------------------------------------------------- HUD */
+/* ---------------------------------------------------- the private card */
 
-#hud {
+/*
+ * 232 x 96px, top-left, and it never changes size.
+ *
+ * Three lines at rest — number and name, role, who you know — and a fourth
+ * while you are holding tiles. The fourth line's row is ALWAYS in the layout,
+ * empty when there is nothing in your hand, because "never grows" beats the
+ * wireframe's taller second box: the acceptance criterion is that the pixel
+ * dimensions are identical in every state, and a HUD element that changes size
+ * is one the eye has to re-find.
+ *
+ * This is the ONLY 2D element in the game permitted role colour, and it carries
+ * it as a class rather than as a hex — the role palette and the board palette
+ * are the same three colours (the style bible allows no new ones), so what
+ * distinguishes them is the channel: a blue Reform track is the board talking,
+ * a blue seal is your allegiance. test/hud.test.js sweeps every other rendered
+ * surface for that channel.
+ */
+#card {
   position: fixed;
-  top: 0; left: 0; bottom: 0;
-  width: 330px;
-  padding: 12px 12px 0;
-  background: linear-gradient(90deg, rgba(10, 12, 16, 0.97), rgba(10, 12, 16, 0.93));
-  border-right: 1px solid var(--line);
+  top: 12px; left: 12px;
+  width: 232px; height: 96px;
+  padding: 8px 10px;
+  background: rgba(10, 12, 16, 0.94);
+  border: 1px solid var(--line);
+  border-left-width: 3px;
+  border-radius: 3px;
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 3px;
+  overflow: hidden;
+  /* The dim is a fade rather than a switch, on the same order as the light's
+   * own crossfade. Nothing else about the card animates, ever. */
+  transition: opacity 900ms linear;
+}
+#card .who { display: flex; align-items: center; gap: 0; }
+#card .num {
+  color: var(--gold); font-weight: 700; font-size: 12px;
+  padding-right: 6px; margin-right: 6px;
+  border-right: 1px solid var(--brass);
+}
+#card .nm { font-weight: 700; font-size: 12px; letter-spacing: 0.06em; }
+#card .seal {
+  margin-left: auto; width: 20px; height: 20px;
+  border: 1px solid var(--brass); border-radius: 2px;
+}
+#card .rl {
+  text-transform: uppercase; letter-spacing: 0.12em;
+  font-size: 11px; font-weight: 700;
+}
+/* One line each, and they are allowed to run out of room rather than to wrap:
+ * a wrapped line would be a taller card. The full text is on the element's
+ * title and in `__play.card`. */
+#card .know, #card .hand {
+  font-size: 10px; line-height: 1.3; color: var(--parchment);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+#card .hand { min-height: 13px; }
+#card .hand b { color: var(--dim); font-weight: 400; margin-right: 4px; }
+#card .hand .tile {
+  font-size: 9px; font-weight: 700; letter-spacing: 0.08em;
+  padding: 0 4px; margin-right: 3px; border-radius: 2px;
+}
+#card .hand .t-reform { background: #1d3550; color: #a9cdf0; border: 1px solid var(--reform); }
+#card .hand .t-seize { background: #4a221e; color: #f0b0a9; border: 1px solid var(--seize); }
+/* The beam owns the night frames. */
+#card.night { opacity: 0.35; }
+#card.gone .nm { text-decoration: line-through; }
+
+/* The role channel. Three classes, one element, nowhere else in the game. */
+#card.r-loyalist { border-left-color: var(--reform); }
+#card.r-loyalist .rl { color: var(--reform); }
+#card.r-loyalist .seal { border-color: var(--reform); background: rgba(106, 166, 230, 0.18); }
+#card.r-rebel { border-left-color: var(--seize); }
+#card.r-rebel .rl { color: var(--seize); }
+#card.r-rebel .seal { border-color: var(--seize); background: rgba(232, 105, 95, 0.18); }
+#card.r-dictator { border-left-color: var(--gold); }
+#card.r-dictator .rl { color: var(--gold); }
+#card.r-dictator .seal { border-color: var(--gold); background: rgba(255, 180, 84, 0.18); }
+
+/* -------------------------------------------------------------- the tray */
+
+/*
+ * 1280 x 84px, along the bottom, there for the whole match.
+ *
+ *   |-- 240 --------|-- flexible ------------------------|-- 200 --------|
+ *   | the tracks    | the contextual row                 | ledger · keys |
+ *
+ * The two outer columns are the spec's fixed widths and the middle one is the
+ * one that flexes, so at 1280 the composition is exactly wireframe 4A and at
+ * any other width the thing that stretches is the thing the wireframe drew as
+ * stretching.
+ *
+ * NEVER BLANK. The row always says something; when it is not your move it names
+ * who the square is waiting for, in parchment, with no keys beside it — so
+ * "nothing to press" is stated rather than inferred. That rule lives in
+ * src/play/tray.js, where a test can reach it.
+ */
+#tray {
+  position: fixed;
+  left: 0; right: 0; bottom: 0;
+  height: 84px;
+  display: grid;
+  grid-template-columns: 240px minmax(0, 1fr) 200px;
+  background: linear-gradient(180deg, rgba(10, 12, 16, 0.93), rgba(10, 12, 16, 0.98));
+  border-top: 1px solid var(--line);
+}
+
+#tray .tracks {
+  padding: 10px 14px;
+  border-right: 1px solid #1c212b;
+  display: flex; flex-direction: column; gap: 4px; justify-content: center;
+}
+#tray .tk { display: flex; align-items: center; gap: 3px; font-size: 11px; }
+#tray .tk i {
+  display: inline-block; width: 8px; height: 10px;
+  border: 1px solid #2e3542; border-radius: 1px;
+}
+#tray .tk i.reform.on { background: var(--reform); border-color: var(--reform); }
+#tray .tk i.seize.on { background: var(--seize); border-color: var(--seize); }
+#tray .tk i.chaos.on { background: var(--chaos); border-color: var(--chaos); }
+#tray .tk .n { margin-left: 7px; color: #c6ccd9; font-variant-numeric: tabular-nums; }
+#tray .tk .lb {
+  margin-left: 6px; color: var(--dim); font-size: 10px;
+  text-transform: uppercase; letter-spacing: 0.1em;
+}
+
+#tray .row {
+  padding: 12px 18px;
+  display: flex; flex-direction: column; gap: 6px; justify-content: center;
   overflow: hidden;
 }
+#tray .l1 {
+  font-size: 14px; line-height: 1.3; color: var(--ink);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+#tray .l2 {
+  font-size: 11px; line-height: 1.3; color: var(--parchment); opacity: 0.66;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+/* Warm means "the square is waiting on you" — the STYLE_BIBLE rule that warm
+ * light is attention, spent on type, exactly as the objective line spends it. */
+#tray.act .l1 { color: var(--gold); font-weight: 600; }
+/* And its opposite: nobody's move, in parchment, quieter than the objective. */
+#tray.empty .l1, #tray.beat .l1, #tray.dead .l1, #tray.over .l1 {
+  color: var(--parchment); opacity: 0.78; font-size: 13px;
+}
+#tray.announce .l1 { color: var(--gold); }
 
-#hud h1 { font-size: 13px; margin: 0; letter-spacing: 0.04em; }
-#hud h1 .sub { color: var(--dim); font-weight: 400; }
-#hud h2 {
-  font-size: 11px; margin: 6px 0 2px; color: var(--dim);
-  text-transform: uppercase; letter-spacing: 0.12em;
+#tray .key { margin-left: 14px; white-space: nowrap; }
+#tray .key b {
+  color: var(--gold); border: 1px solid var(--brass); border-radius: 2px;
+  padding: 0 4px; margin-right: 5px; font-weight: 700;
 }
 
-#role .you {
-  display: flex; align-items: baseline; gap: 8px;
-  border: 1px solid var(--line); border-left-width: 3px;
-  padding: 6px 8px; border-radius: 3px;
+#tray .hints {
+  padding: 10px 14px;
+  border-left: 1px solid #1c212b;
+  display: flex; align-items: center; justify-content: flex-end; gap: 14px;
+  font-size: 11px; color: var(--dim);
 }
-#role .you .nm { font-weight: 700; }
-#role .you .rl { text-transform: uppercase; letter-spacing: 0.1em; font-size: 11px; }
-#role .you .dead { color: var(--seize); margin-left: auto; }
-#role .r-loyalist { border-left-color: var(--reform); }
-#role .r-loyalist .rl { color: var(--reform); }
-#role .r-rebel { border-left-color: var(--seize); }
-#role .r-rebel .rl { color: var(--seize); }
-#role .r-dictator { border-left-color: var(--gold); }
-#role .r-dictator .rl { color: var(--gold); }
-#role .blurb { margin: 4px 0 0; color: var(--dim); font-size: 11px; }
-#role .known { margin: 4px 0 0; font-size: 11px; }
-#role .known b { color: var(--dim); font-weight: 400; }
-#role .known em { font-style: normal; color: var(--gold); }
-
-#status div { display: flex; gap: 8px; align-items: center; font-size: 11px; }
-#status .k { color: var(--dim); width: 74px; flex: none; }
-#status .v { flex: 1; word-break: break-word; color: #c6ccd9; }
-/* One of the two loudest things on the page. The other is #objective. */
-#status .loud .k { color: var(--dim); }
-#status .loud .v {
-  color: var(--gold); font-weight: 700; font-size: 13px;
-  letter-spacing: 0.04em;
+#tray .hint b {
+  color: var(--gold); border: 1px solid var(--brass); border-radius: 2px;
+  padding: 0 4px; margin-right: 5px; font-weight: 700;
 }
-#status i {
-  display: inline-block; width: 8px; height: 10px; margin-right: 2px;
-  border: 1px solid #2e3542; border-radius: 1px; vertical-align: middle;
-}
-#status i.reform.on { background: var(--reform); border-color: var(--reform); }
-#status i.seize.on { background: var(--seize); border-color: var(--seize); }
-#status i.chaos.on { background: var(--chaos); border-color: var(--chaos); }
-
-#log {
-  list-style: none; margin: 0; padding: 0 6px 12px 0;
-  overflow-y: auto; flex: 1; font-size: 11px;
-}
-#log li { padding: 3px 0; border-bottom: 1px solid #1c212b; color: #c6ccd9; }
-#log li .d { color: var(--dimmer); margin-right: 6px; }
-#log li.k-enact { color: var(--gold); }
-#log li.k-power { color: #b48ce0; }
-#log li.k-result { color: var(--good); }
+/* The ledger is the next gate. The affordance is drawn so the composition is
+ * the shipped one, and it is drawn DIM and does nothing — a live key that
+ * opened nothing would be exactly the lie the never-blank rule is about. */
+#tray .hint.off { opacity: 0.4; }
+#tray .hint.off b { color: var(--dim); border-color: var(--line); }
 
 /* ----------------------------------------------------------- the controls */
 
@@ -229,10 +384,16 @@ html, body {
 
 /*
  * Placement: the top of the UNOBSCURED scene region, not the top of the window.
- * The HUD is a fixed 330 px on the left and the controls sit at top right, so
- * this bar starts at 346 px and at 52 px down — clear of both, and centred in
- * what is left. Stating it here because "top-centre" means the centre of what
- * the player can actually see, which is not the centre of the page.
+ *
+ * Every number in this rule is UNCHANGED from the sidebar era, on purpose. The
+ * acceptance criterion for the HUD replacement is that "the objective line's
+ * position, size and behaviour are unchanged from today" — it is the most-read
+ * text on the screen and it is where a player has learned to look, so the one
+ * surface the tray and the card are not allowed to move is this one. The
+ * arithmetic still holds: the private card ends at 244 px (12 + 232) and the
+ * controls sit at top right, so a bar starting at 346 px and 52 px down is
+ * clear of both, exactly as it was clear of the 330 px sidebar.
+ * test/hud.test.js pins these five declarations byte for byte.
  */
 #objective {
   position: fixed; top: 52px; left: 346px; right: 16px;
@@ -260,28 +421,46 @@ html, body {
 
 /* ------------------------------------------------------------ the prompt */
 
+/* Both of these used to sit in the bottom 56 px, which is now the tray. They
+ * move up by exactly the tray's height plus their old clearance, so the
+ * relationship between them and the bottom edge of the scene is the one they
+ * had. */
 #prompt {
-  position: fixed; left: 50%; bottom: 56px; transform: translateX(-50%);
+  position: fixed; left: 50%; bottom: 140px; transform: translateX(-50%);
   background: rgba(12, 14, 19, 0.92); border: 1px solid var(--gold);
   color: var(--gold); padding: 6px 14px; border-radius: 4px;
   letter-spacing: 0.04em; pointer-events: none;
 }
 #prompt.hidden { display: none; }
 
-/* The help line sits directly on the 3D scene, so it carries its own backdrop:
- * a colour cannot meet a contrast ratio against a backdrop that moves. */
+/*
+ * The keys, on demand rather than permanently: `?` toggles it, which is the
+ * offer the tray's right-hand region makes. A legend that is always on screen
+ * is the thing the tray was built to stop needing — the row itself now shows
+ * the keys that are live at the moment they are live.
+ *
+ * It sits directly on the 3D scene, so it carries its own backdrop: a colour
+ * cannot meet a contrast ratio against a backdrop that moves.
+ */
 #help {
-  position: fixed; left: 50%; bottom: 12px; transform: translateX(-50%);
+  position: fixed; left: 50%; bottom: 96px; transform: translateX(-50%);
   color: var(--dim); font-size: 11px; pointer-events: none;
   background: rgba(12, 14, 19, 0.92); padding: 4px 10px; border-radius: 4px;
+  max-width: min(760px, calc(100vw - 40px)); text-align: center;
+  display: none;
 }
+#help.shown { display: block; }
+#help b { color: var(--gold); font-weight: 700; }
 
 /* ------------------------------------------------------------- the panel */
 
 #panel {
   position: fixed; left: 50%; top: 50%; transform: translate(-50%, -50%);
-  width: min(620px, calc(100vw - 380px));
-  max-height: 82vh; overflow-y: auto;
+  /* 380 px of margin used to be the sidebar plus a gutter. With the sidebar
+   * gone the card is the only thing the panel could collide with, and it is
+   * 244 px wide in one corner — so the panel is simply centred with a gutter. */
+  width: min(620px, calc(100vw - 120px));
+  max-height: 74vh; overflow-y: auto;
   background: var(--panel); border: 1px solid var(--line);
   border-radius: 5px; padding: 18px 20px;
   box-shadow: 0 18px 60px rgba(0, 0, 0, 0.6);

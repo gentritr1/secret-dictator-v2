@@ -34,6 +34,9 @@
  */
 
 import { objectiveFor } from './objective.js';
+import { trayFor, surfaceFor } from './tray.js';
+import { cardFor } from './card.js';
+import { seatFromKey, seatKey, seatNumber } from './seat.js';
 
 const TILE_LABEL = { reform: 'REFORM', seize: 'SEIZE' };
 
@@ -58,17 +61,35 @@ function esc(s) {
 
 export function createPanels(doc, { onSubmit, onClose } = {}) {
   const el = {
-    role: doc.getElementById('role'),
-    status: doc.getElementById('status'),
-    log: doc.getElementById('log'),
+    card: doc.getElementById('card'),
+    tray: doc.getElementById('tray'),
     prompt: doc.getElementById('prompt'),
     panel: doc.getElementById('panel'),
-    objective: doc.getElementById('objective')
+    objective: doc.getElementById('objective'),
+    help: doc.getElementById('help')
   };
 
   let openKind = null;     // the waitingFor.kind (or 'game_over') on screen
-  let lastLogLength = -1;
   let lastObjectiveId = null;
+  /* The last tray and card actually written to the DOM, as signatures: both are
+   * re-derived every frame (the beat, the announcement and the arming all end
+   * on a clock rather than on a game event) and neither may rewrite the DOM
+   * sixty times a second. */
+  let lastTraySig = null;
+  let lastCardSig = null;
+  let tray = null;
+  let card = null;
+  /*
+   * The tray's contextual row, taken.
+   *
+   * A tray decision is OFFERED as soon as the rules owe it to you and becomes
+   * ARMED when you press E at the object that owes it — the same gesture that
+   * used to open a modal. Arming is what makes its keys live, and it is a
+   * deliberate act for the same reason opening the panel was: `A` is "Aye" in
+   * this game and "strafe left" in this engine, and only one of them can have
+   * the key. See handleTrayKey.
+   */
+  let armed = false;
   /* Whatever had focus when the panel opened, so closing can give it back. */
   let returnFocusTo = null;
 
@@ -78,27 +99,94 @@ export function createPanels(doc, { onSubmit, onClose } = {}) {
     return p ? p.name : '#' + id;
   };
 
-  /* ------------------------------------------------------------ the HUD */
+  /* ----------------------------------------------------- the private card */
 
-  function renderRole(view) {
-    const you = view.you;
-    const allies = Object.keys(view.known)
-      .map(Number)
-      .filter((id) => id !== you.id)
-      .map((id) => `${esc(nameOf(view, id))} <em>${esc(view.known[id])}</em>`);
-    const peeks = Object.keys(view.peeked)
-      .map(Number)
-      .map((id) => `${esc(nameOf(view, id))} <em>${esc(view.peeked[id])}</em>`);
+  /**
+   * The 232 x 96 card, top-left: number and name, role, who you know, and a
+   * fourth line only while you hold tiles.
+   *
+   * The one element in the game permitted role colour, which it carries as a
+   * class on the container — `r-loyalist`, `r-rebel`, `r-dictator`. A class
+   * rather than a hex because the role palette and the board palette are the
+   * same three colours (the style bible allows no new ones) and only the
+   * CHANNEL distinguishes them: a blue Reform track is the board talking, a blue
+   * seal is your allegiance. test/hud.test.js sweeps every rendered surface for
+   * that channel and requires it nowhere but here.
+   */
+  function renderCard(view, presentation) {
+    if (!el.card) return null;
+    card = cardFor(view, presentation);
+    const sig = JSON.stringify([card.number, card.name, card.role, card.alive,
+      card.knowText, card.hand, card.handKind, card.night]);
+    if (sig === lastCardSig) return card;
+    lastCardSig = sig;
 
-    el.role.innerHTML =
-      `<div class="you r-${esc(you.role)}">` +
-        `<span class="nm">${esc(you.name)}</span>` +
-        `<span class="rl">${esc(you.role)}</span>` +
-        (you.alive ? '' : '<span class="dead">purged</span>') +
-      '</div>' +
-      `<p class="blurb">${esc(ROLE_BLURB[you.role] || '')}</p>` +
-      (allies.length ? `<p class="known"><b>you know</b> ${allies.join(' · ')}</p>` : '') +
-      (peeks.length ? `<p class="known"><b>you have read</b> ${peeks.join(' · ')}</p>` : '');
+    const tiles = card.hand
+      ? card.hand.map((t) => `<span class="tile t-${esc(t)}">${TILE_LABEL[t] || esc(t)}</span>`).join('')
+      : '';
+
+    el.card.className = `r-${esc(card.role)}` +
+      (card.night ? ' night' : '') + (card.alive ? '' : ' gone');
+    el.card.innerHTML =
+      `<div class="who"><span class="num">${esc(card.number)}</span>` +
+        `<span class="nm">${esc(String(card.name).toUpperCase())}</span>` +
+        '<span class="seal" aria-hidden="true"></span></div>' +
+      /* The role blurb — "Five Reforms, or purge the Dictator" — used to be a
+       * paragraph under the role on the sidebar card. It is a rules reminder
+       * rather than state, and the card has three lines and no room, so it
+       * survives as the role line's tooltip rather than being deleted. */
+      `<div class="rl" title="${esc(ROLE_BLURB[card.role] || '')}">` +
+        `${esc(card.role)}${card.alive ? '' : ' · purged'}</div>` +
+      `<div class="know" title="${esc(card.knowText)}">${esc(card.knowText)}</div>` +
+      `<div class="hand">${card.hand
+        ? `<b>${esc(card.handKind)}</b> ${tiles}` : ''}</div>`;
+    return card;
+  }
+
+  /* ------------------------------------------------------------- the tray */
+
+  /**
+   * The persistent bottom tray: tracks, the contextual row, the ledger hint.
+   *
+   * Everything it says comes from src/play/tray.js, which is a pure function of
+   * the same player-safe view the objective line reads. The never-blank rule is
+   * enforced there rather than here — this function has no branch that can
+   * produce an empty row, because it is never handed one.
+   */
+  function renderTray(view, presentation) {
+    if (!el.tray) return null;
+    tray = trayFor(view, Object.assign({ armed: armed }, presentation || {}));
+    const sig = JSON.stringify([tray.id, tray.line, tray.note, tray.keys, tray.tracks, tray.act]);
+    if (sig === lastTraySig) return tray;
+    lastTraySig = sig;
+
+    const track = (name, t, cls) =>
+      '<div class="tk">' +
+      Array.from({ length: t.of }, (_, i) =>
+        `<i class="${cls}${i < t.n ? ' on' : ''}"></i>`).join('') +
+      `<span class="n">${t.n}/${t.of}</span>` +
+      `<span class="lb">${name}</span></div>`;
+
+    const tracks = tray.tracks
+      ? track('reform', tray.tracks.reform, 'reform') +
+        track('seize', tray.tracks.seize, 'seize') +
+        (tray.tracks.chaos.show ? track('chaos', tray.tracks.chaos, 'chaos') : '')
+      : '';
+
+    const keys = tray.keys.map((k) =>
+      `<span class="key"><b>${esc(k.key)}</b>${k.label ? ' ' + esc(k.label) : ''}</span>`).join('');
+
+    el.tray.className = tray.kind + (tray.act ? ' act' : '');
+    el.tray.innerHTML =
+      `<div class="tracks">${tracks}</div>` +
+      `<div class="row"><div class="l1">${esc(tray.line)}${keys ? ' ' + keys : ''}</div>` +
+      `<div class="l2">${esc(tray.note)}</div></div>` +
+      '<div class="hints">' +
+        `<span class="hint ${tray.ledger.ready ? '' : 'off'}">` +
+          `<b>${esc(tray.ledger.key)}</b> ${esc(tray.ledger.label)}</span>` +
+        `<span class="hint"><b>${esc(tray.ledger.keysKey)}</b> ${esc(tray.ledger.keysLabel)}</span>` +
+      '</div>';
+    return tray;
   }
 
   /*
@@ -119,48 +207,19 @@ export function createPanels(doc, { onSubmit, onClose } = {}) {
     return o;
   }
 
-  function renderStatus(view) {
-    const row = (k, v, cls) =>
-      `<div class="${cls || ''}"><span class="k">${esc(k)}</span><span class="v">${v}</span></div>`;
-    const track = (n, total, cls) => {
-      let out = '';
-      for (let i = 0; i < total; i++) out += `<i class="${cls}${i < n ? ' on' : ''}"></i>`;
-      return out;
-    };
-    el.status.innerHTML =
-      /* The phase is one of the two loudest things on screen (the objective is
-       * the other), so it is marked rather than left to sit at the same weight
-       * as the deck count. */
-      row('phase', esc(view.phase), 'loud') +
-      row('day', view.day) +
-      row('reform', track(view.reform, view.limits.reformToWin, 'reform') + ` ${view.reform}/${view.limits.reformToWin}`) +
-      row('seize', track(view.seize, view.limits.seizeToWin, 'seize') + ` ${view.seize}/${view.limits.seizeToWin}`) +
-      row('chaos', track(view.chaos, view.limits.chaosLimit, 'chaos') + ` ${view.chaos}/${view.limits.chaosLimit}`) +
-      row('speaker', esc(nameOf(view, view.speaker))) +
-      row('deputy', esc(nameOf(view, view.deputy))) +
-      row('nominee', esc(nameOf(view, view.nominee))) +
-      row('next power', esc(view.nextPower || '—')) +
-      row('deck', `${view.deckCount} · discard ${view.discardCount}`) +
-      row('alive', view.players.filter((p) => p.alive).map((p) =>
-        esc(p.name) + (p.isYou ? ' (you)' : '')).join(', '));
-  }
-
-  /* The public log, and only the public log. `view.log` is the engine's own
-   * G.log — the prose the square hears — not the driver's event stream, which
-   * carries ballots, hands and Peek results and is for the console alone. */
-  function renderLog(view) {
-    if (view.log.length === lastLogLength) return;
-    lastLogLength = view.log.length;
-    el.log.innerHTML = view.log.map((e) =>
-      `<li class="k-${esc(e.kind)}"><span class="d">${e.day}</span>${esc(e.text)}</li>`
-    ).join('');
-    el.log.scrollTop = el.log.scrollHeight;
-  }
-
+  /*
+   * The eleven sidebar rows are gone, and only three of them are on screen at
+   * all: the two tracks and the chaos promotion in the tray, the role and who
+   * you know on the card. `phase`, `nominee` and `alive` died; `day` is the
+   * objective line's prefix; `speaker` and `deputy` are brass marks on the
+   * nameplates in the world; `deck`, `discard`, `next power`, `chaos` below two
+   * and the log are the ledger's, which is the next gate. Nothing routed to the
+   * ledger is drawn anywhere else in the meantime — it is readable from
+   * `__play.ledger()` and from nowhere on screen, deliberately.
+   */
   function renderHud(view, presentation) {
-    renderRole(view);
-    renderStatus(view);
-    renderLog(view);
+    renderCard(view, presentation);
+    renderTray(view, presentation);
     return renderObjective(view, presentation);
   }
 
@@ -251,8 +310,12 @@ export function createPanels(doc, { onSubmit, onClose } = {}) {
           title: 'Name a Deputy.',
           body: (w.detail.termLimited.length
             ? `<p class="lede">Term-limited: ${names(view, w.detail.termLimited)}.</p>` : ''),
-          actions: w.options.map((id, i) =>
-            button(`${esc(nameOf(view, id))} <kbd>${i + 1}</kbd>`, id)).join('')
+          /* The key is the citizen's PERMANENT number, not their position in
+           * this list — see src/play/seat.js. The term-limited are missing from
+           * the options, so the offered keys have gaps in them, and that is the
+           * point: 3 is Chen on every day of the match. */
+          actions: w.options.map((id) =>
+            button(`${seatNumber(id)} ${esc(nameOf(view, id))} <kbd>${seatKey(id)}</kbd>`, id)).join('')
         };
 
       case 'vote':
@@ -314,8 +377,8 @@ export function createPanels(doc, { onSubmit, onClose } = {}) {
             : w.detail.power === 'peek' ? 'Whose allegiance do you read?'
             : 'Who takes the gavel next?',
           body: `<p class="lede">${esc(POWER_BLURB[w.detail.power] || '')}</p>`,
-          actions: w.options.map((id, i) =>
-            button(`${esc(nameOf(view, id))} <kbd>${i + 1}</kbd>`, id,
+          actions: w.options.map((id) =>
+            button(`${seatNumber(id)} ${esc(nameOf(view, id))} <kbd>${seatKey(id)}</kbd>`, id,
               w.detail.power === 'purge' ? 'nay' : '')).join('')
         };
 
@@ -370,7 +433,7 @@ export function createPanels(doc, { onSubmit, onClose } = {}) {
    * being able to orbit the camera while reading a decision is not a leak of
    * focus, it is the whole point of the camera.
    */
-  const OUTSIDE = ['hud', 'controls'];
+  const OUTSIDE = ['card', 'tray', 'controls'];
 
   function setOutsideInert(on) {
     for (const id of OUTSIDE) {
@@ -473,6 +536,68 @@ export function createPanels(doc, { onSubmit, onClose } = {}) {
     if (onSubmit) onSubmit(value);
   }
 
+  /* ------------------------------------------------------- the tray's keys */
+
+  /**
+   * Take the tray's contextual row, or give it back.
+   *
+   * `arm` is what E does at the podium or the bell when the pending decision is
+   * one of the four that live in the tray; `disarm` is Esc, and answers nothing,
+   * exactly as closing the panel answers nothing. The decision is still pending
+   * afterwards and the row goes back to offering E.
+   */
+  function arm(view, w) {
+    if (!w || surfaceFor(w.kind) !== 'tray') return false;
+    armed = true;
+    lastTraySig = null;
+    renderTray(view, { armed: true });
+    return true;
+  }
+
+  function disarm(view, presentation) {
+    if (!armed) return false;
+    armed = false;
+    lastTraySig = null;
+    if (view) renderTray(view, presentation);
+    return true;
+  }
+
+  /**
+   * Keys while the tray's row is armed. Same contract as handleKey: true means
+   * consumed, so the page knows not to also walk with it.
+   *
+   * The keys are the ones the row is showing and nothing else — what is drawn
+   * is what works. A citizen key names that citizen by their permanent number
+   * (never their position in the list), Esc gives the row back, and every other
+   * key falls through to the page.
+   */
+  function handleTrayKey(e, view, w) {
+    if (!armed) return false;
+    if (e.key === 'Escape') { disarm(view); return true; }
+    if (!w || surfaceFor(w.kind) !== 'tray') return false;
+
+    if (w.kind === 'vote') {
+      if (/^[ay]$/i.test(e.key)) { traySubmit(view, true); return true; }
+      if (/^n$/i.test(e.key)) { traySubmit(view, false); return true; }
+      return false;
+    }
+    if (w.kind === 'block_response') {
+      if (e.key === '1') { traySubmit(view, w.options[0]); return true; }
+      if (e.key === '2') { traySubmit(view, w.options[1]); return true; }
+      return false;
+    }
+    /* nominate and power_target: a citizen, by their own number. */
+    const id = seatFromKey(e.key);
+    if (id !== null && w.options.indexOf(id) !== -1) { traySubmit(view, id); return true; }
+    return false;
+  }
+
+  function traySubmit(view, value) {
+    armed = false;
+    lastTraySig = null;
+    if (onSubmit) onSubmit(value);
+  }
+
   /**
    * Keys while a panel is open. Returns true if the key was consumed, which is
    * how the page knows not to also walk with it — A and N are a vote here and
@@ -528,27 +653,53 @@ export function createPanels(doc, { onSubmit, onClose } = {}) {
       case 'speaker_discard':
         if (digit >= 0 && digit < w.detail.tiles.length) { submit(digit); return true; }
         return false;
-      default:
-        if (digit >= 0 && digit < w.options.length) { submit(w.options[digit]); return true; }
+      default: {
+        /*
+         * Every other panel picks a CITIZEN, and a citizen is named by their
+         * permanent number — so the key is looked up against the option list
+         * rather than used as an index into it. A key that names somebody who
+         * is not on offer (the term-limited, the dead, yourself) does nothing
+         * at all, which is the honest answer: it is still their number.
+         */
+        const id = seatFromKey(e.key);
+        if (id !== null && w.options.indexOf(id) !== -1) { submit(id); return true; }
         return false;
+      }
     }
   }
 
   return {
     renderHud,
     renderObjective,
+    renderTray,
+    renderCard,
     setPrompt,
     open,
     close,
     handleKey,
+    arm,
+    disarm,
+    handleTrayKey,
+    surfaceFor,
     /* For a scripted review: what a Tab press can reach right now. */
     get focusOrder() { return focusables(); },
     get isOpen() { return openKind !== null; },
     get openKind() { return openKind; },
-    /* A restart throws the log away, so the cache that stops it being rebuilt
-     * sixty times a second has to be thrown away with it. The objective's cache
-     * goes with it for the same reason: a new deal can open on the same line
-     * the old match ended holding. */
-    resetLog() { lastLogLength = -1; lastObjectiveId = null; }
+    get isArmed() { return armed; },
+    /* What the two permanent surfaces last said, as data — the readback half of
+     * the same pair the objective line has: the module's own answer, beside the
+     * DOM the page actually wrote. */
+    get tray() { return tray; },
+    get card() { return card; },
+    /* A restart throws the match away, so every cache that stops a surface
+     * being rebuilt sixty times a second has to go with it: a new deal can open
+     * on the same objective line, the same tray row and the same card the old
+     * match ended holding. */
+    resetCaches() {
+      lastObjectiveId = null;
+      lastTraySig = null;
+      lastCardSig = null;
+      armed = false;
+    }
   };
 }
