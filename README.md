@@ -37,6 +37,9 @@ src/walk/controller.js   the kinematic controller — pure logic, no three.js, n
 src/play/                the square: the first human-playable match
 src/play/interact.js     the interaction contract — proximity, facing, one key, no per-object input
 src/play/objective.js    the persistent objective line — a pure function of the player-safe view
+src/play/seat.js         the one grammar: a permanent number per citizen, from roster order
+src/play/tray.js         the tray — 1280x84, three regions, and the rule that it is never blank
+src/play/card.js         the private card — 232x96, and the only 2D element with role colour
 src/play/pace.js         how long the square takes to answer — a clock, and only a clock
 src/play/murmur.js       the square's table-talk, and the queue every bubble shares
 src/play/floor-voice.js  the floor out loud: text_id -> prose, and when each beat lands
@@ -61,10 +64,13 @@ test/glb.test.js         the GLB contract: the file, the loader, and the player 
 test/floor.test.js       the claim schema: allowlist, permutation, V1-V6, C1-C6, and floor-off invariance
 test/orator.test.js      the orator: invariance, read-only minds, zero refusals, and the re-scoped permutation gate
 test/murmur.test.js      the bubbles: both voices, one queue, one cap, and no role word in any of it
+test/hud.test.js         the HUD: never blank, one card size, one role channel, one number per citizen
 scripts/driver-parity.js proves driver.js reproduces the self-test's numbers exactly
 scripts/simulate.js      headless batch simulator: statistics instead of assertions
 scripts/capture-reviews.mjs  the seven fixed asset captures, through asset-lab.html
 scripts/capture-cycle.mjs    the Gate 3 acceptance set: one government cycle, through play.html
+scripts/capture-hud.mjs      the Gate D3 acceptance set: the tray's phase states, the card's box,
+                             and the warm-pixel budget measured with the HUD in the frame
 docs/step-01.md          learning log for the port
 docs/step-02.md          learning log for the playground
 docs/step-03.md          learning log for the character controller
@@ -75,6 +81,7 @@ docs/step-07.md          learning log for Gate 3: the lighting director, AgX, so
 docs/step-08.md          learning log for the murmur facade and its three-run proof
 docs/step-09.md          learning log for Discussion Gate D1: the structured claim schema
 docs/step-10.md          learning log for Discussion Gate D2: the bots start speaking
+docs/step-11.md          learning log for Discussion Gate D3: the tray, the private card, the sidebar's end
 docs/STYLE_BIBLE.md      locked visual direction, palette, light meaning and anti-goals
 docs/BLENDER_PIPELINE.md one-asset-at-a-time Blender/MCP production and acceptance contract
 docs/ASSET_MANIFEST.md   provenance and production status for every visual asset
@@ -138,6 +145,7 @@ npm run test:ambience                      # the lighting map and the sound cues
 npm run test:glb                           # the shipping GLB's contract, three layers deep
 npm run test:floor                         # the claim schema: what may be said, and that saying it changes nothing
 npm run test:orator                        # the orator: bots speak, some lie, and the match is unchanged
+npm run test:hud                           # the tray is never blank, the card never grows, one number per citizen
 npm run parity                             # driver.js vs the self-test's exact numbers
 npm run verify                             # all of the above, plus the production build
 npm run simulate                           # 500 games, default seed
@@ -426,30 +434,66 @@ loaded from `env-dais-a.glb` and the ring of bots from the four
 `chr-citizen-*.glb` figures (see **Art production**); everything else — ground,
 kerbs, bell, bench — is still the procedural graybox of `src/play/square.js`.
 
-The current review target is desktop keyboard and mouse. The fixed review HUD
-and controls are not yet responsive, and there is no touch movement/use path;
+The current review target is desktop keyboard and mouse. The HUD is laid out for
+1280 px and is not yet responsive, and there is no touch movement/use path;
 mobile support is not claimed for this milestone.
 
-WASD or arrows to walk, drag to orbit, wheel to zoom, **E** to use whatever you
-are facing. In a panel: 1–9 pick, A or Y is Aye, N is Nay, ↵ continues, **Tab**
-moves between the answers, Esc closes without answering. A panel owns the
-keyboard while it is open — A is "Aye" here and "strafe left" everywhere else,
-and the body does not move behind it.
+WASD or arrows to walk, drag to orbit, wheel to zoom, **E** to take whatever you
+are facing. Then **1–9** names a citizen — *their own permanent number*, the one
+on their nameplate — A or Y is Aye, N is Nay, ↵ continues, **Tab** moves between
+the answers on a centred card, Esc steps back without answering, and **?**
+shows the keys. Whatever holds the decision owns the keyboard while it does — A
+is "Aye" here and "strafe left" everywhere else — and the body does not move
+behind it.
+
+**The HUD is three surfaces** (Gate D3, `docs/step-11.md`); the 330 px debug
+sidebar it replaced is gone.
+
+- The **tray**, 1280 × 84 along the bottom, permanent: the Reform and Seize
+  tracks on the left, the contextual row in the middle, the ledger and keys
+  hints on the right. It is **never blank** — when nothing is being asked of you
+  it names who the square is waiting for, in parchment, with no keys beside it,
+  so "there is nothing to press" is stated rather than inferred.
+- The **private card**, 232 × 96 top-left: your number and name, your role, who
+  you know, and a fourth line only while you are holding tiles. It never grows,
+  never animates, dims to 35% in the night states, and is the **only 2D element
+  in the game permitted role colour**.
+- The **centred card** for the three decisions that show you private material —
+  the Speaker's three tiles, the Deputy's two, a Foresight read — and for the
+  three ceremonies that need a page of public reading.
+
+**Every citizen owns a number for the whole match**, from the engine's roster
+order: stamped in brass on their nameplate, retired when they die, never reused,
+never positional. It is the key you press wherever a citizen is named, so the
+offered keys can read `2 3 5 6` with gaps where the term-limited sit — and the
+gap is information. `src/play/seat.js` is that rule, and `test/hud.test.js`
+drives the same key through four input paths and requires them to agree.
 
 A **persistent objective line** sits at the top of the scene and always says
 what to do next and which object to do it at ("Day 4 — walk to the bell and ring
 it to open the session", "Waiting: Bo is using Peek Allegiance"). It is warm
 when the square is waiting on you and quiet when it is not, and like every other
-piece of text on the page it is built from `viewFor(G, yourSeat)` alone.
+piece of text on the page it is built from `viewFor(G, yourSeat)` alone. **It
+did not move a pixel** when the sidebar was retired: its five positioning
+declarations are pinned byte for byte and its output is hashed against the value
+the pre-Gate-D3 module produced.
 
-Decision panels are real dialogs: focus moves into them, Tab cycles inside them,
-the HUD and controls go `inert` behind them, and closing returns the keyboard to
-where it was. **Esc never answers anything** — the decision stays pending, so
-walking back and pressing E offers exactly the same choices.
+Centred cards are real dialogs: focus moves into them, Tab cycles inside them,
+the tray, the card and the controls go `inert` behind them, and closing returns
+the keyboard to where it was. **Esc never answers anything** — on a card or on
+the tray's armed row — so walking back and pressing E offers exactly the same
+choices.
 
-The camera frames you slightly right of centre so the 330 px HUD is not sitting
-on top of the character; it is one tuning value (`screenBias`, recomputed on
-resize) and it defaults to off everywhere else.
+Four decisions are answered on the tray itself (nominate, vote, block response,
+power target) and three on a centred card, and that split is one function,
+`surfaceFor(kind)` in `src/play/tray.js`, asked by both the tray and the E key
+so they cannot disagree. A tray row is *offered* as soon as it is yours and
+becomes *armed* when you press E at the object that owes it: keys are drawn only
+while they are live, and the body is frozen while they are.
+
+The camera frames you dead centre. It aimed right of centre until Gate D3, to
+clear the 330 px sidebar; with the sidebar retired `screenBias` is 0 on every
+page, which is what the composition change actually asks for.
 
 Three things share one interaction contract (`src/play/interact.js`), which is
 how it is known to be a contract and not three handlers:
@@ -518,8 +562,13 @@ seat, each nameplate's height read back off the scene graph, who has toppled,
 and which seats fell back to a capsule), `variantForSeat(n)` for the mapping
 alone, `stats` for `renderer.info`, `lighting()` for the live rig — and
 `lighting({ measure: true })` to render the scene into a small offscreen target
-and count the warm pixels for real — `edges()` for what the ambience last
-noticed, `audio.report()` / `audio.log` for what was played and when, and
+and count the warm pixels for real — `tray` and `card` for the two permanent surfaces — each reported twice, as the
+module's own answer and as the DOM the page actually wrote, with the card's
+measured box beside its declared one — `ledger()` for everything the retirement
+table routed to the ledger and that is therefore on screen nowhere (deck,
+discard, the chaos track below its promotion point, the next power, the public
+log), `arm()` / `disarm()` to take and give back the tray's row without a
+keyboard, `edges()` for what the ambience last noticed, `audio.report()` / `audio.log` for what was played and when, and
 `setLighting(id)` to force a state for a capture. `setLighting` cannot *hold* a
 state: the next refresh aims the rig back at whatever the view says, so it
 cannot be used to photograph a lighting story the game never shows.

@@ -1426,6 +1426,11 @@ function frame(now) {
 
   if (panels.isOpen) {
     panels.setPrompt('');
+  } else if (panels.isArmed) {
+    /* The row has been taken: the offer to take it would be a second thing to
+     * press for something already pressed. What is left to say is the way out,
+     * which is the same sentence the panel's footer has always carried. */
+    panels.setPrompt('Esc — step back without answering');
   } else {
     interactions.update(controller.state.position, controller.state.facing, interactionContext());
     panels.setPrompt(interactions.prompt);
