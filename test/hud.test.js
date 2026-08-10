@@ -56,6 +56,7 @@ var SD = require('../src/engine/engine.js');
 var AI = require('../src/engine/ai.js');
 var Human = require('../src/engine/human-driver.js');
 var View = require('../src/engine/view.js');
+var Floor = require('../src/engine/floor.js');
 
 var NAMES = ['Alice', 'Bo', 'Chen', 'Dara', 'Eze', 'Fin', 'Gita', 'Hale', 'Ivo', 'Juno'];
 var ROLE_WORDS = ['loyalist', 'rebel', 'dictator'];
@@ -96,14 +97,29 @@ function stubDocument() {
   };
 }
 
-/** Every surface the page renders, as one string, for the leak sweeps. */
+/**
+ * Every surface the page renders, as one string, for the leak sweeps.
+ *
+ * D4 added the fifth. `ledger` is the whole panel and `ledgerCitizens` is the
+ * block of it that names people: the ledger's first line is your own win
+ * condition and is the one place in the game outside the private card and the
+ * game-over reveal where a role word is legitimate — so the CHANNEL rule is
+ * asked of the whole panel and the WORD rule is asked of the part that names
+ * citizens. See test/ledger.test.js, which owns the rest of that surface.
+ */
 function surfaces(doc) {
+  var ledger = doc.made.ledger
+    ? doc.made.ledger.innerHTML + ' ' + (doc.made.ledger.className || '') : '';
+  var from = ledger.indexOf('<div class="cits">');
+  var to = ledger.indexOf('<footer');
   return {
     card: doc.made.card ? doc.made.card.innerHTML + ' ' + (doc.made.card.className || '') : '',
     tray: doc.made.tray ? doc.made.tray.innerHTML + ' ' + (doc.made.tray.className || '') : '',
     panel: doc.made.panel ? doc.made.panel.innerHTML : '',
     objective: doc.made.objective ? doc.made.objective.textContent : '',
-    prompt: doc.made.prompt ? doc.made.prompt.textContent : ''
+    prompt: doc.made.prompt ? doc.made.prompt.textContent : '',
+    ledger: ledger,
+    ledgerCitizens: from === -1 ? '' : ledger.slice(from, to === -1 ? undefined : to)
   };
 }
 
@@ -202,6 +218,7 @@ async function main() {
   var ledgerLeaks = [];
   var deaths = 0;
   var permutations = 0;
+  var ledgerStates = 0;
 
   var doc = stubDocument();
   var submitted = [];
@@ -210,7 +227,7 @@ async function main() {
   });
 
   /** One audited state: derive, render, and ask every question of it. */
-  function audit(G, session, humanId, where) {
+  function audit(G, session, humanId, where, record) {
     var waiting = session.waitingFor();
     var view = View.viewFor(G, humanId, { waitingFor: waiting });
     var over = view.phase === 'game_over';
@@ -311,8 +328,21 @@ async function main() {
     if (holding) handStates++;
     if (!view.you.alive) deaths++;
 
-    /* 3. ROLE COLOUR, and 4. the panel's keys — both through the real render. */
+    /* 3. ROLE COLOUR, and 4. the panel's keys — both through the real render.
+     * The ledger is opened over the top of a sample of the states, because
+     * "nothing outside the private card carries role colour" has to hold with
+     * every surface on screen and this is the gate that says so. */
     panels.renderHud(view, { holding: false, night: false });
+    var withLedger = record && states % 5 === 0;
+    if (withLedger) {
+      panels.openLedger(view, {
+        day: record.day, entries: Floor.ledger(record),
+        utterances: record.utterances, governments: record.governments,
+        powers: record.powers, purges: record.purges, floors: record.floors,
+        flags: Floor.contradictions(record)
+      });
+      ledgerStates++;
+    }
     if (waiting) panels.open(view, waiting);
     else if (over) panels.open(view, null);
     var s = surfaces(doc);
@@ -334,7 +364,7 @@ async function main() {
      * characters of any citizen's name.
      */
     ROLE_CLASSES.forEach(function (cls) {
-      ['tray', 'objective', 'prompt'].forEach(function (name) {
+      ['tray', 'objective', 'prompt', 'ledger'].forEach(function (name) {
         if (s[name].indexOf(cls) !== -1) roleColourOutside.push(where + ' ' + name + ': ' + cls);
       });
       if (!over && s.panel.indexOf(cls) !== -1) {
@@ -342,7 +372,7 @@ async function main() {
       }
     });
     ROLE_WORDS.forEach(function (word) {
-      ['tray', 'objective', 'prompt'].forEach(function (name) {
+      ['tray', 'objective', 'prompt', 'ledgerCitizens'].forEach(function (name) {
         if (s[name].toLowerCase().indexOf(word) !== -1) {
           roleColourOutside.push(where + ' ' + name + ': the word "' + word + '"');
         }
@@ -374,6 +404,7 @@ async function main() {
     });
 
     if (waiting) panels.close();
+    if (withLedger) panels.closeLedger();
 
     /* The permutation, on a sample of states — it rewrites the game object and
      * rebuilds two surfaces, so it is run one state in seven rather than on all
@@ -408,14 +439,20 @@ async function main() {
     var decide = scriptedPlayer(g);
     var where = 'seed ' + seed + '/' + count + 'p/seat ' + humanIndex;
 
-    audit(G, session, humanIndex, where + ' step 0');
+    /* The public fold, beside the match, so the ledger has something real to
+     * render. No speech: this suite is about the surfaces, and test/ledger.
+     * test.js is the one that plays with an orator running. */
+    var record = Floor.createRecord();
+    Floor.observe(record, G);
+    audit(G, session, humanIndex, where + ' step 0', record);
     var guard = 0;
     while (!session.over && guard < 600) {
       guard++;
       var w = session.waitingFor();
       if (w) session.submit(decide(w, session));
       else if (!session.advanceBots()) break;
-      audit(G, session, humanIndex, where + ' step ' + guard);
+      Floor.observe(record, G);
+      audit(G, session, humanIndex, where + ' step ' + guard, record);
     }
     if (G.phase === SD.PHASE.GAME_OVER) gameOvers++;
   }
@@ -428,6 +465,7 @@ async function main() {
   check(ledgerLeaks.length === 0,
     'something routed to the ledger is on screen: ' + ledgerLeaks.slice(0, 3).join(' · '));
   check(permutations > 200, 'only ' + permutations + ' hidden-role permutations were run');
+  check(ledgerStates > 500, 'only ' + ledgerStates + ' states were swept with the ledger open');
 
   /*
    * Coverage is checked at the very bottom of this file, after the constructed
@@ -753,12 +791,14 @@ async function main() {
   say('              offered none said who the square was waiting for instead');
   say('card          232 x 96 in every state; ' + handStates +
       ' states held tiles and added the fourth line');
-  say('role colour   swept the tray, the objective, the prompt and the panel in ' + states +
-      ' states:');
+  say('ledger        opened over ' + ledgerStates + ' of them and swept with the rest');
+  say('role colour   swept the tray, the objective, the prompt, the panel and the ledger');
+  say('              in ' + states + ' states:');
   say('              nowhere but the private card, the game-over reveal excepted');
   say('permutation   ' + permutations + ' hidden-role permutations left the tray and the card');
   say('              byte-identical');
-  say('ledger        deck, discard, the log and the chaos track below 2/3 appear on no surface');
+  say('routed        deck, discard, the log and the chaos track below 2/3 appear on no');
+  say('              permanent surface — they are the ledger\'s, and only the ledger\'s');
   say('coverage      ' + Object.keys(idsSeen).length + ' distinct tray rows: ' +
       Object.keys(idsSeen).sort().join(', '));
 
