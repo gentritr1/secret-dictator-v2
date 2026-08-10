@@ -135,6 +135,19 @@ export const ENV_DAIS_A = {
  */
 export const ENVIRONMENT = [
   ENV_DAIS_A,
+  /*
+   * The cobbled floor. It REPLACES the graybox ground, which means it must
+   * carry that ground's collision: `COL_ground`'s top face is the walk plane at
+   * y = 0, and the stones hang below it rather than sitting on top — a visible
+   * surface laid *over* the walk plane would sink the player's feet into the
+   * stones by exactly the stones' height. The graybox kerb walls are NOT
+   * replaced; they are still the boundary and still carry their own collision.
+   */
+  { id: 'env-ground-a', category: 'environment',
+    place: { x: 0, y: 0, z: 0, yaw: 0 },
+    requiredNodes: ['COL_ground'],
+    replaces: ['ground'],
+    fallback: 'graybox' },
   /* Two placements of one lantern asset, flanking the dais where the dusk
    * reference puts them. Same GLB, distinct logical socket names — the flame
    * sockets are where the lighting director may hang real lights later; until
