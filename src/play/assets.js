@@ -214,7 +214,44 @@ export const ENVIRONMENT = [
     requiredNodes: ['COL_post', 'SOCKET_flame'],
     sockets: { lanternEast: 'SOCKET_flame' },
     fallback: 'capsule' }
-].concat(facadeRow());
+].concat(facadeRow()).concat(dressingRows());
+
+/*
+ * The dressing: barrels and crates, in small groups against the walls.
+ *
+ * Two rules kept this from becoming clutter. They stand OUT of the way —
+ * against the wall line and away from the dais, the bell and the crowd ring —
+ * because the style bible bans "narrow decorative clutter around gathering
+ * areas", and readable social space is a gameplay requirement, not a taste.
+ * And they group in twos and threes rather than scattering evenly: a square
+ * where someone has been working, not a square someone has decorated.
+ *
+ * Yaw values are hand-set and arbitrary-looking on purpose — nothing here may
+ * draw from a random source, because two players on one seed must see the same
+ * square down to which way a barrel faces.
+ */
+function dressingRows() {
+const rows = [];
+const put = (id, x, z, yaw) => rows.push({
+  id, category: 'environment',
+  place: { x, y: 0, z, yaw },
+  requiredNodes: [id === 'env-barrel-a' ? 'COL_barrel' : 'COL_crate'],
+  fallback: 'capsule'
+});
+/* west wall, beside the well */
+put('env-barrel-a', -11.4,  5.2, 0.4);
+put('env-barrel-a', -10.8,  6.1, 1.9);
+put('env-crate-a',  -11.6,  4.1, 0.2);
+/* north-east corner, behind the lantern line */
+put('env-crate-a',   11.2,  9.8, -0.5);
+put('env-crate-a',   11.9, 10.5, 0.3);
+put('env-barrel-a',  10.4, 10.2, 0.0);
+/* south, near the approach, so the gate lantern has something to light */
+put('env-barrel-a',  -2.6, -9.4, 0.8);
+put('env-crate-a',    2.9, -9.8, -0.3);
+return rows;
+}
+
 
 /*
  * The town wall: one 4 m half-timber bay, repeated around the kerb.
