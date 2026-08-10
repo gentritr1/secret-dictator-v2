@@ -84,6 +84,9 @@ export function createPanels(doc, { onSubmit, onClose } = {}) {
   let lastCardSig = null;
   let tray = null;
   let card = null;
+  /* The ballot reveal's running count. See renderTally. */
+  let tally = null;
+  let lastTally = null;
   /*
    * The tray's contextual row, taken.
    *
@@ -415,6 +418,60 @@ export function createPanels(doc, { onSubmit, onClose } = {}) {
    * ledger is drawn anywhere else in the meantime — it is readable from
    * `__play.ledger()` and from nowhere on screen, deliberately.
    */
+  /* ---------------------------------------------------- the running count */
+
+  /**
+   * THE COUNT THAT ACCUMULATES — the other half of the design doc's rank 2.
+   *
+   * The ballots land on the lectern one at a time (src/play/main.js paints the
+   * badges off the same plan) and this is the number beside them. It exists as
+   * its own line rather than inside the tray for one reason: the tray is
+   * signature-cached and re-derived every frame, and a number that changes seven
+   * times in 1.3 seconds inside it would rewrite the whole row seven times. This
+   * writes two spans.
+   *
+   * The element is created on demand and lives next to the objective line, so
+   * play.html did not have to learn about a thing that is on screen for a second
+   * and a half a day.
+   *
+   * IT NAMES NOBODY. The count is Ayes and Nays and the number still to land —
+   * who voted which way is already stamped on their own nameplate, and putting
+   * the names here as well would be the same fact twice with one of them
+   * detached from the person it is about.
+   */
+  function renderTally(state) {
+    if (!el.objective || !el.objective.parentNode) return null;
+    if (!el.tally) {
+      el.tally = doc.getElementById('tally');
+      if (!el.tally) {
+        el.tally = doc.createElement('p');
+        el.tally.id = 'tally';
+        el.tally.className = 'hidden';
+        el.tally.setAttribute('role', 'status');
+        el.tally.setAttribute('aria-live', 'polite');
+        el.objective.parentNode.insertBefore(el.tally, el.objective.nextSibling);
+      }
+    }
+    if (!state || !state.of) {
+      el.tally.className = 'hidden';
+      el.tally.textContent = '';
+      lastTally = null;
+      return null;
+    }
+    const sig = state.aye + '/' + state.nay + '/' + state.landed + '/' + state.of;
+    if (sig === lastTally) return tally;
+    lastTally = sig;
+    tally = {
+      aye: state.aye, nay: state.nay, landed: state.landed, of: state.of, done: !!state.done
+    };
+    el.tally.className = state.done ? 'done' : '';
+    el.tally.innerHTML =
+      `<span class="a">Aye <b>${state.aye}</b></span>` +
+      `<span class="n">Nay <b>${state.nay}</b></span>` +
+      `<span class="of">${state.landed} of ${state.of} ballots</span>`;
+    return tally;
+  }
+
   function renderHud(view, presentation) {
     renderCard(view, presentation);
     renderTray(view, presentation);
@@ -871,6 +928,9 @@ export function createPanels(doc, { onSubmit, onClose } = {}) {
     renderObjective,
     renderTray,
     renderCard,
+    renderTally,
+    /** The running ballot count, as data. Null when nothing is landing. */
+    get tally() { return tally; },
     renderLedger,
     openLedger,
     closeLedger,
@@ -905,6 +965,7 @@ export function createPanels(doc, { onSubmit, onClose } = {}) {
       lastTraySig = null;
       lastCardSig = null;
       lastLedgerSig = null;
+      lastTally = null;
       armed = false;
     }
   };

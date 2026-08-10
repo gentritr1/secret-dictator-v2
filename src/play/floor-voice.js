@@ -305,6 +305,14 @@ export function createFloorVoice(deps = {}) {
           floor: true,
           utterance: u.id,
           kind: u.kind,
+          /*
+           * Whom the utterance publicly named, carried on the line so the
+           * staging layer can ask "is this aimed at me" without reaching into
+           * the record. It is the most public field there is — the bubble says
+           * the name out loud over the speaker's head — and it is null for the
+           * claims and the silences, which name nobody.
+           */
+          target: u.target === undefined ? null : u.target,
           at,
           until: at + life
         });

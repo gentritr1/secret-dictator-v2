@@ -94,7 +94,21 @@ export const OBJECTIVE_IDS = [
   'beat:deputy_discard',
   'beat:block_response',
   'beat:power_target',
-  'beat:power_ack:foresight'
+  'beat:power_ack:foresight',
+  /*
+   * The floor, when it is aimed at you. See `accused` below — it is the design
+   * doc's "the objective line, already sacred and already warm-when-you-must-
+   * act, becomes *Chen names you — answer on the floor*. One sentence, same
+   * slot, same rule."
+   *
+   * It is NOT reachable from a match today: src/engine/orator.js excludes the
+   * human seat from every target pool while the intent strip does not exist, so
+   * no bot ever names you. test/objective.test.js does not require the ids it
+   * admits to to be reachable — it requires that nothing OUTSIDE this list is
+   * ever returned — so an id that is built and waiting is honest here in a way
+   * an unlisted one would not be.
+   */
+  'accused'
 ];
 
 /**
@@ -172,6 +186,33 @@ export function objectiveFor(view, presentation) {
   if (!view) return { id: 'unknown', text: 'Dealing a new match…', act: false, at: null };
 
   const line = (id, text, at) => ({ id, text, act: at !== null, at: at || null });
+
+  /*
+   * SOMEBODY IS NAMING YOU, and for as long as they are that outranks every
+   * other sentence including the beat: the square has turned to look at you and
+   * an objective line still saying "walk to the podium" would be the game
+   * talking over its own most dramatic moment.
+   *
+   * `presentation.accusedBy` is a SEAT ID and nothing else. The prose is built
+   * here, out of `nameOf`, exactly as the Speaker's and the nominee's are —
+   * which keeps the one rule this file has: the view stays the sole source of
+   * everything the line SAYS, and the presentation clock only ever chooses
+   * WHICH sentence. A seat id is not a role; it is the number stamped on that
+   * citizen's nameplate.
+   *
+   * `act` is true, because the square genuinely is waiting on you — but `at` is
+   * null: there is no object to walk to. The floor is where you are standing.
+   * That is the one line in this file that is warm without naming a place, and
+   * it is deliberate: the answer is given from the floor, not at the podium.
+   */
+  if (presentation && presentation.accusedBy != null && view.phase !== 'game_over') {
+    return {
+      id: 'accused',
+      text: `${nameOf(view, presentation.accusedBy)} names you — answer on the floor.`,
+      act: true,
+      at: null
+    };
+  }
 
   /* The beat comes before everything except the end of the match: while it is
    * running the decision exists but cannot be opened, and a line telling the

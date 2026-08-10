@@ -52,6 +52,14 @@ import {
   createLightingDirector, lightingFor, publicEdges, weatherFor, LANTERN_ORDER,
   STING_MS, LIGHT_LEAD_MS, NIGHT_STATES
 } from './lighting.js';
+import {
+  ACCUSE, ACCUSE_LAST_MS, accusationFrom, accusationPlan,
+  BALLOT, ballotPlanFor, ballotCountAt,
+  TILE, tilePlanFor, tileEase,
+  PURGE, purgeFor, purgePlan,
+  CURTAIN, curtainFor,
+  prefersReducedMotion
+} from './stage.js';
 import { announceFor } from './tray.js';
 import { seatNumber } from './seat.js';
 import { createAudio } from './audio.js';
@@ -191,26 +199,142 @@ let podiumAnchor = { x: DAIS.x, y: 0, z: DAIS.z - 0.9 };
 const tuning = defaultTuning();
 const avatar = new THREE.Group();
 
-const youBody = new THREE.Mesh(
-  new THREE.CapsuleGeometry(tuning.radius, tuning.height - tuning.radius * 2, 8, 20),
-  new THREE.MeshLambertMaterial({ color: COLOR.you })
-);
-youBody.position.y = tuning.height / 2;
-youBody.castShadow = true;
-avatar.add(youBody);
+/*
+ * YOUR BODY IS A CITIZEN NOW, and the collider is not.
+ *
+ * Until this gate the player was a white capsule with an orange nose standing in
+ * a square full of carved townsfolk — the last primitive on screen, and the most
+ * obvious break in the art direction. Gate D3 deferred it on purpose ("swapping
+ * the player's visual is a separate decision"); this is that decision taken.
+ *
+ * The split that makes it safe is the one this file has always had: the CAPSULE
+ * IS THE SIMULATION and the figure is a picture of it. `src/walk/controller.js`
+ * collides a capsule of `tuning.radius` x `tuning.height` and every Step 3
+ * measurement — the wall stop at z = 11.6499, the 0.22 m step onto the dais, the
+ * ramp behaviour — is a statement about that capsule. Nothing below touches it:
+ * `controller.advance` is called with the same tuning it was called with before,
+ * and the figure is parented under `avatarPose`, which is a child of the group
+ * the controller's sampled position is copied into. A figure that disagreed with
+ * its collider would be a movement bug nobody could see.
+ *
+ * `avatarPose` exists for the same two reasons the bots' `pose` group does:
+ * sitting drops it, and death rotates it. Rotating `avatar` itself would fight
+ * `avatar.rotation.y = controller.state.facing` every frame.
+ */
+const avatarPose = new THREE.Group();
+avatar.add(avatarPose);
 
-const youNose = new THREE.Mesh(
-  new THREE.BoxGeometry(0.16, 0.16, 0.34),
-  new THREE.MeshLambertMaterial({ color: 0xe0724f })
-);
-youNose.position.set(0, tuning.height * 0.72, tuning.radius + 0.1);
-youNose.castShadow = true;
-avatar.add(youNose);
+/** What THIS avatar built and may therefore dispose. Never the cast's cache. */
+let avatarOwns = { geometries: [], materials: [] };
+/** The material clones the greying-on-death writes to, with their authored colour. */
+let avatarSkins = [];
+/** Set when the human's variant did not load and the capsule is standing in. */
+let avatarIsCapsule = true;
+/** The variant id the human is wearing, and where its nameplate socket sits. */
+let avatarVariant = null;
+let avatarLabelY = 1.95;
+let avatarTopple = tuning.radius;
+/** How far the body drops when you sit. Presentation only; see frame(). */
+const SIT_DROP = 0.42;
 
 const youRing = ringMesh(COLOR.speaker);
 avatar.add(youRing);
 
 scene.add(avatar);
+
+/**
+ * Build the player's visible body: the citizen their seat implies, or the
+ * capsule if that citizen's file did not arrive.
+ *
+ * WHICH FIGURE, and it is deliberately not a decision: `variantForSeat` is the
+ * same deterministic mapping every bot goes through (seat n -> variant
+ * n mod 4), asked with the human's own seat. The player looks like the citizen
+ * their seat implies rather than like a fifth special-cased model, so nothing on
+ * screen distinguishes the human's body from a bot's — which matters in a
+ * deduction game where the crowd is the information.
+ *
+ * The materials are CLONED per build for the same reason the seats clone theirs:
+ * greying on death writes to the material, and the cache's copy is shared with
+ * every bot wearing the same variant. The geometry is taken by reference and
+ * never disposed here — docs/step-08.md's shared-cache hazard, which emptied the
+ * square on the second deal the first time somebody disposed correctly.
+ */
+/*
+ * `?body=capsule` puts the graybox capsule back, the way `?tone=linear` puts
+ * NoToneMapping back.
+ *
+ * It is here for the same reason that one is, and docs/step-07.md states it:
+ * "so the decision can be re-examined rather than taken on trust". The swap is
+ * not free — the citizen figures are painted CarvedWood and the player's own
+ * body stands nearer the camera than anything else in the square, so it lands
+ * squarely in the frame the style bible's warm budget is measured on. Two loads
+ * of the same URL is what turns "the figure costs about a point" into a number
+ * (docs/step-14.md §6 measures it at +1.20), and anybody who thinks the capsule
+ * read better can look instead of arguing.
+ */
+const BODY_CAPSULE = new URLSearchParams(location.search).get('body') === 'capsule';
+
+function buildAvatarFigure(seat) {
+  for (const child of avatarPose.children.slice()) avatarPose.remove(child);
+  for (const g of avatarOwns.geometries) g.dispose();
+  for (const m of avatarOwns.materials) m.dispose();
+  avatarOwns = { geometries: [], materials: [] };
+  avatarSkins = [];
+  avatarPose.rotation.x = 0;
+  avatarPose.position.y = 0;
+
+  const row = variantForSeat(seat);
+  const variant = BODY_CAPSULE || !castLibrary || !row ? null : castLibrary.byId[row.id];
+
+  if (variant) {
+    for (const part of variant.parts) {
+      const material = part.material.clone();
+      avatarOwns.materials.push(material);
+      avatarSkins.push({ material, authored: material.color.getHex() });
+      const mesh = new THREE.Mesh(part.geometry, material);
+      mesh.castShadow = true;
+      mesh.receiveShadow = true;
+      avatarPose.add(mesh);
+    }
+    avatarIsCapsule = false;
+    avatarVariant = variant.id;
+    avatarLabelY = variant.labelY;
+    avatarTopple = variant.topple;
+    return variant.id;
+  }
+
+  /*
+   * The fallback, unchanged from every gate before this one: the graybox capsule
+   * and its nose cone, sized to the collider. One missing file costs the player
+   * their face and nothing else — the match is still completely playable, which
+   * is the same rule src/play/assets.js applies per seat.
+   */
+  const bodyGeometry = new THREE.CapsuleGeometry(
+    tuning.radius, tuning.height - tuning.radius * 2, 8, 20);
+  const bodyMaterial = new THREE.MeshLambertMaterial({ color: COLOR.you });
+  avatarOwns.geometries.push(bodyGeometry);
+  avatarOwns.materials.push(bodyMaterial);
+  avatarSkins.push({ material: bodyMaterial, authored: COLOR.you });
+  const body = new THREE.Mesh(bodyGeometry, bodyMaterial);
+  body.position.y = tuning.height / 2;
+  body.castShadow = true;
+  avatarPose.add(body);
+
+  const noseGeometry = new THREE.BoxGeometry(0.16, 0.16, 0.34);
+  const noseMaterial = new THREE.MeshLambertMaterial({ color: 0xe0724f });
+  avatarOwns.geometries.push(noseGeometry);
+  avatarOwns.materials.push(noseMaterial);
+  const nose = new THREE.Mesh(noseGeometry, noseMaterial);
+  nose.position.set(0, tuning.height * 0.72, tuning.radius + 0.1);
+  nose.castShadow = true;
+  avatarPose.add(nose);
+
+  avatarIsCapsule = true;
+  avatarVariant = null;
+  avatarLabelY = 1.95;
+  avatarTopple = tuning.radius;
+  return null;
+}
 
 const controller = createController({ tuning });
 const rig = createCameraRig();
@@ -253,6 +377,22 @@ const MURMUR_DROP = 0.45;
 
 function clearCast() {
   for (const c of citizens) {
+    /*
+     * The labels, wherever they were hung.
+     *
+     * Your own plate and badge are parented to the AVATAR rather than to your
+     * seat marker (see setRoster), so a sweep of `c.group` alone would leave two
+     * live CSS2D nodes on the avatar every time a match is dealt — the leak
+     * would be invisible for one restart and a stack of overlapping nameplates
+     * by the fifth. Each seat is asked to give back the objects it recorded.
+     */
+    for (const label of [c.nameLabel, c.badgeLabel]) {
+      if (!label) continue;
+      if (label.parent) label.parent.remove(label);
+      if (label.element && label.element.parentNode) {
+        label.element.parentNode.removeChild(label.element);
+      }
+    }
     c.group.traverse((o) => {
       if (o.isCSS2DObject && o.element && o.element.parentNode) {
         o.element.parentNode.removeChild(o.element);
@@ -366,7 +506,25 @@ function setRoster(view) {
       spot.rotation.x = -Math.PI / 2;
       spot.position.y = 0.015;
       pose.add(spot);
-      labelY = 0.35;
+      /*
+       * YOUR OWN FIGURE, built here rather than at module load, because which
+       * citizen you are is a function of your seat and the seat is only known
+       * once a match has been dealt.
+       *
+       * Your nameplate then hangs off `SOCKET_label` on THAT figure — the same
+       * path every other citizen's plate takes — with one difference stated
+       * rather than assumed: it is attached to the AVATAR, not to this seat's
+       * floor marker. The bots' plates and their bodies are the same object, so
+       * "on the socket" and "at the seat" are the same sentence for them. Yours
+       * are not: the marker is the empty spot in the ring and the body is off
+       * walking around the square. A plate pinned to the marker would name an
+       * empty disc, and the old 0.35 m constant was that plate lying flat on the
+       * ground to hide the fact. So the plate follows the body, at whatever
+       * height the figure's own socket published — 1.62 m on the hunched
+       * citizen, 2.36 m on the tall one.
+       */
+      buildAvatarFigure(p.id);
+      labelY = avatarLabelY;
     }
 
     const ring = ringMesh(COLOR.speaker);
@@ -403,13 +561,15 @@ function setRoster(view) {
      * The badge keeps its old 0.40 m clearance above whatever the name does.
      */
     nameLabel.position.set(0, labelY, 0);
-    group.add(nameLabel);
+    /* Yours rides the body; everybody else's rides their seat. See the branch
+     * above for why those are the same rule and not two. */
+    (p.isYou ? avatar : group).add(nameLabel);
 
     const badgeEl = document.createElement('div');
     badgeEl.className = 'badge hidden';
     const badgeLabel = new CSS2DObject(badgeEl);
     badgeLabel.position.set(0, labelY + 0.40, 0);
-    group.add(badgeLabel);
+    (p.isYou ? avatar : group).add(badgeLabel);
 
     /*
      * The murmur bubble, and only for a citizen who can murmur.
@@ -440,16 +600,30 @@ function setRoster(view) {
       id: p.id, isYou: p.isYou, group, pose, ring, skins, owns, nameEl, badgeEl,
       markEl, marks: '',
       nameLabel, badgeLabel, murmurEl,
-      toppled: false, toppleLift,
-      variant: variant ? variant.id : null, labelY
+      toppled: false,
+      /* Your own topple lift is your FIGURE's depth, read off the same
+       * `box.max.z` every bot's is (src/play/assets.js `topple`) — not the
+       * collider radius, which is a fact about the simulation and not about the
+       * shape that has to rest on the floor. */
+      toppleLift: p.isYou ? avatarTopple : toppleLift,
+      variant: p.isYou ? avatarVariant : (variant ? variant.id : null),
+      labelY
     });
   }
+}
+
+/** Has your own figure fallen? Read off the seat record, not off a second flag. */
+function avatarToppled() {
+  const me = citizens.find((c) => c.isYou);
+  return !!(me && me.toppled);
 }
 
 /** Where this seat's nameplate actually sits, read off the scene graph. */
 function labelHeightOf(c) {
   let y = null;
-  c.group.traverse((o) => {
+  /* Yours hangs off the avatar, everybody else's off their seat — the readback
+   * has to look where the object actually is or it reports a missing plate. */
+  (c.isYou ? avatar : c.group).traverse((o) => {
     if (o.isCSS2DObject && o.element && o.element.classList.contains('tag')) {
       y = Math.round(o.position.y * 1000) / 1000;
     }
@@ -494,21 +668,32 @@ function applyToScene(view) {
     }
 
     if (!p.alive) {
-      if (!c.toppled && !c.isYou) {
+      if (!c.toppled) {
         /* -90 degrees about X maps the body's +Y to +Z: it falls forward, onto
          * its face, toward the middle of the square. The lift is the figure's
          * own depth (assets.js `topple`), because after that rotation its
          * former depth is what holds it off the floor — a shared constant
-         * buried the tall citizen and floated the hunched one. */
-        c.pose.rotation.x = -Math.PI / 2;
-        c.pose.position.y = c.toppleLift;
+         * buried the tall citizen and floated the hunched one.
+         *
+         * YOUR OWN DEATH TAKES THE SAME PATH. It used to be excluded, because
+         * the capsule had nothing to topple onto and no depth of its own worth
+         * the name; now that your body is a citizen it falls exactly as one,
+         * off exactly the same number. The group that rotates is `avatarPose`
+         * for you and `pose` for everybody else — the same relationship in both
+         * cases: the child of the object the world position is written to, so
+         * the fall cannot fight the facing. */
+        const fallen = c.isYou ? avatarPose : c.pose;
+        fallen.rotation.x = -Math.PI / 2;
+        fallen.position.y = c.toppleLift;
         c.toppled = true;
         /* The nameplate follows the body down: a label hovering at standing
          * height over a toppled figure reads as a bug, not as a grave. */
         c.nameLabel.position.y = c.toppleLift + 0.35;
         c.badgeLabel.position.y = c.toppleLift + 0.75;
       }
-      for (const skin of c.skins) skin.material.color.setHex(COLOR.dead);
+      for (const skin of (c.isYou ? avatarSkins : c.skins)) {
+        skin.material.color.setHex(COLOR.dead);
+      }
       c.ring.visible = false;
       c.nameEl.classList.add('dead');
       c.badgeEl.className = 'badge hidden';
@@ -522,7 +707,9 @@ function applyToScene(view) {
     c.nameEl.classList.remove('dead');
     /* Back to whatever the .blend said, not to a constant — the figures are
      * CarvedWood and the fallback capsules are the graybox grey. */
-    for (const skin of c.skins) skin.material.color.setHex(skin.authored);
+    for (const skin of (c.isYou ? avatarSkins : c.skins)) {
+      skin.material.color.setHex(skin.authored);
+    }
 
     let ringColor = null;
     if (c.id === view.speaker && view.phase !== 'game_over') ringColor = COLOR.speaker;
@@ -539,18 +726,48 @@ function applyToScene(view) {
       target.material.color.setHex(ringColor);
     }
 
+  }
+  paintBadges(view);
+  if (view.phase === 'game_over') youRing.visible = false;
+}
+
+/**
+ * THE BALLOTS LAND ONE AT A TIME — the design doc's rank 2.
+ *
+ * Split out of `applyToScene` because it is now re-run on a clock rather than
+ * on a view change: the tally is public the instant the ballots are opened, and
+ * painting every badge in one frame is a number appearing. The doc asks for the
+ * opposite — "the count reads as an accumulating fact" — and its acceptance
+ * criterion is the reason why: *a viewer with the sound off knows the result
+ * before the count finishes.*
+ *
+ * SEAT ORDER, 180 ms apart, both from src/play/stage.js. A seat whose ballot has
+ * not landed yet gets no badge rather than a blank one; a seat that did not vote
+ * gets none at all, ever.
+ *
+ * Without a reveal running — a scripted sweep that jumped straight to the state,
+ * a redraw after a panel closed — every badge is painted at once, which is the
+ * behaviour every gate before this one had.
+ */
+function paintBadges(v) {
+  const tally = v.phase === 'vote_result' && v.lastVote ? v.lastVote : null;
+  const landed = ballotState();
+  for (const c of citizens) {
+    const p = v.players[c.id];
+    if (!p || !p.alive) continue;
     c.badgeEl.className = 'badge hidden';
     c.badgeEl.textContent = '';
-    if (tally) {
-      const aye = tally.aye.indexOf(c.id) !== -1;
-      const nay = tally.nay.indexOf(c.id) !== -1;
-      if (aye || nay) {
-        c.badgeEl.textContent = aye ? 'AYE' : 'NAY';
-        c.badgeEl.className = 'badge ' + (aye ? 'aye' : 'nay');
-      }
+    if (!tally) continue;
+    const aye = tally.aye.indexOf(c.id) !== -1;
+    const nay = tally.nay.indexOf(c.id) !== -1;
+    if (!aye && !nay) continue;
+    if (landed && !landed.done) {
+      const step = ballots.plan.steps.find((s) => s.id === c.id);
+      if (step && landed.landed <= ballots.plan.steps.indexOf(step)) continue;
     }
+    c.badgeEl.textContent = aye ? 'AYE' : 'NAY';
+    c.badgeEl.className = 'badge ' + (aye ? 'aye' : 'nay');
   }
-  if (view.phase === 'game_over') youRing.visible = false;
 }
 
 /* --------------------------------------------------------------- the match */
@@ -715,7 +932,15 @@ function presentation() {
     ledgerSeen: panels.ledgerSeen,
     /* The card dims to 35% in the night states; the light is the only thing
      * that knows which those are. */
-    night: NIGHT_STATES.indexOf(lighting.target) !== -1
+    night: NIGHT_STATES.indexOf(lighting.target) !== -1,
+    /*
+     * Who is naming you, while they are — a SEAT ID, which is the number on
+     * their own nameplate, and only once the accusation's staging has reached
+     * the beat where the line is meant to swap (ACCUSE.objective). Before that
+     * moment the line is whatever it was, which is what makes the swap a beat
+     * in the sequence rather than the first thing that happens.
+     */
+    accusedBy: accusing && accusing.done.objective ? accusing.from : null
   };
 }
 
@@ -766,8 +991,37 @@ function flushCast() {
   if (!stagedView) return false;
   const v = stagedView;
   stagedView = null;
+  /*
+   * The ballots start landing HERE and nowhere else.
+   *
+   * This is the moment the square has actually opened them — the deliberation
+   * beat has ended and the light has led the crowd by LIGHT_LEAD_MS — and the
+   * whole point of the stagger is that it is the reveal rather than a decoration
+   * on top of one. Started before `applyToScene`, so the first badge is drawn by
+   * the same call that draws everything else.
+   */
+  if (v.phase === 'vote_result' && v.lastVote && !ballots && litBallots !== voteKey(v)) {
+    litBallots = voteKey(v);
+    startBallots(v);
+  }
   applyToScene(v);
   return true;
+}
+
+/*
+ * Which tally the ballots were last revealed for.
+ *
+ * Not "has the phase changed": two CONSECUTIVE elections can produce a
+ * byte-identical tally — the same Speaker nominating the same citizen and
+ * failing 1-4 twice — which is the bug docs/step-13.md records `publicEdges`
+ * hitting with the sting. So the key carries the day as well as the tally, and
+ * the day is public.
+ */
+let litBallots = null;
+function voteKey(v) {
+  const t = v.lastVote;
+  if (!t) return null;
+  return `${v.day}:${t.speaker}:${t.nominee}:${t.aye.join(',')}/${t.nay.join(',')}`;
 }
 
 /** Run the staged cast update if its lead has elapsed. Called from both loops. */
@@ -840,6 +1094,675 @@ function paintMurmurs() {
       c.murmurEl.textContent = '';
     }
   }
+}
+
+/* ============================================================ the juice map */
+
+/*
+ * The five moments the design review ranked as worth the polish budget, driven
+ * here and scheduled in src/play/stage.js.
+ *
+ * Everything below reads the player-safe view and the page's own clock, and
+ * nothing else — the same boundary the light and the sound have, and it is
+ * sharper here because a camera move is a channel too. "The push-in is 40 ms
+ * slower when the accuser is a Rebel" is invisible in a diff and a solve of the
+ * game; test/tell.test.js gained four rows for exactly that.
+ *
+ * ONE CLOCK. Every deadline below is an absolute timestamp on `nowMs()`, which
+ * is the clock the ledger's pin freezes (see THE PRESENTATION CLOCK above). So
+ * pinning mid-purge holds the silence and the beam exactly where they are, and
+ * nothing expires unseen.
+ */
+
+/** The page's own reduced-motion setting: null follows the operating system. */
+let reducedSetting = null;
+const reducedMotion = () => prefersReducedMotion(window, reducedSetting);
+
+/** Moment 1 — { from, plan, staged } while the square is naming you. */
+let accusing = null;
+/** Moment 2 — { plan, from } while the ballots are landing one at a time. */
+let ballots = null;
+/** Moment 3 — the tiles on the board, and the one currently in the air. */
+let board = null;
+let tileFlight = null;
+/** Moment 4 — { seat, plan, gavelled } while the beam is on the purged. */
+let purging = null;
+/** Moment 5 — { plan, from, turned, tabled } while the square takes its bow. */
+let curtain = null;
+
+/* ---------------------------------------------- the framing, and only that */
+
+/*
+ * THE CAMERA, and the one rule it has: NO CUT, EVER.
+ *
+ * The design doc is explicit — "no cut, ever — cuts break the toy-theatre
+ * staging" — so every framing move below is a push and a small yaw eased over
+ * time, applied to the SAME rig the player is steering. It is expressed as an
+ * amount in [0, 1] easing toward a want of 0 or 1 rather than as a timeline,
+ * for the reason every other blend in this project is exponential: it is
+ * frame-rate independent by construction, and it composes with the player
+ * dragging the camera instead of fighting them for the yaw.
+ *
+ * The rig's yaw is private to src/walk/camera.js and is moved only through
+ * `orbit()`, which takes pixels. Steering it means converting an angle back into
+ * pixels — deliberately, rather than reaching into the module: the workbench's
+ * camera is not this gate's to change.
+ */
+let framingSpec = null;      // { baseDistance, baseYaw, push, yaw }
+let framingAmount = 0;
+let framingWant = 0;
+let framingSeconds = ACCUSE.cameraMs / 1000;
+
+function wrapAngle(a) {
+  let x = a;
+  while (x > Math.PI) x -= Math.PI * 2;
+  while (x < -Math.PI) x += Math.PI * 2;
+  return x;
+}
+
+/**
+ * Frame the player and one other citizen together.
+ *
+ * @param {{x:number,z:number}|null} at  where the other party is standing, or
+ *        null to hand the camera back.
+ */
+function frameWith(at, opts = {}) {
+  if (!at) {
+    framingWant = 0;
+    framingSeconds = opts.instant ? 0 : (opts.ms || ACCUSE.cameraMs) / 1000;
+    return null;
+  }
+  const me = controller.state.position;
+  /* Yaw toward the MIDPOINT, not toward the accuser: the doc asks for "a small
+   * yaw so both of you are in frame", and aiming at either of the two people
+   * puts the other one off the edge. */
+  const midX = (me.x + at.x) / 2;
+  const midZ = (me.z + at.z) / 2;
+  /* The rig's yaw convention: yaw = PI puts the camera behind the body looking
+   * along +Z (src/walk/camera.js). So the yaw that looks from the body toward a
+   * point is atan2 of the vector from the point back to the body. */
+  const want = Math.atan2(me.x - midX, me.z - midZ);
+  const base = rig.yaw;
+  framingSpec = {
+    baseDistance: rig.tuning.distance,
+    baseYaw: base,
+    push: Number.isFinite(opts.push) ? opts.push : ACCUSE.push,
+    /* Clamped, because "a small yaw" is the note and a 90-degree swing to catch
+     * somebody standing directly behind the camera is not a small yaw — it is
+     * the cut the doc bans, arriving slowly. */
+    yaw: Math.max(-ACCUSE.yaw, Math.min(ACCUSE.yaw, wrapAngle(want - base)))
+  };
+  framingWant = 1;
+  framingSeconds = opts.instant || reducedMotion() ? 0 : (opts.ms || ACCUSE.cameraMs) / 1000;
+  return framingSpec;
+}
+
+const DEG = Math.PI / 180;
+
+function updateFraming(dt) {
+  if (!framingSpec) return;
+  const b = framingSeconds <= 0 ? 1 : 1 - Math.exp(-dt / (framingSeconds / LN20));
+  framingAmount += (framingWant - framingAmount) * b;
+  rig.tuning.distance = framingSpec.baseDistance * (1 - framingSpec.push * framingAmount);
+  const wantYaw = framingSpec.baseYaw + framingSpec.yaw * framingAmount;
+  const delta = wrapAngle(wantYaw - rig.yaw);
+  /* Not while the player is dragging. Their hand outranks the staging — this is
+   * a camera they own, and a moment that wrestled them for it would be worse
+   * than no moment. */
+  if (!dragging && Math.abs(delta) > 1e-4) {
+    rig.orbit(-delta / (rig.tuning.orbitSpeed * DEG), 0);
+  }
+  if (framingWant === 0 && framingAmount < 0.003) {
+    rig.tuning.distance = framingSpec.baseDistance;
+    framingSpec = null;
+    framingAmount = 0;
+  }
+}
+
+/** Where a seat is standing, in world space. Public: it is a place, not a fact. */
+function seatAt(id) {
+  if (!view) return null;
+  const c = citizens.find((x) => x.id === id);
+  if (c && c.isYou) {
+    const p = controller.state.position;
+    return { x: p.x, y: 0, z: p.z };
+  }
+  return seatPosition(id, view.players.length);
+}
+
+/** Which lantern is nearest a world point — the one an accuser speaks under. */
+function lanternNear(at) {
+  const snap = lighting.snapshot();
+  let best = null;
+  let bestD = Infinity;
+  for (const l of snap.lanterns) {
+    if (!l.lit) continue;      // a lantern a Seize put out cannot lift
+    const d = (l.at.x - at.x) ** 2 + (l.at.z - at.z) ** 2;
+    if (d < bestD) { bestD = d; best = l.name; }
+  }
+  return best;
+}
+
+/* -------------------------------------------- 1. the accusation aimed at you */
+
+/**
+ * Stage an accusation aimed at this seat.
+ *
+ * The order is the design, and the brief pins it: the bed cuts FIRST, then the
+ * accuser's lantern lifts, then a cooler rim finds your figure, then your figure
+ * turns, then the camera settles. Everything is on the page's own clock, so
+ * nothing here can be later than `ACCUSE_LAST_MS`, which test/stage.test.js
+ * holds to the brief's 700 ms.
+ */
+function stageAccusation(from) {
+  if (from == null || !view) return null;
+  const plan = accusationPlan(nowMs(), reducedMotion());
+  accusing = { from, plan, done: {} };
+  /* The bed, first and at zero. The square going quiet is the pressure. */
+  audio.hush('accusation', ACCUSE.hushMs);
+  accusing.done.hush = true;
+  return plan;
+}
+
+function pumpAccusation() {
+  if (!accusing) return;
+  const t = nowMs();
+  const { plan, done } = accusing;
+  const at = seatAt(accusing.from);
+  const you = seatAt(view ? view.you.id : null);
+
+  if (!done.lantern && t >= plan.lanternAt) {
+    done.lantern = true;
+    lighting.setFocus({
+      name: at ? lanternNear(at) : null,
+      lift: ACCUSE.lanternLift,
+      pull: ACCUSE.lanternPull
+    });
+  }
+  if (!done.rim && t >= plan.rimAt && you) {
+    done.rim = true;
+    /*
+     * A RIM COMES FROM A DIRECTION.
+     *
+     * The first version hung the light at the player's own position, which
+     * lights the figure evenly from inside itself — a glow, not a rim. Offset
+     * toward the accuser and raised to head height it grazes the figure from
+     * the side the voice is coming from, so the light says WHO is talking to
+     * you as well as that somebody is. With `rimDistance` short it reaches the
+     * figure and stops, rather than spilling a second pool onto the cobbles
+     * beside the dais beam's.
+     */
+    const toward = at || you;
+    const dx = toward.x - you.x;
+    const dz = toward.z - you.z;
+    const len = Math.hypot(dx, dz) || 1;
+    lighting.setRim({
+      at: {
+        x: you.x + (dx / len) * ACCUSE.rimOffset,
+        y: ACCUSE.rimHeight,
+        z: you.z + (dz / len) * ACCUSE.rimOffset
+      },
+      color: ACCUSE.rimColor,
+      intensity: ACCUSE.rimIntensity,
+      distance: ACCUSE.rimDistance
+    });
+  }
+  if (!done.turn && t >= plan.turnAt && at) {
+    done.turn = true;
+    /*
+     * "You do not control the turn; you control the answer." The controller's
+     * facing is presentation for the avatar — `controller.state.facing` is what
+     * `avatar.rotation.y` is copied from, and the collider is a capsule, so
+     * turning it moves nothing the simulation depends on. It is written once
+     * rather than eased because the controller owns that value every frame and
+     * a second writer would be two things steering one body; the turn reads as
+     * a turn because the avatar's rotation is copied from it on the next frame
+     * and the camera is moving at the same time.
+     */
+    controller.state.facing = Math.atan2(at.x - controller.state.position.x,
+      at.z - controller.state.position.z);
+  }
+  if (!done.camera && t >= plan.cameraAt && at) {
+    done.camera = true;
+    frameWith(at, { ms: plan.cameraMs, instant: plan.cameraMs <= 0 });
+  }
+  if (!done.objective && t >= plan.objectiveAt) {
+    done.objective = true;
+    if (view) { objective = panels.renderObjective(view, presentation()); }
+  }
+  if (t >= plan.endsAt) releaseAccusation();
+}
+
+function releaseAccusation() {
+  if (!accusing) return false;
+  accusing = null;
+  lighting.setFocus(null);
+  lighting.setRim(null);
+  frameWith(null);
+  if (view) objective = panels.renderObjective(view, presentation());
+  return true;
+}
+
+/* --------------------------------------------------- 2. the ballot reveal */
+
+/**
+ * Start the ballots landing one at a time.
+ *
+ * Called from the cast update rather than from `refresh()`, because the cast
+ * update is already the held path: the badges must not appear until the square
+ * has actually opened the ballots, which is what the deliberation beat and
+ * `LIGHT_LEAD_MS` between them decide (docs/step-05.md §7b).
+ */
+function startBallots(v) {
+  const plan = ballotPlanFor(v);
+  if (!plan.total) { ballots = null; return null; }
+  ballots = { plan, from: nowMs() };
+  return plan;
+}
+
+/** How many ballots have landed, for the badges and for the running count. */
+function ballotState() {
+  if (!ballots) return null;
+  return ballotCountAt(ballots.plan, nowMs() - ballots.from);
+}
+
+function pumpBallots() {
+  if (!ballots || !view) return;
+  const now = nowMs();
+  const state = ballotCountAt(ballots.plan, now - ballots.from);
+  if (state.landed !== ballots.landed) {
+    ballots.landed = state.landed;
+    paintBadges(view);
+    panels.renderTally(state);
+  }
+  if (now - ballots.from >= ballots.plan.endsAt) {
+    ballots = null;
+    panels.renderTally(null);
+  }
+}
+
+/* ---------------------------------------------------- 3. the tile enacted */
+
+/**
+ * The board: one slot per tile the game can enact, laid on the dais in front of
+ * the lectern, empty ones outlined and visible beside the full ones.
+ *
+ * The doc's note is "the empty slots still visible beside it" and that is the
+ * whole reason the outlines are built up front rather than appearing with their
+ * tile: an empty slot is the score too. Built once per boot, cleared per deal.
+ */
+const BOARD = {
+  reform: { z: DAIS.z - 1.58, of: 5 },
+  seize: { z: DAIS.z - 1.24, of: 6 },
+  y: DAIS.top + 0.026,
+  size: { w: 0.26, h: 0.045, d: 0.20 },
+  pitch: 0.30
+};
+
+function slotAt(tile, index, of) {
+  const row = BOARD[tile];
+  const span = (of - 1) * BOARD.pitch;
+  return { x: -span / 2 + index * BOARD.pitch, y: BOARD.y, z: row.z };
+}
+
+function buildBoard(limits) {
+  if (board) {
+    scene.remove(board.group);
+    for (const g of board.owns.geometries) g.dispose();
+    for (const m of board.owns.materials) m.dispose();
+  }
+  const group = new THREE.Group();
+  group.name = 'board';
+  const owns = { geometries: [], materials: [] };
+  const counts = {
+    reform: (limits && limits.reformToWin) || BOARD.reform.of,
+    seize: (limits && limits.seizeToWin) || BOARD.seize.of
+  };
+  const slotGeometry = new THREE.BoxGeometry(BOARD.size.w, BOARD.size.h, BOARD.size.d);
+  owns.geometries.push(slotGeometry);
+  const outline = new THREE.LineBasicMaterial({ color: 0x2a3040, transparent: true, opacity: 0.75 });
+  owns.materials.push(outline);
+  const edges = new THREE.EdgesGeometry(slotGeometry);
+  owns.geometries.push(edges);
+  for (const tile of ['reform', 'seize']) {
+    for (let i = 0; i < counts[tile]; i++) {
+      const at = slotAt(tile, i, counts[tile]);
+      const marker = new THREE.LineSegments(edges, outline);
+      marker.position.set(at.x, at.y, at.z);
+      group.add(marker);
+    }
+  }
+  scene.add(group);
+  board = { group, owns, counts, tiles: [], slotGeometry };
+  return board;
+}
+
+const TILE_COLOR = { reform: 0x6aa6e6, seize: 0xe8695f };
+
+/**
+ * Put a tile on the board — travelling from the lectern if the square has just
+ * been told about it, or straight into its slot if this is a redraw.
+ *
+ * RESTRAINT IS THE BRIEF. An ease-out over 520 ms and 2 cm of settle. No arc, no
+ * spin, no particles, no flash on landing: "the restraint is what makes it land,
+ * and it is what stops the game reading as arcade" is written about the purge in
+ * the same document and it governs here too. The weight is in the deceleration.
+ */
+function placeTile(tile, index, travel) {
+  if (!board) return null;
+  const of = board.counts[tile];
+  if (index >= of) return null;           // the board is full; the match is over
+  const to = slotAt(tile, index, of);
+  const material = new THREE.MeshLambertMaterial({ color: TILE_COLOR[tile] });
+  board.owns.materials.push(material);
+  const mesh = new THREE.Mesh(board.slotGeometry, material);
+  mesh.castShadow = true;
+  mesh.receiveShadow = true;
+  mesh.position.set(to.x, to.y, to.z);
+  board.group.add(mesh);
+  board.tiles.push({ tile, index, mesh });
+  if (!travel) return mesh;
+
+  const from = { x: podiumAnchor.x, y: DAIS.top + TILE.rise, z: podiumAnchor.z };
+  mesh.position.set(from.x, from.y, from.z);
+  tileFlight = {
+    mesh, from, to,
+    startedAt: nowMs(),
+    plan: { travelMs: reducedMotion() ? 0 : TILE.travelMs, settleMs: TILE.settleMs }
+  };
+  return mesh;
+}
+
+function pumpTile() {
+  if (!tileFlight) return;
+  const f = tileFlight;
+  const t = nowMs() - f.startedAt;
+  const travel = f.plan.travelMs;
+  if (travel > 0 && t < travel) {
+    const e = tileEase(t / travel);
+    f.mesh.position.set(
+      f.from.x + (f.to.x - f.from.x) * e,
+      /* The settle is the last 2 cm and it happens AFTER the travel, so during
+       * the travel the tile is held that much high — a thing set down does not
+       * arrive at its resting height and then stop, it arrives above it. */
+      f.from.y + (f.to.y + TILE.settleDrop - f.from.y) * e,
+      f.from.z + (f.to.z - f.from.z) * e
+    );
+    return;
+  }
+  const settled = travel + f.plan.settleMs;
+  if (t < settled) {
+    const k = f.plan.settleMs > 0 ? (t - travel) / f.plan.settleMs : 1;
+    f.mesh.position.set(f.to.x, f.to.y + TILE.settleDrop * (1 - k), f.to.z);
+    return;
+  }
+  f.mesh.position.set(f.to.x, f.to.y, f.to.z);
+  tileFlight = null;
+}
+
+/** Redraw the whole board from the view. Used on a deal and after a restart. */
+function syncBoard(v) {
+  if (!board || !v) return;
+  for (const t of board.tiles) board.group.remove(t.mesh);
+  board.tiles.length = 0;
+  tileFlight = null;
+  for (let i = 0; i < (v.reform || 0); i++) placeTile('reform', i, false);
+  for (let i = 0; i < (v.seize || 0); i++) placeTile('seize', i, false);
+}
+
+/* ------------------------------------------------------------ 4. the purge */
+
+/**
+ * The beam narrows onto the named citizen; total silence; one gavel.
+ *
+ * Nothing else. The topple is already the cast's (`toppleLift`, off the asset's
+ * own depth) and the nameplate already goes dim and stays hanging — this is the
+ * framing and the silence around them.
+ */
+function stagePurge(seat) {
+  if (seat == null || !view) return null;
+  const at = seatAt(seat);
+  if (!at) return null;
+  const plan = purgePlan(nowMs(), reducedMotion());
+  purging = { seat, plan, gavelled: false };
+  lighting.aim({
+    at: { x: at.x, y: 0.95, z: at.z },
+    height: PURGE.height,
+    angleScale: PURGE.angle / 0.34,
+    seconds: plan.narrowMs / 1000,
+    instant: plan.narrowMs <= 0
+  });
+  /* THE BED CUTS, NOT FADES. See HUSH in src/play/audio.js for why the purge's
+   * silence and the accusation's duck are two different shapes. */
+  audio.hush('purge', PURGE.silenceMs);
+  return plan;
+}
+
+function pumpPurge() {
+  if (!purging) return;
+  const t = nowMs();
+  if (!purging.gavelled && t >= purging.plan.gavelAt) {
+    purging.gavelled = true;
+    /* One gavel, when the silence ends. It is the existing cue, fired directly
+     * rather than through `cuesFor` — that function maps public EDGES to sounds
+     * and a purge is not one of its edges; adding it there would change what
+     * every other caller of it does. */
+    audio.cue('gavel');
+  }
+  if (t >= purging.plan.endsAt) releasePurge();
+}
+
+function releasePurge() {
+  if (!purging) return false;
+  purging = null;
+  /* Back over the dais, at the same speed it left. A snap back would be the cut
+   * the doc bans, arriving late. */
+  if (!curtain) lighting.aim(null);
+  return true;
+}
+
+/* ------------------------------------------------------ 5. the curtain call */
+
+/**
+ * The reveal, staged as theatre.
+ *
+ * Each figure turns to camera in seat order 250 ms apart, its role seal presses
+ * onto its own nameplate, the Dictator turns last and is held for 1.2 s as the
+ * only warm thing in frame, and only then does the existing reveal table appear
+ * beneath it.
+ *
+ * THE ONE PLACE ROLE COLOUR IS ALLOWED ON A NAMEPLATE. Every other gate in this
+ * project spends its palette rules keeping allegiance off the plates; this is
+ * the moment the engine has already disclosed everything, and `view.reveal` is
+ * the one path it comes down (src/engine/view.js). `curtainFor` returns an empty
+ * plan whenever `reveal` is null, which is every moment before game over — and
+ * that is asserted under hidden-role permutation rather than argued.
+ */
+function startCurtain(v) {
+  const plan = curtainFor(v);
+  if (!plan.steps.length) return null;
+  curtain = { plan, from: nowMs(), turned: {}, sealed: {}, held: false, tabled: false };
+  return plan;
+}
+
+function pumpCurtain() {
+  if (!curtain || !view) return;
+  const t = nowMs() - curtain.from;
+  const camera = rig.camera.position;
+
+  for (const step of curtain.plan.steps) {
+    if (t >= step.at && !curtain.turned[step.id]) {
+      curtain.turned[step.id] = true;
+      const c = citizens.find((x) => x.id === step.id);
+      /* Your own figure is not turned: you are still steering it, and a body
+       * that spun to camera under the player's hand would read as the controls
+       * being taken away at the exact moment the game hands them back. */
+      if (c && !c.isYou) c.group.lookAt(camera.x, 0, camera.z);
+    }
+    if (t >= step.sealAt && !curtain.sealed[step.id]) {
+      curtain.sealed[step.id] = true;
+      const c = citizens.find((x) => x.id === step.id);
+      if (c) pressSeal(c, step.role);
+    }
+  }
+
+  if (!curtain.held && t >= curtain.plan.lastAt && curtain.plan.dictator != null) {
+    curtain.held = true;
+    const at = seatAt(curtain.plan.dictator);
+    if (at) {
+      /* "the only warm thing in frame": the beam goes to them and every lantern
+       * pulls back. The victory states carry a warm budget of 1.0 — the light is
+       * allowed to be an opinion at game over and only then — so this is a
+       * composition rather than a budget decision. */
+      lighting.aim({ at: { x: at.x, y: 1.0, z: at.z }, height: PURGE.height, angleScale: 0.45 });
+      lighting.setFocus({ name: null, lift: 1, pull: 0.35 });
+      frameWith(at, { ms: CURTAIN.turnMs, push: 0.05 });
+    }
+  }
+
+  if (!curtain.tabled && t >= curtain.plan.tableAt) {
+    curtain.tabled = true;
+    /* …and the table the doc says comes "beneath it", for anyone who wants to
+     * read it. It is the panel that has always opened at game over; the only
+     * thing this gate changed is WHEN. */
+    unpinLedger();
+    panels.open(view, null);
+    /*
+     * …and the square is given back at the same moment.
+     *
+     * The doc's staging is "the Dictator turns last and is HELD for 1.2 s as the
+     * only warm thing in frame. The existing reveal table then appears beneath
+     * it" — a hold, not a permanent state. Left running, the beam stayed on one
+     * citizen and every lantern stayed at a third for the rest of the session,
+     * which quietly contradicts the other half of the same paragraph: "the
+     * square already settles into the winning team's colour". The seals stay on
+     * the plates, which is the part that was asked to stay.
+     */
+    lighting.aim(null);
+    lighting.setFocus(null);
+    frameWith(null);
+  }
+}
+
+/**
+ * The seal, pressed onto a citizen's own nameplate, where it stays.
+ *
+ * A word and a colour, in the plate's own grammar (the number, the name and the
+ * brass marks are already there). It is added rather than replacing anything, so
+ * the plate a player has been reading all match is still the plate they are
+ * reading — with one more thing on it.
+ */
+function pressSeal(c, role) {
+  if (!c || !c.nameEl || c.nameEl.querySelector('.seal')) return false;
+  const seal = document.createElement('span');
+  seal.className = 'seal r-' + role;
+  seal.textContent = role;
+  c.nameEl.appendChild(seal);
+  c.nameEl.classList.add('revealed');
+  return true;
+}
+
+function releaseCurtain() {
+  curtain = null;
+  return true;
+}
+
+/** The living citizen standing closest to you. For a review's default accuser. */
+function nearestOther() {
+  if (!view) return null;
+  const me = controller.state.position;
+  let best = null;
+  let bestD = Infinity;
+  for (const p of view.players) {
+    if (p.isYou || !p.alive) continue;
+    const at = seatPosition(p.id, view.players.length);
+    const d = (at.x - me.x) ** 2 + (at.z - me.z) ** 2;
+    if (d < bestD) { bestD = d; best = p.id; }
+  }
+  return best;
+}
+
+/**
+ * THE MOMENTS GET THEIR OWN CLOCK, and it is a third one on purpose.
+ *
+ * They are pumped from the render loop and from the match loop, for the reason
+ * pumpAmbience and pumpMurmurs are: requestAnimationFrame stops in a background
+ * tab and in a scripted review pane. But neither of those two is fast enough on
+ * its own to run a 180 ms schedule:
+ *
+ *   the render loop  is whatever the display and the scene cost. The headless
+ *                    capture pane renders this square at a median frame interval
+ *                    of 143 ms at 1280x720 — the same order as the stagger being
+ *                    measured, which is how the first measurement of it came
+ *                    back agreeing with the schedule for the wrong reason.
+ *   the match loop   is 200 ms while the rules are waiting on the human, which
+ *                    is EXACTLY when the ballots land.
+ *
+ * THE FIRST ATTEMPT AT THIS WAS WRONG AND IS WORTH RECORDING: it shortened
+ * `nextDelay()` while a moment was running. That interval is not a polling rate,
+ * it is how long the bots take to think — so a reveal did not get pumped faster,
+ * it made the bots act every 40 ms, and under autopilot the match raced through
+ * whole days during a ballot reveal. The reveal stopped appearing at all. A
+ * presentation clock must never be spent on the loop that advances the game;
+ * that is the same rule src/play/pace.js was written around, arriving from the
+ * other direction.
+ *
+ * So it is its own timer, it only ever pumps, and it cannot reach `Driver.step`.
+ * 25 Hz is a quarter of the tightest gap any of the five moments declares. It
+ * respects the ledger's pin the same way everything else does — by reading
+ * `nowMs()`, which is frozen while pinned, so a pinned square's moments do not
+ * advance even though the timer keeps firing.
+ */
+const STAGE_POLL = 40;
+let stageTimer = null;
+
+function startStageClock() {
+  if (stageTimer !== null) return;
+  stageTimer = setInterval(() => {
+    if (panels.isLedgerOpen) return;
+    pumpStage();
+  }, STAGE_POLL);
+}
+
+/** Is any of the five moments running? For a readback, and for the tests. */
+function staging() {
+  return !!(accusing || ballots || purging || curtain || tileFlight);
+}
+
+/** All five moments, pumped from all three loops. See pumpAmbience for why. */
+function pumpStage() {
+  pumpAccusation();
+  pumpBallots();
+  pumpTile();
+  pumpPurge();
+  pumpCurtain();
+}
+
+/** Everything the staging owns, put back. Called on a deal. */
+function clearStage() {
+  accusing = null;
+  ballots = null;
+  purging = null;
+  curtain = null;
+  tileFlight = null;
+  /*
+   * THE CAMERA'S OWN DISTANCE GOES BACK, and this line is not bookkeeping.
+   *
+   * `updateFraming` restores `rig.tuning.distance` when the push has eased back
+   * to nothing — but a restart happens mid-push, so without this the boom keeps
+   * whatever the last staged moment left it at and every subsequent match is
+   * played 5% closer than the rig declares. It was found by the warm budget and
+   * not by looking: the trial frame measured 9.31% after a capture run that
+   * ended on a curtain call and 8.44% on a fresh load of the same seed, same
+   * camera mark and same forced state. A camera that is quietly nearer is
+   * exactly the kind of thing that reads as "the square got warmer".
+   */
+  if (framingSpec) rig.tuning.distance = framingSpec.baseDistance;
+  framingSpec = null;
+  framingAmount = 0;
+  framingWant = 0;
+  lighting.release(true);
+  panels.renderTally(null);
 }
 
 const panels = createPanels(document, {
@@ -933,6 +1856,27 @@ function applyAmbience(next, edges, own) {
    */
   if (edges.sting === 'reform') lighting.steadyFlame();
 
+  /*
+   * THE TILE TRAVELS — moment 3, and it is cued off exactly the same public
+   * edge the sting and the weather are: a tile went on the board and the square
+   * was told which one. The slot it lands in is the board's own count
+   * (`view.reform` / `view.seize`), so the tile and the number beside it on the
+   * tray cannot disagree.
+   */
+  if (edges.sting) {
+    const plan = tilePlanFor(next, edges.sting);
+    if (plan) placeTile(plan.tile, plan.index, true);
+  }
+
+  /*
+   * THE PURGE — moment 4. `purgeFor` is two player-safe views compared, exactly
+   * as `publicEdges` is: a seat that was standing and is not. Whether somebody
+   * is standing is the most public fact in the square.
+   */
+  const purged = purgeFor(prevForPurge, next);
+  prevForPurge = next;
+  if (purged != null) stagePurge(purged);
+
   const sting = nowMs() < stingUntil ? stingTile : null;
   const state = lightingFor(next, { sting });
   lighting.setState(state);
@@ -940,6 +1884,17 @@ function applyAmbience(next, edges, own) {
   audio.fire(edges, own);
   return state;
 }
+
+/*
+ * The projection the purge is measured against.
+ *
+ * Deliberately NOT `previousView`: that one advances in `ambience()` on every
+ * refresh, including the refreshes that happen while a deliberation beat is
+ * holding everything back, so by the time the held edges were applied the two
+ * views being compared were both post-purge and the moment never fired. Held
+ * back on the same clock as everything else the square is about to be told.
+ */
+let prevForPurge = null;
 
 /**
  * The beat holds the ambience too, and this is the sharpest reason the
@@ -1051,6 +2006,23 @@ function refresh() {
     if (said.lines.length) {
       murmurs.say(said.lines);
       floorUntil = Math.max(floorUntil, said.until);
+      /*
+       * MOMENT 1 — is any of it aimed at you?
+       *
+       * Read off the lines that are about to be spoken, and the only two fields
+       * it reads are who is speaking and whom the utterance publicly named. Both
+       * are said out loud, in the middle of the square, in front of everybody.
+       *
+       * In a shipped match this is null every time: `src/engine/orator.js`
+       * excludes the human seat from every target pool, because in D2 the player
+       * has no way to answer and "being accused with no way to answer is worse
+       * than not being accused". That exclusion belongs to the intent strip,
+       * which is work item 4. The staging is built and reachable;
+       * `__play.accuseMe()` drives this same path for a review. See
+       * `accusationFrom` in src/play/stage.js and docs/step-14.md §1.
+       */
+      const aimed = accusationFrom(said.lines, view.you.id);
+      if (aimed && !accusing) stageAccusation(aimed.from);
     }
   }
   if (phaseChanged || holding()) {
@@ -1078,8 +2050,21 @@ function refresh() {
    * square back first — see takeDecision. */
   if (view.phase === 'game_over' && !gameOverShown) {
     gameOverShown = true;
-    unpinLedger();
-    panels.open(view, null);
+    /*
+     * MOMENT 5 — the curtain call comes first and the table comes after it.
+     *
+     * The doc is explicit about the order: the figures turn, the seals press
+     * onto their own plates, the Dictator is held alone, and "the existing
+     * reveal table THEN appears beneath it for anyone who wants to read it". So
+     * the panel is opened by `pumpCurtain` at `plan.tableAt` rather than here.
+     * If the curtain cannot be staged — a projection with no reveal in it, which
+     * should be impossible at game over and is guarded anyway — the table opens
+     * immediately, which is exactly the behaviour every gate before this had.
+     */
+    if (!startCurtain(view)) {
+      unpinLedger();
+      panels.open(view, null);
+    }
   }
 }
 
@@ -1141,6 +2126,7 @@ function restart(seed = DEFAULT_SEED, playerCount = DEFAULT_PLAYERS, humanIndex 
    * would read a Seize count dropping to zero as an enactment.
    */
   previousView = null;
+  prevForPurge = null;
   stingTile = null;
   stingUntil = 0;
   ownSubmission = null;
@@ -1148,6 +2134,13 @@ function restart(seed = DEFAULT_SEED, playerCount = DEFAULT_PLAYERS, humanIndex 
   stagedView = null;
   heldEdges = null;
   wasHeld = false;
+  litBallots = null;
+  /* A fresh square takes its own staging back: no accusation half-lit, no beam
+   * left on a citizen who is alive again in the new deal, no tile in the air.
+   * `lighting.release(true)` snaps rather than eases for the same reason the
+   * state below is snapped — a two-second travel from the last match's purge
+   * into the new match's morning is a bug that looks like a mood. */
+  clearStage();
   lighting.setState('day', { instant: true });
   /*
    * A new deal re-lights the square, and it is the only thing in the game that
@@ -1172,6 +2165,12 @@ function restart(seed = DEFAULT_SEED, playerCount = DEFAULT_PLAYERS, humanIndex 
    * five threw inside the redraw and left the page dead. */
   view = View.viewFor(G, human, { waitingFor: session.waitingFor() });
   setRoster(view);
+  /* The board, rebuilt for this deal's own limits and then filled from the view
+   * rather than from a counter of its own — a new deal has an empty board, and
+   * a restart in the middle of one must not leave last match's tiles lying on
+   * the dais. */
+  buildBoard(view.limits);
+  syncBoard(view);
   panels.resetCaches();
   panels.close();
   refresh();
@@ -1272,6 +2271,10 @@ function tick() {
   pumpCast();
   pumpAmbience();
   pumpMurmurs();
+  /* And the five moments, for the same reason: every one of them ends on a
+   * clock and fires no game event when it does, and requestAnimationFrame does
+   * not run in a background tab or in a scripted review pane. */
+  pumpStage();
 
   if (session.over || held) return;
   const w = session.waitingFor();
@@ -1578,6 +2581,12 @@ function frame(now) {
     pumpCast();
     pumpAmbience();
     pumpMurmurs();
+    pumpStage();
+    /* The framing is the one part of the staging that is a per-frame blend
+     * rather than a scheduled step, so it lives here and not in pumpStage: it
+     * needs `dt`, and it has to run before the rig is updated below or the push
+     * lands one frame late. Frozen with everything else while pinned. */
+    updateFraming(dt);
   }
 
   /* An armed tray row freezes the body exactly as an open panel does. It is the
@@ -1603,10 +2612,17 @@ function frame(now) {
 
   avatar.position.copy(smoothed);
   avatar.rotation.y = controller.state.facing;
-  /* Sitting is flavour: the body drops and the ring goes out. The controller is
-   * untouched, so nothing about the simulation depends on it. */
-  youBody.position.y = tuning.height / 2 - (seated ? 0.42 : 0);
-  youNose.position.y = tuning.height * 0.72 - (seated ? 0.42 : 0);
+  /*
+   * Sitting is flavour: the body drops and the ring goes out. The controller is
+   * untouched, so nothing about the simulation depends on it.
+   *
+   * The drop moved from the two capsule meshes onto `avatarPose`, which is what
+   * makes it work for a carved figure as well as for the capsule — one group,
+   * one number, whatever shape is hanging off it. It is skipped once you are
+   * toppled, because that same group is holding the fall and lowering a corpse
+   * another 42 cm would bury it.
+   */
+  if (!avatarToppled()) avatarPose.position.y = seated ? -SIT_DROP : 0;
 
   rig.update(dt, smoothed, world);
 
@@ -1810,6 +2826,8 @@ async function boot() {
   buildGround(env);
   restart(DEFAULT_SEED, DEFAULT_PLAYERS, DEFAULT_HUMAN);
   requestAnimationFrame(frame);
+  /* The third clock. See STAGE_POLL: it only pumps, it never steps the game. */
+  startStageClock();
   if (castResult.loaded.length) {
     const shown = castResult.variants.filter((v) => v.ok);
     console.info(
@@ -2324,6 +3342,22 @@ window.__play = {
   get cast() {
     return {
       ok: castLibrary ? castLibrary.ok : false,
+      /*
+       * The player's own body, reported separately because it is the one seat a
+       * screenshot cannot settle: the figure walks, so "is that a citizen or the
+       * capsule" is a question about a thing that is rarely in the same place
+       * twice. `variant` null with `capsule` true is the honest degraded state —
+       * the human's GLB did not arrive and the match is still playable.
+       */
+      you: {
+        variant: avatarVariant,
+        capsule: avatarIsCapsule,
+        labelY: Math.round(avatarLabelY * 1000) / 1000,
+        toppleLift: Math.round(avatarTopple * 1000) / 1000,
+        /* The collider, unchanged and printed beside the figure so a review can
+         * see that the swap did not move it. */
+        collider: { radius: tuning.radius, height: tuning.height }
+      },
       rows: castLibrary ? castLibrary.rows : [],
       loaded: castLibrary ? castLibrary.loaded : [],
       fallbacks: castLibrary ? castLibrary.fallbacks : [],
@@ -2394,6 +3428,143 @@ window.__play = {
 
   /** What the ambience would do for the current view, without doing it. */
   edges: () => publicEdges(previousView, view),
+
+  /*
+   * THE JUICE MAP, as a report.
+   *
+   * A screenshot can show that the square is dark and somebody is lit; it cannot
+   * show that the bed cut before the light moved, that the ballots were 180 ms
+   * apart, or that the silence was 800 ms and not 780. Every one of the five
+   * moments is a schedule, and a schedule is only checkable from a readback.
+   *
+   * `declared` is what src/play/stage.js says the moment is; `live` is what the
+   * page is actually doing right now. A review compares them.
+   */
+  stage() {
+    const t = nowMs();
+    return {
+      reducedMotion: reducedMotion(),
+      reducedSetting,
+      declared: {
+        accusation: ACCUSE, accusationLastMs: ACCUSE_LAST_MS,
+        ballot: BALLOT, tile: TILE, purge: PURGE, curtain: CURTAIN
+      },
+      accusation: accusing
+        ? {
+          from: accusing.from, done: Object.assign({}, accusing.done),
+          /* Every step as an offset from the trigger, which is the form the
+           * brief's "nothing later than 700 ms" is stated in. */
+          offsets: {
+            hush: 0,
+            lantern: Math.round(accusing.plan.lanternAt - (accusing.plan.hushAt)),
+            rim: Math.round(accusing.plan.rimAt - accusing.plan.hushAt),
+            turn: Math.round(accusing.plan.turnAt - accusing.plan.hushAt),
+            camera: Math.round(accusing.plan.cameraAt - accusing.plan.hushAt),
+            bubble: Math.round(accusing.plan.bubbleAt - accusing.plan.hushAt),
+            objective: Math.round(accusing.plan.objectiveAt - accusing.plan.hushAt),
+            last: Math.round(accusing.plan.lastAt - accusing.plan.hushAt)
+          },
+          elapsed: Math.round(t - accusing.plan.hushAt),
+          reduced: accusing.plan.reduced
+        }
+        : null,
+      ballots: ballots
+        ? {
+          stagger: BALLOT.stagger,
+          plan: ballots.plan.steps.map((s) => ({ seat: s.seat, at: s.at, aye: s.aye, nay: s.nay })),
+          elapsed: Math.round(t - ballots.from),
+          now: ballotCountAt(ballots.plan, t - ballots.from)
+        }
+        : null,
+      board: board
+        ? {
+          counts: board.counts,
+          placed: board.tiles.map((x) => ({ tile: x.tile, index: x.index })),
+          inFlight: tileFlight
+            ? { elapsed: Math.round(t - tileFlight.startedAt), travelMs: tileFlight.plan.travelMs,
+              at: { x: +tileFlight.mesh.position.x.toFixed(3), y: +tileFlight.mesh.position.y.toFixed(3),
+                z: +tileFlight.mesh.position.z.toFixed(3) } }
+            : null
+        }
+        : null,
+      purge: purging
+        ? {
+          seat: purging.seat, gavelled: purging.gavelled,
+          silenceMs: PURGE.silenceMs,
+          elapsed: Math.round(t - purging.plan.silenceFrom),
+          gavelAtMs: PURGE.gavelAt
+        }
+        : null,
+      curtain: curtain
+        ? {
+          of: curtain.plan.of,
+          step: CURTAIN.step,
+          dictator: curtain.plan.dictator,
+          order: curtain.plan.steps.map((s) => ({ seat: s.id, at: s.at, last: s.last })),
+          turned: Object.keys(curtain.turned).length,
+          sealed: Object.keys(curtain.sealed).length,
+          tabled: curtain.tabled,
+          elapsed: Math.round(t - curtain.from),
+          /* The seals as they are ON THE PLATES, read off the DOM — a seal in
+           * the model and not in the element is not on screen. */
+          onPlates: citizens.map((c) => {
+            const s = c.nameEl ? c.nameEl.querySelector('.seal') : null;
+            return s ? { seat: c.id, text: s.textContent, cls: s.className } : null;
+          }).filter(Boolean)
+        }
+        : null,
+      framing: framingSpec
+        ? {
+          amount: +framingAmount.toFixed(3), want: framingWant,
+          push: framingSpec.push, yaw: +framingSpec.yaw.toFixed(4),
+          baseDistance: +framingSpec.baseDistance.toFixed(3),
+          distance: +rig.tuning.distance.toFixed(3)
+        }
+        : { amount: 0, want: 0, distance: +rig.tuning.distance.toFixed(3) },
+      /* The count on screen, beside the module's own answer. Same pair every
+       * other surface is reported as. */
+      tally: (() => {
+        const node = document.getElementById('tally');
+        return {
+          model: panels.tally,
+          onScreen: node && !node.classList.contains('hidden')
+            ? node.textContent.replace(/\s+/g, ' ').trim() : null
+        };
+      })()
+    };
+  },
+
+  /**
+   * Reduced motion, for a review that cannot change a system preference.
+   *
+   * `null` gives the operating system its answer back. The page's own setting
+   * wins when it is set, because a player who wants this game's camera to stop
+   * moving should not have to change a system preference to say so.
+   */
+  setReducedMotion(on) {
+    reducedSetting = on === null || on === undefined ? null : !!on;
+    return { setting: reducedSetting, effective: reducedMotion() };
+  },
+
+  /**
+   * Stage an accusation aimed at this seat, for a review.
+   *
+   * IT IS A REVIEW HANDLE AND IT IS NOT THE GAME. The trigger in `refresh()`
+   * reads the floor's own lines and fires this same function with the same
+   * argument; what does not happen in a shipped match is a bot ever naming you,
+   * because src/engine/orator.js excludes the human seat from every target pool
+   * (see `accusationFrom` in src/play/stage.js). So this drives the staging
+   * through its real path and does NOT fabricate an utterance: no bubble is
+   * invented, nothing is written to the floor's record, and `__play.floor()`
+   * still reports exactly what the square really said.
+   */
+  accuseMe(fromSeat) {
+    if (!view) return null;
+    const from = fromSeat === undefined ? nearestOther() : Number(fromSeat);
+    if (from == null) return null;
+    return { from, plan: stageAccusation(from) };
+  },
+  releaseAccusation,
 
   /* Sound, as a report. A scripted review cannot hear a gavel; it can read
    * that one was fired, and when. */

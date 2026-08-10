@@ -556,6 +556,93 @@ html, body {
   font-weight: 600;
 }
 
+/* ------------------------------------------------- the running ballot count */
+
+/*
+ * THE COUNT THAT ACCUMULATES, under the objective line and only while the
+ * ballots are landing.
+ *
+ * The design doc's acceptance criterion for the ballot reveal is that "a viewer
+ * with the sound off knows the result before the count finishes", so the two
+ * numbers are the loudest thing in it and the "n of m" is deliberately not: it
+ * is the reason the numbers are still moving, not a number to read.
+ *
+ * The Aye and Nay colours are the badge's, not the board's — the same green and
+ * red already stamped over the heads of the people who cast them, because this
+ * line is the total of those badges and a third palette for the same fact would
+ * be a third thing to learn. Neither is in the role channel.
+ */
+#tally {
+  position: fixed; top: 96px; left: 346px; right: 16px;
+  pointer-events: none;
+  width: fit-content;
+  margin: 0 auto;
+  padding: 5px 14px;
+  display: flex; gap: 14px; align-items: baseline;
+  font-size: 13px; letter-spacing: 0.02em;
+  background: rgba(12, 14, 19, 0.92);
+  border: 1px solid var(--line);
+  border-radius: 4px;
+}
+#tally.hidden { display: none; }
+#tally b { font-size: 16px; font-weight: 700; margin-left: 5px; }
+#tally .a { color: #9ff0b8; }
+#tally .n { color: #f0a09f; }
+#tally .of { color: var(--dim); font-size: 11px; }
+/* Landed. The border warms for a beat, which is the only thing on screen that
+ * says the counting has stopped — the light says which way it went. */
+#tally.done { border-color: #6a5a2a; }
+
+/* -------------------------------------------------------------- the seal */
+
+/*
+ * THE ROLE SEAL, pressed onto a citizen's own nameplate at game over.
+ *
+ * This is the one place outside the private card where role colour is allowed
+ * on screen, and it is allowed for exactly one moment: the engine has disclosed
+ * every role (`view.reveal`, and it is null at every other instant), and the
+ * design doc asks for the reveal to be theatre rather than a table — "their role
+ * seal presses onto their own nameplate where it stays… the player can name the
+ * Dictator without reading a word".
+ *
+ * It uses the same three colours the private card's seal uses, because the style
+ * bible allows no new ones and because a player who has been reading their own
+ * card all match already knows what blue and red mean.
+ *
+ * The Dictator's is the only one with a filled ground. It is the answer to the
+ * doc's acceptance criterion, and it is the difference between "here are the
+ * roles" and "there they are".
+ */
+.tag .seal {
+  display: block;
+  margin-top: 2px;
+  font-size: 9px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  border-top: 1px solid var(--line);
+  padding-top: 2px;
+}
+.tag .seal.r-loyalist { color: var(--reform); }
+.tag .seal.r-rebel { color: var(--seize); }
+.tag .seal.r-dictator {
+  color: #ffd9d4;
+  background: rgba(232, 105, 95, 0.34);
+  border-top-color: var(--seize);
+  font-weight: 700;
+}
+/* A revealed plate stops dimming: the dead are still cast members at the
+ * curtain call, and a seal at 50% opacity is the one thing here that must be
+ * legible. */
+.tag.dead.revealed { opacity: 0.85; }
+
+@media (prefers-reduced-motion: reduce) {
+  /* Nothing in this file animates today; the declaration is here so that the
+   * next person to add a transition to a HUD surface finds the block already
+   * open. The staging's own reduced-motion path is src/play/stage.js, because
+   * the moves that matter are a camera and a body, not a stylesheet. */
+  * { animation-duration: 0.001ms !important; transition-duration: 0.001ms !important; }
+}
+
 /* ------------------------------------------------------------ the prompt */
 
 /* Both of these used to sit in the bottom 56 px, which is now the tray. They
