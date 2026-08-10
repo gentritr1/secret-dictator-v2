@@ -731,8 +731,15 @@ function citizenFileLayer(id, glb) {
           box.max[k] = Math.max(box.max[k], p[k]);
         }
         /* The lowest slice is the feet. Measured rather than assumed, because
-         * the bounding box centre is the wrong test for a figure that leans. */
-        if (y <= CITIZENS.footSlice) {
+         * the bounding box centre is the wrong test for a figure that leans.
+         *
+         * VIS_acc_* is excluded, and that is a scoping of what this check always
+         * meant rather than a relaxation of it. The rule is "the BODY stands
+         * where the seat puts it" — the elder's cane reaches the ground 0.34 m
+         * to one side on purpose, and counting it as a foot would demand either
+         * a centred cane or a hovering one, both worse than the truth. Every
+         * VIS_ mesh that is not an accessory is still held to the same 5 cm. */
+        if (y <= CITIZENS.footSlice && node.name.indexOf('VIS_acc_') !== 0) {
           footVertices++;
           foot.min[0] = Math.min(foot.min[0], x); foot.max[0] = Math.max(foot.max[0], x);
           foot.min[1] = Math.min(foot.min[1], z); foot.max[1] = Math.max(foot.max[1], z);

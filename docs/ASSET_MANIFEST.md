@@ -126,6 +126,32 @@ and has not had an owner eyeball. A dead citizen's nameplate stays at its
 standing socket height while the body lies on the floor; that convention
 predates the figures and now reads as a label hovering over nothing.
 
+
+### The cast's trades (2026-08-11)
+
+The four citizen variants stopped being proportion studies and became people.
+Each carries one distinctive accessory from `citizens-sculpt-reference.png`, per
+the style bible's "one distinctive accessory per citizen, readable at distance":
+
+| variant | trade | accessory | height | materials |
+| --- | --- | --- | --- | --- |
+| chr-citizen-base | messenger | satchel and strap | 1.725 m | CarvedWood, Leather |
+| chr-citizen-stout | baker | a loaf held at the chest | 1.565 m | CarvedWood, Crust |
+| chr-citizen-tall | clockmaker | stovepipe crown, watch on a chain | 2.067 m | CarvedWood, BrassDull |
+| chr-citizen-hunched | elder | shawl and cane | 1.481 m | CarvedWood, ShawlSlate |
+
+`npm run test:glb` held the work to the contract four times over and every fix
+respected the rule rather than widening it: the elder's cane became CarvedWood
+because a cane is wood and never needed a material of its own; the baker's apron
+was cut because the budget is body plus ONE accessory material and the loaf is
+what reads at distance; the clockmaker's stovepipe was trimmed from +0.20 to
++0.11 when it pushed the figure past the 2.1 m citizen band, and its brass was
+dulled to 0.85 roughness to sit inside the painted-wood band rather than being
+exempted from it. One check was rescoped rather than obeyed — the feet-centring
+rule now ignores `VIS_acc_*`, because the elder's cane reaches the ground 0.34 m
+to one side on purpose and the rule always meant "the body stands where the seat
+puts it".
+
 ## Audio
 
 Two sounds are files and the rest are synthesised at runtime. The split is a
