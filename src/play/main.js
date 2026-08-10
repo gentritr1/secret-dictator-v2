@@ -607,12 +607,45 @@ let minds = null;
  */
 let floorUntil = 0;
 
+/*
+ * THE PRESENTATION CLOCK, and the whole of what "pinning pauses the
+ * presentation, not the game" means in code.
+ *
+ * Every clock on this page — the deliberation beat, the floor's argument, the
+ * announcement, the tile sting, the light's staging lead, the bubbles — is an
+ * absolute timestamp compared against `now`. So there is exactly one honest way
+ * to hold all of them at once, and it is to stop the clock they are all read
+ * from rather than to remember six deadlines and shift them by hand.
+ *
+ * `nowMs()` is that clock: wall time minus however long the ledger has been
+ * pinned, and frozen entirely while it is pinned. Pin for a minute and every
+ * deadline is exactly where it was when you pinned; nothing expires unseen, no
+ * bubble is dropped, and the argument the square was halfway through resumes
+ * mid-sentence.
+ *
+ * THE ENGINE IS NOT IN THIS PARAGRAPH. It has no clock — `Driver.step` is
+ * called by tick() and by nothing else — so pausing is the absence of a call,
+ * not a state the rules can be in. test/pace.test.js has proved since Gate 1.5
+ * that stopping and starting this loop cannot change a match, and the new gate
+ * re-proves it through the actual pin: open, wait, close, diff the event log.
+ *
+ * Raw `performance.now()` survives in exactly one place, the render loop's `last`,
+ * because that is a frame delta and a frame still happens while paused (the
+ * page must keep drawing, it simply must not advance anything).
+ */
+let pausedAt = 0;      // wall time the pin happened, 0 when the square is running
+let pausedFor = 0;     // total wall time this match has spent pinned
+
+function nowMs() {
+  return (pausedAt || performance.now()) - pausedFor;
+}
+
 function floorRemaining() {
-  return Math.max(0, floorUntil - performance.now());
+  return Math.max(0, floorUntil - nowMs());
 }
 
 function holdRemaining() {
-  return Math.max(0, holdUntil - performance.now());
+  return Math.max(0, holdUntil - nowMs());
 }
 function holding() {
   return holdRemaining() > 0;
@@ -631,7 +664,44 @@ const ANNOUNCE_MS = 3000;
 let announceText = null;
 let announceUntil = 0;
 function announcing() {
-  return performance.now() < announceUntil ? announceText : null;
+  return nowMs() < announceUntil ? announceText : null;
+}
+
+/* ------------------------------------------------------------- the ledger */
+
+/**
+ * Pin the ledger, or give the square back.
+ *
+ * Two things happen and no third: the clock stops (see nowMs above) and the bot
+ * branch of tick() stops being reached. Nothing is written to the session, no
+ * decision is answered or withdrawn, and `waitingFor()` is whatever it was — so
+ * a decision you own is still yours while you read, which is the point.
+ */
+function pinLedger() {
+  if (panels.isLedgerOpen) return false;
+  pausedAt = performance.now();
+  panels.openLedger(view, ledgerSource());
+  /* The tray's hint changes the first time this happens, and the tray is
+   * signature-cached, so it has to be told. */
+  if (view) panels.renderTray(view, presentation());
+  return true;
+}
+
+function unpinLedger() {
+  if (!panels.isLedgerOpen) return false;
+  if (pausedAt) { pausedFor += performance.now() - pausedAt; pausedAt = 0; }
+  panels.closeLedger();
+  if (view) panels.renderTray(view, presentation());
+  /* Re-time the loop from now, exactly as a submission does: a timer already in
+   * flight was scheduled against a delay computed before the pause. */
+  stopLoop();
+  startLoop();
+  return true;
+}
+
+/** What the ledger renders, and it is a projection rather than the record. */
+function ledgerSource() {
+  return floorVoice ? floorVoice.source() : null;
 }
 
 /** What the page is doing that the view cannot know. A clock, not game state. */
@@ -639,6 +709,9 @@ function presentation() {
   return {
     holding: holding(),
     announce: announcing(),
+    /* One bit of onboarding: the tray's hint says what is in the ledger until
+     * the ledger has been opened once. See src/play/tray.js. */
+    ledgerSeen: panels.ledgerSeen,
     /* The card dims to 35% in the night states; the light is the only thing
      * that knows which those are. */
     night: NIGHT_STATES.indexOf(lighting.target) !== -1
@@ -662,7 +735,7 @@ function presentation() {
  */
 function beat(nextWaiting) {
   if (!nextWaiting) return;
-  holdUntil = performance.now() + pace.beatFor(nextWaiting, speed);
+  holdUntil = nowMs() + pace.beatFor(nextWaiting, speed);
 }
 
 /*
@@ -698,7 +771,7 @@ function flushCast() {
 
 /** Run the staged cast update if its lead has elapsed. Called from both loops. */
 function pumpCast() {
-  if (stagedView && performance.now() >= stagedAt) flushCast();
+  if (stagedView && nowMs() >= stagedAt) flushCast();
 }
 
 /*
@@ -726,7 +799,7 @@ function pumpAmbience() {
   wasHeld = held;
   if (held) return;
 
-  if (!stingTile || performance.now() < stingUntil) return;
+  if (!stingTile || nowMs() < stingUntil) return;
   stingTile = null;
   const state = lightingFor(view, null);
   lighting.setState(state);
@@ -740,7 +813,7 @@ function pumpAmbience() {
  */
 function pumpMurmurs() {
   if (!view) return;
-  if (murmurs.pump(performance.now(), view)) paintMurmurs();
+  if (murmurs.pump(nowMs(), view)) paintMurmurs();
 }
 
 /**
@@ -821,7 +894,7 @@ let heldEdges = null;
 function applyAmbience(next, edges, own) {
   if (edges.sting) {
     stingTile = edges.sting;
-    stingUntil = performance.now() + STING_MS;
+    stingUntil = nowMs() + STING_MS;
     /*
      * The tray's one beat of news, cued off the same public edge the light and
      * the sound are: a Seize has landed, and the board has armed whatever that
@@ -832,13 +905,13 @@ function applyAmbience(next, edges, own) {
      */
     if (edges.sting === 'seize') {
       announceText = announceFor(next.seize, edges.granted || null);
-      announceUntil = performance.now() + ANNOUNCE_MS;
+      announceUntil = nowMs() + ANNOUNCE_MS;
     }
-  } else if (performance.now() >= stingUntil) {
+  } else if (nowMs() >= stingUntil) {
     stingTile = null;
   }
 
-  const sting = performance.now() < stingUntil ? stingTile : null;
+  const sting = nowMs() < stingUntil ? stingTile : null;
   const state = lightingFor(next, { sting });
   lighting.setState(state);
   audio.setLighting(state);
@@ -893,6 +966,10 @@ function refresh() {
   waiting = session.waitingFor();
   view = View.viewFor(session.G, session.humanId, { waitingFor: waiting });
   objective = panels.renderHud(view, presentation());
+  /* The ledger reads the record, and the record has just moved: answering a
+   * decision with the panel open must update what is in front of you rather
+   * than leaving a stale fold on screen with the word "paused" over it. */
+  if (panels.isLedgerOpen) panels.renderLedger(view, ledgerSource());
 
   /*
    * The light before the crowd, deliberately in this order and with this delay.
@@ -919,8 +996,8 @@ function refresh() {
    * heads, which is exactly what heldEdges exists to stop the audio doing.
    */
   murmurs.observe(spoken, view, {
-    now: performance.now(),
-    notBefore: Math.max(performance.now(), holdUntil),
+    now: nowMs(),
+    notBefore: Math.max(nowMs(), holdUntil),
     speed
   });
   /*
@@ -944,8 +1021,8 @@ function refresh() {
    */
   if (floorVoice) {
     const said = floorVoice.observe(session.G, session.events, {
-      now: performance.now(),
-      notBefore: Math.max(performance.now(), holdUntil),
+      now: nowMs(),
+      notBefore: Math.max(nowMs(), holdUntil),
       speed,
       waiting
     });
@@ -956,7 +1033,7 @@ function refresh() {
   }
   if (phaseChanged || holding()) {
     stagedView = view;
-    stagedAt = Math.max(performance.now(), holdUntil) + LIGHT_LEAD_MS;
+    stagedAt = Math.max(nowMs(), holdUntil) + LIGHT_LEAD_MS;
   } else {
     stagedView = null;
     applyToScene(view);
@@ -975,9 +1052,11 @@ function refresh() {
     panels.disarm(view, presentation());
   }
   /* The result screen is the one panel that opens itself, so it opens exactly
-   * once per match and closing it means closed. */
+   * once per match and closing it means closed. It is a modal, so it gives the
+   * square back first — see takeDecision. */
   if (view.phase === 'game_over' && !gameOverShown) {
     gameOverShown = true;
+    unpinLedger();
     panels.open(view, null);
   }
 }
@@ -1001,6 +1080,16 @@ function restart(seed = DEFAULT_SEED, playerCount = DEFAULT_PLAYERS, humanIndex 
    * the engine's stream inside pace.js and shares nothing with it. */
   pace = createPace(dealSeed);
   holdUntil = 0;
+  /*
+   * A fresh presentation clock for a fresh match. Closed through the panel
+   * rather than through unpinLedger(), because that one re-times the match loop
+   * and restart() is in the middle of tearing the loop down. `panels.ledgerSeen`
+   * is deliberately NOT reset: a player does not become a first-timer again
+   * because they dealt another hand.
+   */
+  panels.closeLedger();
+  pausedFor = 0;
+  pausedAt = 0;
   /* A fresh mouth for a fresh match, seeded from the same integer, so a
    * replayed seed hears the same square. Rebuilt rather than reset because
    * setRoster is about to throw away every bubble element it was pointing at. */
@@ -1111,6 +1200,19 @@ let wasHolding = false;
 
 function tick() {
   /*
+   * The ledger is pinned: the square holds.
+   *
+   * Everything below this line is either a clock being pumped or a bot being
+   * asked to move, and the pin means neither happens. It is one `return` rather
+   * than a flag threaded through five functions because that is exactly what
+   * "the presentation pauses" is — the loop stops calling, and the engine, which
+   * has no clock of its own, therefore cannot advance. The player's own path
+   * (the keyboard, panels.onSubmit, refresh) does not come through here, which
+   * is why a decision you own is still answerable with the ledger open.
+   */
+  if (panels.isLedgerOpen) return;
+
+  /*
    * A beat ends on a clock, and no game event fires when it does. The render
    * loop re-derives the line every frame, which is what a player sees — but
    * requestAnimationFrame stops in a background tab, and it is also not running
@@ -1199,9 +1301,19 @@ const opensAt = (ctx) =>
  */
 function takeDecision(ctx) {
   if (!ctx.waiting) return false;
-  return panels.surfaceFor(ctx.waiting.kind) === 'tray'
-    ? panels.arm(ctx.view, ctx.waiting)
-    : panels.open(ctx.view, ctx.waiting);
+  if (panels.surfaceFor(ctx.waiting.kind) === 'tray') {
+    /* The ledger stays pinned: this is the case the spec names — a decision you
+     * own, answered on the tray, with the ledger open in front of you. */
+    return panels.arm(ctx.view, ctx.waiting);
+  }
+  /*
+   * A centred card is a modal dialog and takes the whole keyboard, so it cannot
+   * share the screen with the ledger's own dialog: two dialogs, one Esc, and a
+   * pause nobody can see the header of. Opening one gives the square back
+   * first. Deliberate, and the only place the ledger closes itself.
+   */
+  unpinLedger();
+  return panels.open(ctx.view, ctx.waiting);
 }
 
 /**
@@ -1329,10 +1441,38 @@ window.addEventListener('keydown', (e) => {
     if (panels.handleTrayKey(e, view, waiting)) { e.preventDefault(); return; }
   }
 
-  /* The keys line, on demand. `?` is offered by the tray's right-hand region
-   * and is the only thing there that currently does anything — `L` is drawn
-   * dim, because the ledger is the next gate and a live key that opened nothing
-   * would be the exact lie the never-blank rule exists to prevent. */
+  /*
+   * The ledger, which is open because the player asked for it.
+   *
+   * It comes AFTER the armed row on purpose, and that ordering is the answer to
+   * the one genuine key collision in this gate: `1-9` names a citizen on an
+   * armed nomination row and jumps to a citizen here, and both are right. The
+   * row wins, because arming is a deliberate act taken to answer something and
+   * jumping is navigation with a scroll bar behind it. A digit the row does not
+   * accept — somebody term-limited, somebody dead — falls through and jumps to
+   * them instead, which is the more useful of the two things a dead key could
+   * do. `Esc` is the same story: it gives the row back first, and closes the
+   * ledger on the second press.
+   *
+   * `L` and `Esc` are intercepted here rather than inside the panel because
+   * closing has to stop the pause as well as the panel, and the clock is this
+   * file's.
+   */
+  if (panels.isLedgerOpen) {
+    if (e.key === 'Escape' || /^l$/i.test(e.key)) {
+      unpinLedger();
+      e.preventDefault();
+      return;
+    }
+    if (panels.handleLedgerKey(e, view, ledgerSource())) { e.preventDefault(); return; }
+  } else if (/^l$/i.test(e.key)) {
+    pinLedger();
+    e.preventDefault();
+    return;
+  }
+
+  /* The keys line, on demand. `?` is offered by the tray's right-hand region,
+   * beside the `L` that opens the ledger. */
   if (e.key === '?' || (e.key === '/' && e.shiftKey)) {
     if (help) help.classList.toggle('shown');
     e.preventDefault();
@@ -1389,17 +1529,30 @@ function frame(now) {
   last = now;
   const dt = Math.min(0.1, Math.max(0, raw));
 
-  /* The crossfade, and the two things that end on a clock rather than on an
-   * event. The light is advanced before anything is drawn. */
-  lighting.update(dt);
-  pumpCast();
-  pumpAmbience();
-  pumpMurmurs();
+  /*
+   * The crossfade, and the two things that end on a clock rather than on an
+   * event. The light is advanced before anything is drawn.
+   *
+   * All four are skipped while the ledger is pinned, which is what "the light
+   * holds" means: `lighting.update` is the crossfade's only driver, so not
+   * calling it freezes the state mid-fade rather than snapping it anywhere. The
+   * page keeps drawing — the frame is still rendered at the bottom of this
+   * function — it simply draws the same square each time.
+   */
+  const pinned = panels.isLedgerOpen;
+  if (!pinned) {
+    lighting.update(dt);
+    pumpCast();
+    pumpAmbience();
+    pumpMurmurs();
+  }
 
   /* An armed tray row freezes the body exactly as an open panel does. It is the
    * same contract — while a decision has the keyboard, the character does not —
-   * and it is what makes it impossible to strafe left into an Aye. */
-  const frozen = panels.isOpen || panels.isArmed || seated;
+   * and it is what makes it impossible to strafe left into an Aye. The pinned
+   * ledger is the third: WASD behind an open dialog would walk the body out of
+   * range of the very decision the ledger says is still yours to answer. */
+  const frozen = panels.isOpen || panels.isArmed || seated || pinned;
   if (frozen) { input.x = 0; input.z = 0; } else readKeyboard();
   controller.advance(dt, input, world);
 
@@ -1426,6 +1579,10 @@ function frame(now) {
 
   if (panels.isOpen) {
     panels.setPrompt('');
+  } else if (pinned && !panels.isArmed) {
+    /* Same grammar the armed row uses: what is on screen is what works, and
+     * what is left to say is the way out. */
+    panels.setPrompt('L or Esc — put the ledger down');
   } else if (panels.isArmed) {
     /* The row has been taken: the offer to take it would be a second thing to
      * press for something already pressed. What is left to say is the way out,
@@ -1879,6 +2036,59 @@ window.__play = {
     };
   },
 
+  /*
+   * The ledger panel, both ways, exactly as the tray and the objective line are
+   * reported both ways: the module's own model beside the DOM the page wrote.
+   *
+   * `rows` is every row on screen with the ids it was folded from, which is how
+   * a review checks "every row traces to a public utterance or public record
+   * entry" against the live page rather than against a fixture.
+   */
+  get ledgerPanel() {
+    const node = document.getElementById('ledger');
+    const l = panels.ledger;
+    const rowsIn = (sel) => (node && node.querySelectorAll
+      ? Array.from(node.querySelectorAll(sel)) : []);
+    return {
+      open: panels.isLedgerOpen,
+      paused: !!(l && l.paused),
+      pausedFor: Math.round(pausedFor + (pausedAt ? performance.now() - pausedAt : 0)),
+      day: l ? l.day : null,
+      flaggedOnly: l ? l.flaggedOnly : false,
+      focus: l ? l.focus : null,
+      shown: l ? l.citizens.length : 0,
+      total: l ? l.total : 0,
+      flaggedCount: l ? l.flaggedCount : 0,
+      missingSentences: l ? l.missingSentences : 0,
+      objective: l && l.objective ? l.objective.text : null,
+      promoted: l ? l.promoted.map((r) => r.label + ' ' + r.text) : [],
+      citizens: l ? l.citizens.map((c) => ({
+        number: c.number, name: c.name, alive: c.alive, flags: c.flagIds,
+        groups: c.groups.map((g) => g.id)
+      })) : [],
+      /* Read off the elements, because a row that is in the model and not in
+       * the DOM is not on screen — the step-10 lesson about the bubble class. */
+      rows: rowsIn('.lr, .pr, .obj').map((n) => ({
+        trace: (n.getAttribute('data-trace') || '').split(' ').filter(Boolean),
+        text: n.textContent.replace(/\s+/g, ' ').trim()
+      })),
+      marks: rowsIn('.ent .flag').map((n) => n.textContent.trim()),
+      /* The rule the whole HUD is swept for, asked of the live ledger. */
+      roleColour: rowsIn('[class*="r-loyalist"],[class*="r-rebel"],[class*="r-dictator"]')
+        .map((n) => n.className),
+      onScreen: node && !node.classList.contains('hidden')
+        ? node.textContent.replace(/\s+/g, ' ').trim() : null
+    };
+  },
+  /** Pin the ledger and unpin it, without a keyboard. */
+  pinLedger,
+  unpinLedger,
+  /** Jump, filter — the two keys, for a scripted review. */
+  ledgerKey(key) {
+    if (!panels.isLedgerOpen) return false;
+    return panels.handleLedgerKey({ key: String(key) }, view, ledgerSource());
+  },
+
   /** Press E on a tray decision, and give the row back, without a keyboard. */
   arm() { return panels.arm(view, waiting); },
   disarm() { return panels.disarm(view, presentation()); },
@@ -2016,8 +2226,8 @@ window.__play = {
    */
   lighting(opts) {
     const snap = lighting.snapshot();
-    snap.mapped = view ? lightingFor(view, { sting: stingTile && performance.now() < stingUntil ? stingTile : null }) : null;
-    snap.sting = performance.now() < stingUntil ? stingTile : null;
+    snap.mapped = view ? lightingFor(view, { sting: stingTile && nowMs() < stingUntil ? stingTile : null }) : null;
+    snap.sting = nowMs() < stingUntil ? stingTile : null;
     snap.lead = LIGHT_LEAD_MS;
     snap.castStaged = !!stagedView;
     snap.toneMapping = renderer.toneMapping === THREE.AgXToneMapping ? 'AgX' : 'linear';
