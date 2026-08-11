@@ -629,12 +629,14 @@ async function main() {
   var FV = await import('../src/play/floor-voice.js');
   var Floor = require('../src/engine/floor.js');
   var Orator = require('../src/engine/orator.js');
+  var Intents = require('../src/engine/intents.js');
 
   (function () {
     var maxUp = 0, floorBubbles = 0, idleBubbles = 0, samples = 0;
     var seatsSeen = {}, kindsSeen = {}, missing = {}, wrongName = 0, roleWords = 0;
     var floorLines = 0, shown = {}, barred = 0, rejects = 0;
     var matches = 0, utterances = 0;
+    var humanSaid = 0, humanNamed = 0, playerBeats = 0, playerSilences = 0;
 
     for (var fgi = 0; fgi < Math.min(GAMES, 8); fgi++) {
       var fSeed = 4242 + fgi * 7919;
@@ -645,8 +647,14 @@ async function main() {
       });
       var fMinds = AI.create(G);
       var session = Human.createSession({ G: G, minds: fMinds, humanId: fHuman });
+      /*
+       * D3 hands the voice an Intents module, which is what turns the pause on:
+       * the floor now STOPS at the human seat instead of speaking for it, and
+       * `beat()` below answers the strip the way the tray does. Driving it with
+       * the pause off would test a path the browser no longer takes.
+       */
       var voice = FV.createFloorVoice({
-        Floor: Floor, Orator: Orator, seed: fSeed, humanSeat: fHuman,
+        Floor: Floor, Orator: Orator, Intents: Intents, seed: fSeed, humanSeat: fHuman,
         names: NAMES.slice(0, fCount), minds: fMinds
       });
       var mm = createMurmurs(fSeed, { chatter: AI.chatter });
@@ -656,17 +664,50 @@ async function main() {
       var guard = 0;
       matches++;
 
+      /*
+       * ANSWER THE STRIP, exactly as the tray does.
+       *
+       * A cycle of intents: whichever slot the counter lands on, so the sweep
+       * sees claims, accusations, questions, support and both kinds of silence
+       * rather than one of them fifty times. Every slot came out of
+       * src/engine/intents.js already validated, so `rejects` staying at zero
+       * below is a statement about the strip and not about this loop.
+       */
+      var pick = 0;
+      function answerStrip(lines) {
+        var spins = 0;
+        while (voice.pending && spins++ < 12) {
+          var strip = voice.strip();
+          check(!!strip && strip.slots.length > 0,
+            'the square waited on the human seat and the strip offered nothing at all');
+          if (!strip || !strip.slots.length) { voice.runOut({ now: now }); break; }
+          check(strip.slots[strip.slots.length - 1].id === 'silence',
+            'the last slot on the strip was not silence');
+          var slot = strip.slots[(pick++) % strip.slots.length];
+          strip.slots.forEach(function (s2) {
+            check(typeof s2.sentence === 'string' && s2.sentence.length > 0,
+              'a strip slot (' + s2.id + ') had no sentence to print before speaking it');
+          });
+          var out = (pick % 7 === 0)
+            ? voice.runOut({ now: now })
+            : voice.say(slot.fields || (slot.options && slot.options[0].fields), { now: now });
+          if (out && out.lines.length) {
+            for (var oi = 0; oi < out.lines.length; oi++) lines.push(out.lines[oi]);
+          }
+        }
+      }
+
       function beat() {
         var next = View.viewFor(G, fHuman, { waitingFor: null });
         mm.observe(prev, next, { now: now, notBefore: now, speed: 1 });
         var said = voice.observe(G, session.events, {
           now: now, notBefore: now, speed: 1, waiting: session.waitingFor()
         });
+        answerStrip(said.lines);
         if (said.lines.length) {
           floorLines += said.lines.length;
           for (var li = 0; li < said.lines.length; li++) {
             var line = said.lines[li];
-            check(line.playerId !== fHuman, 'the floor put a bubble over the human seat');
             if (M.ROLE_TOKENS.test(line.text)) roleWords++;
             /* A first-person bubble may name the citizen it is aimed at, and
              * nobody else — the same whitelist objective.js and the murmur
@@ -705,7 +746,11 @@ async function main() {
             check(!perSeat[up[k].playerId],
               'seat ' + up[k].playerId + ' had two bubbles at once with the floor running');
             perSeat[up[k].playerId] = 1;
-            check(up[k].playerId !== fHuman, 'a bubble stood over the human seat');
+            /* The human seat may hold a FLOOR bubble now — it is their own
+             * answer, spoken by their own figure — and may never hold an idle
+             * murmur, which is the square talking about itself. */
+            check(up[k].playerId !== fHuman || up[k].floor,
+              'an idle murmur stood over the human seat');
             var who = next.players[up[k].playerId];
             check(!!who && who.alive, 'a bubble stood over a dead citizen');
             /* Keyed by MATCH and id: every match builds a fresh controller and
@@ -729,14 +774,20 @@ async function main() {
       }
 
       var rep = voice.report();
+      playerBeats += rep.spokenByPlayer;
+      playerSilences += rep.silences.explicit + rep.silences.timeout;
       utterances += rep.utterances;
       rejects += rep.rejected.length;
       barred += mm.barred;
       rep.missingSentences.forEach(function (id) { missing[id] = 1; });
       voice.record.utterances.forEach(function (u) {
         kindsSeen[u.kind] = (kindsSeen[u.kind] || 0) + 1;
-        check(u.speaker !== fHuman, 'the human seat spoke on the floor in D2');
-        check(u.target !== fHuman, 'the floor aimed something at the human seat in D2');
+        /* D3: the human seat both speaks and is spoken to. What has to stay
+         * true is that everything it says came through the strip — nothing was
+         * ever chosen for it — which is what `spokenByPlayer` counts against
+         * the record below. */
+        if (u.speaker === fHuman) humanSaid++;
+        if (u.target === fHuman) humanNamed++;
       });
       check(voice.audit().length === 0,
         'seed ' + fSeed + ': the live record fails the allowlist in the browser path');
@@ -767,12 +818,25 @@ async function main() {
       dropRate + '% of floor lines never reached the screen — the beat band and the ' +
       'bubble cap are fighting');
 
+    /* The pause has to have actually fired: every one of the human seat's
+     * utterances has to be one the strip produced. `spokenByPlayer` is counted
+     * by floor-voice at the moment it records one; `humanSaid` is counted off
+     * the record afterwards. Two counters from two places agreeing is the
+     * check — one of them alone would agree with a floor that spoke for you. */
+    check(humanSaid > 0, 'the human seat never spoke on the browser path');
+    check(humanNamed > 0, 'nothing was ever aimed at the human seat on the browser path');
+    check(playerBeats === humanSaid, playerBeats + ' beats were taken through the strip but ' +
+      humanSaid + ' utterances in the record came from the human seat — something was ' +
+      'spoken FOR them');
+
     say('floor         ' + utterances + ' utterances over ' + matches +
         ' matches on the BROWSER path, 0 refused,');
     say('              kinds ' + JSON.stringify(kindsSeen));
     say('              ' + floorLines + ' bubbles cued, ' + dropRate +
         '% dropped to the 2-bubble cap; never more than ' + maxUp + ' up at once,');
-    say('              never over the dead or the human seat, never two on one citizen');
+    say('              never over the dead, never two on one citizen, no idle murmur on you');
+    say('strip         ' + humanSaid + ' beats taken through the strip (' + playerSilences +
+        ' of them silences) and ' + humanNamed + ' utterances aimed at the human seat');
   })();
 
   /* Every sentence in the table, rendered both ways, swept for the bright line

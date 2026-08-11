@@ -184,23 +184,104 @@ export const SENTENCES = {
   },
 
   /*
+   * ANSWERING THE CHARGE — the intent strip's slot 1, one sentence per basis.
+   *
+   * "The sentence is chosen by the accusation's basis, so a vote_pattern charge
+   * gets an answer about votes." That is the whole reason there are eight of
+   * these rather than one "I deny it": an answer that does not name what it is
+   * answering is the game translating your intent behind your back, which is
+   * the thing the strip exists not to do.
+   *
+   * src/engine/intents.js decides which SCHEMA KIND carries each of them — a
+   * hand claim where the record will take one, a question back at the accuser
+   * otherwise — and the sentence does not change when the mechanics do, because
+   * what the player read is what the player said.
+   */
+  'answer.contradiction': {
+    bubble: () => 'My account is on the record. Read it again, all of it.',
+    line: (u, n) => `${n(u.speaker)} answers ${n(u.target)}, and points back at the record.`
+  },
+  'answer.claim_consistency': {
+    bubble: () => 'I have told this square one story and it has not moved.',
+    line: (u, n) => `${n(u.speaker)} answers ${n(u.target)}: the account has not changed.`
+  },
+  'answer.enactment': {
+    bubble: () => 'I sat in that government. Say what you think I chose.',
+    line: (u, n) => `${n(u.speaker)} answers ${n(u.target)} over the government they sat in.`
+  },
+  'answer.vote_pattern': {
+    bubble: () => 'My ballots are public. Say which one you mean.',
+    line: (u, n) => `${n(u.speaker)} answers ${n(u.target)} and puts their ballots back on the table.`
+  },
+  'answer.power_use': {
+    bubble: () => 'The board handed me that power. Ask me what I did with it.',
+    line: (u, n) => `${n(u.speaker)} answers ${n(u.target)} about the power they held.`
+  },
+  'answer.isolation': {
+    bubble: () => 'Nobody has nominated me. That is not something I did.',
+    line: (u, n) => `${n(u.speaker)} answers ${n(u.target)}: being left out is not a choice.`
+  },
+  'answer.silence': {
+    bubble: () => 'I stayed quiet. Quiet is not a confession.',
+    line: (u, n) => `${n(u.speaker)} answers ${n(u.target)} about staying quiet.`
+  },
+  'answer.gut': {
+    bubble: () => 'A feeling. That is all you brought, and you know it.',
+    line: (u, n) => `${n(u.speaker)} answers ${n(u.target)}, who had nothing but a feeling.`
+  },
+
+  'answer.question.hand': {
+    bubble: () => 'You want my hand. Ask it in front of everybody, then.',
+    line: (u, n) => `${n(u.speaker)} answers ${n(u.target)}'s question about their hand.`
+  },
+  'answer.question.vote': {
+    bubble: () => 'I voted the way this square voted. Explain yours.',
+    line: (u, n) => `${n(u.speaker)} answers ${n(u.target)} about a ballot, and asks for theirs.`
+  },
+  'answer.question.accusation': {
+    bubble: () => 'I named them and I will say why. You go first.',
+    line: (u, n) => `${n(u.speaker)} answers ${n(u.target)} about the accusation they made.`
+  },
+  'answer.question.silence': {
+    bubble: () => 'I have been listening. That is not a crime here.',
+    line: (u, n) => `${n(u.speaker)} answers ${n(u.target)} about their silence.`
+  },
+  'answer.support': {
+    bubble: (u, n) => `${n(u.target)} has it right, and I will say so out loud.`,
+    line: (u, n) => `${n(u.speaker)} takes ${n(u.target)}'s word and adds their own.`
+  },
+
+  /*
    * A silence is a beat that happened, so it gets a bubble — one glyph, plainly
    * not a sentence. Rendering it as prose ("says nothing") would put words in
    * the mouth of somebody who declined to speak, and rendering it as nothing at
    * all would make an answered question indistinguishable from a skipped turn.
    * A proper visual for a refusal belongs to the tray and the ledger.
+   *
+   * THE LOG LINE SPLITS ON `explicit`, and the record is what splits it: a
+   * citizen who chose to say nothing and a citizen whose beat ran out are two
+   * different events in src/engine/floor.js and always have been. The handoff
+   * asks for the log to record silence "by name, in the same prose as
+   * everything else: Alice said nothing" — so that is the sentence for a beat
+   * that ran out, and the chosen one keeps the sharper wording it earned.
    */
   'silence.question': {
     bubble: () => '…',
-    line: (u, n) => `${n(u.speaker)} says nothing, and the question stands.`
+    line: (u, n) => (u.explicit
+      ? `${n(u.speaker)} says nothing, and the question stands.`
+      : `${n(u.speaker)} said nothing. The question stands.`)
   },
   'silence.accusation': {
     bubble: () => '…',
-    line: (u, n) => `${n(u.speaker)} says nothing to it.`
+    line: (u, n) => (u.explicit
+      ? `${n(u.speaker)} says nothing to it.`
+      : `${n(u.speaker)} said nothing.`)
   },
   'silence.floor_open': {
     bubble: () => '…',
-    line: (u, n) => `${n(u.speaker)} has nothing to add.`
+    line: (u, n) => (u.explicit
+      ? `${n(u.speaker)} has nothing to add.`
+      : `${n(u.speaker)} said nothing.`)
   }
 };
 
@@ -237,7 +318,7 @@ function makeStream(seed) {
   };
 }
 
-const NOTHING = { lines: [], until: 0, floor: null, convened: false };
+const NOTHING = { lines: [], until: 0, floor: null, convened: false, pending: null };
 
 /**
  * @param {object} deps
@@ -249,28 +330,46 @@ const NOTHING = { lines: [], until: 0, floor: null, convened: false };
  *   minds       the bots' minds, read-only (see orator.js)
  */
 export function createFloorVoice(deps = {}) {
-  const { Floor, Orator } = deps;
+  const { Floor, Orator, Intents } = deps;
   const seed = (deps.seed >>> 0) || 1;
   const names = deps.names || [];
+  const humanSeat = deps.humanSeat === undefined ? null : deps.humanSeat;
   const recorder = Floor.createRecorder();
   const memory = Orator.createMemory();
   const ctx = {
     draw: Orator.streamFor(seed),
     minds: deps.minds || null,
     memory,
-    humanSeat: deps.humanSeat === undefined ? null : deps.humanSeat
+    humanSeat,
+    /*
+     * THE PAUSE, and the one switch that turns it on.
+     *
+     * With a seat declared human and an Intents module to build a strip out of,
+     * the floor STOPS at that seat instead of choosing for it. Without either —
+     * a headless sweep with no human, a review harness that only wants the bots
+     * — the loop is D2's loop exactly, which is what keeps every all-bot seed
+     * fingerprint in the repo where it was.
+     */
+    awaitHuman: humanSeat !== null && !!Intents && deps.awaitHuman !== false
   };
   const clock = makeStream(seed);
 
   let seen = 0;               // driver events already filed into the memory
   let acknowledged = 0;       // the last day whose morning report was answered
   let rejected = [];          // anything the schema refused — must stay empty
+  let rejectedAt = 0;         // how much of the open floor's refusals are filed
   let missing = {};           // text_ids with no sentence — must stay empty
   let convened = 0;           // floors actually held
   let declined = 0;           // triggers the scarcity gate turned down
   let decided = -1;         // the transition the convene roll was made for
   let nextLine = 1;
   let lastLines = [];
+  /* The floor currently paused on the player's beat, and the orator state it
+   * will be resumed from. Null whenever the square is not waiting on you. */
+  let pending = null;
+  let openState = null;
+  let spokenByPlayer = 0;
+  let silences = { explicit: 0, timeout: 0 };
 
   function between(band, speed) {
     const s = Number(speed) > 0 ? Number(speed) : 1;
@@ -283,16 +382,21 @@ export function createFloorVoice(deps = {}) {
     return text;
   }
 
-  function hold(spec, opts) {
-    const held = Orator.holdFloor(recorder.record, spec, ctx);
-    if (held.rejected.length) rejected = rejected.concat(held.rejected);
-    convened++;
-
-    const now = opts.now || 0;
-    const speed = opts.speed || 1;
-    let at = Math.max(now, opts.notBefore || 0) + between(FLOOR_OPEN_MS, speed);
+  /**
+   * Turn a run of utterances into timed bubbles.
+   *
+   * Split out of hold() because a floor with a person in it is spoken in more
+   * than one run: the bots up to the player's beat, then the player's own line
+   * the instant they press the key, then whatever the square says back. Each
+   * run lays out from its own base time, and the clock between runs is however
+   * long the player took — which is exactly the thing that must not reach the
+   * record, and does not: `at` and `until` are presentation and nothing reads
+   * them but the bubble layer.
+   */
+  function layout(utterances, from, speed) {
+    let at = from;
     const lines = [];
-    for (const u of held.utterances) {
+    for (const u of utterances) {
       const text = render(u);
       const life = between(FLOOR_LIFE_MS, speed);
       const gap = between(FLOOR_BEAT_MS, speed);
@@ -319,8 +423,118 @@ export function createFloorVoice(deps = {}) {
       }
       at += gap;
     }
-    lastLines = lines;
-    return { lines, until: at, floor: held.floor, convened: true };
+    return { lines, until: at };
+  }
+
+  /**
+   * What the page is handed whenever the floor produced something.
+   *
+   * `pending` is the new field and the whole of the new contract: when it is
+   * set, the floor is OPEN, the beat belongs to the player, and nothing more
+   * will be said until `say()`, `sayNothing()` or `runOut()` is called.
+   */
+  function outcome(state, laid, opts) {
+    const paused = state.pending !== null && state.pending !== undefined;
+    if (state.rejected.length !== rejectedAt) {
+      rejected = rejected.concat(state.rejected.slice(rejectedAt));
+      rejectedAt = state.rejected.length;
+    }
+    lastLines = laid.lines;
+    if (paused) {
+      pending = {
+        seat: state.pending,
+        state,
+        prompt: Intents ? Intents.promptFor(recorder.record, state.pending) : null,
+        /* When the player's beat becomes answerable: after the last bubble
+         * before it has had time to be read. The oil line does not start here
+         * — the page owns that, and only starts it when nothing else is owed. */
+        from: laid.until,
+        speed: opts && opts.speed ? opts.speed : 1
+      };
+    } else {
+      pending = null;
+      openState = null;
+    }
+    return {
+      lines: laid.lines,
+      until: laid.until,
+      floor: state.floor,
+      convened: true,
+      pending: pending ? { seat: pending.seat, from: pending.from } : null
+    };
+  }
+
+  function hold(spec, opts) {
+    const state = Orator.holdFloor(recorder.record, spec, ctx);
+    rejectedAt = 0;
+    convened++;
+    openState = state;
+
+    const now = opts.now || 0;
+    const speed = opts.speed || 1;
+    const from = Math.max(now, opts.notBefore || 0) + between(FLOOR_OPEN_MS, speed);
+    const laid = layout(state.utterances, from, speed);
+    state.spokenTo = state.utterances.length;
+    return outcome(state, laid, opts);
+  }
+
+  /**
+   * Record the player's beat and let the square answer.
+   *
+   * `fields` is one of the slots src/engine/intents.js offered, unchanged —
+   * every one of them has already been through `Floor.attempt`, so the throw
+   * below is a structural impossibility rather than a path with a fallback. It
+   * is caught and COUNTED anyway, in the same list bot refusals go into, for
+   * the reason step-10 wrote down about `rejected`: a caught exception nobody
+   * counts turns "zero schema-rejected submissions from the strip" into a green
+   * light with nothing behind it.
+   */
+  function speakForPlayer(fields, opts) {
+    if (!pending) return null;
+    const state = pending.state;
+    const seat = pending.seat;
+    const prompt = pending.prompt;
+    const speed = (opts && opts.speed) || pending.speed || 1;
+    /*
+     * Never before the beat was answerable. `pending.from` is the end of the
+     * bubble that prompted you, and an answer laid out earlier than that would
+     * be your figure replying to a sentence the square has not heard yet — a
+     * keypress can beat the presentation, and the presentation is what the
+     * bubbles are.
+     */
+    const now = Math.max((opts && opts.now) || 0, pending.from || 0);
+    let said = null;
+    try {
+      said = recorder.speak(fields);
+      spokenByPlayer++;
+    } catch (e) {
+      rejected.push({ seat, kind: fields && fields.kind, rule: e.rule || '?', why: e.message });
+    }
+
+    /*
+     * WHAT SILENCE COSTS, second consequence: "the accuser gets a free
+     * follow-up beat, appended to this floor. An unanswered accusation is
+     * spoken twice."
+     *
+     * Only for a silence that answered an ACCUSATION, only for the citizen who
+     * made it, and only through `Floor.grantFollowUp`, which grows the floor's
+     * budget rather than taking the beat off somebody else. A QUESTION is not
+     * in this branch on purpose: its cost is the obligation, which by owner
+     * ruling silence does not discharge, so it is already the most expensive of
+     * the three without a second helping.
+     */
+    let insert = null;
+    if (said && said.kind === 'SILENCE' && said.prompted_by === 'accusation') {
+      const accuser = prompt && prompt.kind === 'ACCUSE' ? prompt.speaker : null;
+      if (accuser !== null && recorder.grantFollowUp(accuser)) insert = accuser;
+    }
+
+    const mine = said ? layout([said], now, speed) : { lines: [], until: now };
+    const after = Orator.resumeFloor(recorder.record, ctx, state, insert);
+    const rest = layout(after.utterances.slice(state.spokenTo), mine.until, speed);
+    state.spokenTo = after.utterances.length;
+    const laid = { lines: mine.lines.concat(rest.lines), until: rest.until };
+    return outcome(after, laid, { speed });
   }
 
   /**
@@ -348,6 +562,79 @@ export function createFloorVoice(deps = {}) {
     get record() { return recorder.record; },
     /** The minds arrive with the match, after the voice is built. Read-only. */
     setMinds(minds) { ctx.minds = minds || null; return this; },
+
+    /* ------------------------------------------------- the player's beat */
+
+    /**
+     * The beat the square is waiting on you for, or null.
+     *
+     * A projection rather than the live object, for the reason `source()`
+     * already gives: a surface that can be written to is a surface somebody
+     * will write to. `from` is when the beat became answerable, on the page's
+     * own clock — the oil line's zero, when the page decides to start it.
+     */
+    get pending() {
+      if (!pending) return null;
+      return {
+        seat: pending.seat,
+        from: pending.from,
+        prompt: pending.prompt ? pending.prompt.id : null,
+        promptFrom: pending.prompt ? pending.prompt.speaker : null,
+        promptKind: pending.prompt ? pending.prompt.kind : null,
+        promptBasis: pending.prompt
+          ? (pending.prompt.basis || pending.prompt.about || null) : null
+      };
+    },
+
+    /**
+     * The four to six things you may say, right now.
+     *
+     * Straight out of src/engine/intents.js, which validated every one of them
+     * against this record through the real constructor. This function adds the
+     * PROSE and nothing else: a `bubble` sentence per slot and per option, so
+     * the tray can print what would be spoken and the promise "you never speak
+     * something you have not read" is a property of the data rather than of the
+     * renderer.
+     */
+    strip() {
+      if (!pending || !Intents) return null;
+      const out = Intents.stripFor(recorder.record, pending.seat, {
+        prompt: pending.prompt,
+        memory: memory.forSeat(pending.seat)
+      });
+      const say = (fields) => (fields ? renderUtterance(fields, names, 'bubble') : null);
+      out.slots.forEach((slot) => {
+        slot.sentence = say(slot.fields) || say(slot.preview && slot.preview.fields);
+        if (slot.sentence === null) missing[slot.text_id || '?'] =
+          (missing[slot.text_id || '?'] || 0) + 1;
+        (slot.options || []).forEach((o) => { o.sentence = say(o.fields); });
+      });
+      return out;
+    },
+
+    /** Speak one of the strip's slots. Returns the same shape observe() does. */
+    say(fields, opts) { return speakForPlayer(fields, opts || {}); },
+
+    /**
+     * Say nothing, on purpose. `explicit: true` — you chose it.
+     */
+    sayNothing(opts) {
+      if (!pending || !Intents) return null;
+      const fields = Intents.silenceFields(recorder.record, pending.seat, pending.prompt, true);
+      silences.explicit++;
+      return speakForPlayer(fields, opts || {});
+    },
+
+    /**
+     * The oil line ran out. `explicit: false` — and the record knows the
+     * difference, which is the whole reason the field exists.
+     */
+    runOut(opts) {
+      if (!pending || !Intents) return null;
+      const fields = Intents.silenceFields(recorder.record, pending.seat, pending.prompt, false);
+      silences.timeout++;
+      return speakForPlayer(fields, opts || {});
+    },
 
     /**
      * Fold one observation, file any new driver events into the private hand
@@ -420,6 +707,12 @@ export function createFloorVoice(deps = {}) {
         declined,
         openFloor: record.openFloor,
         day: record.day,
+        /* The player's own half of the argument, for a scripted review: how
+         * many beats they took, and how the silences split — chosen against
+         * run out, which are two different events in the record. */
+        spokenByPlayer,
+        silences: { explicit: silences.explicit, timeout: silences.timeout },
+        pending: this.pending,
         rejected: rejected.slice(),
         missingSentences: Object.keys(missing),
         flags: recorder.flags().map((f) => ({

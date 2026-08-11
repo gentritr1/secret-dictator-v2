@@ -480,17 +480,32 @@ export function createMurmurs(seed, options = {}) {
     pump(now, view) {
       let changed = false;
 
-      const alive = (id) => {
+      /**
+       * May this citizen hold a bubble at all?
+       *
+       * The dead never can. Your own seat can hold ONE kind and only one: a
+       * floor line, which is your own answer, chosen by you on the intent
+       * strip, spoken aloud by your own figure — the design doc's "your figure
+       * speaks it aloud, and the square writes it down". What it may never hold
+       * is an idle murmur, because that is the square talking about itself and
+       * you are not somebody you overhear.
+       *
+       * D3 found this the expensive way: with the exclusion in
+       * src/engine/orator.js lifted, the player's own answers were being cued
+       * into this queue and then silently discarded here, which read in the
+       * sweep as a third of the whole argument going unheard.
+       */
+      const canSpeak = (id, floor) => {
         const p = view && view.players ? view.players[id] : null;
-        return !!(p && p.alive && !p.isYou);
+        return !!(p && p.alive && (!p.isYou || floor));
       };
 
-      const stillUp = visible.filter((m) => now < m.until && alive(m.playerId));
+      const stillUp = visible.filter((m) => now < m.until && canSpeak(m.playerId, m.floor));
       if (stillUp.length !== visible.length) { visible = stillUp; changed = true; }
 
       const keep = [];
       for (const m of queue) {
-        if (!alive(m.playerId)) { changed = true; continue; }
+        if (!canSpeak(m.playerId, m.floor)) { changed = true; continue; }
         if (now < m.at) { keep.push(m); continue; }
         /* Overdue and still blocked: a stale murmur about a beat the square has
          * moved past is worse than silence, so it is dropped, not delayed. */

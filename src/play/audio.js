@@ -211,7 +211,15 @@ export const HUSH = {
   /** The purge: to nothing, instantly, and back over a breath. */
   purge: { to: 0, ms: 800, releaseMs: 900, hard: true },
   /** The accusation: down to a tenth, and back when the bubble has been read. */
-  accusation: { to: 0.1, ms: 2600, releaseMs: 700, hard: false }
+  accusation: { to: 0.1, ms: 2600, releaseMs: 700, hard: false },
+  /*
+   * THE OIL LINE'S LAST THREE SECONDS, and it is the only pressure that moment
+   * has. The brass rule under the tray "does not flash, pulse, or change
+   * colour" — so the thing that tells you the beat is nearly over is the square
+   * going quiet around you. A 120 ms duck would be an event; this is a slope,
+   * which is why it is the one entry with a `fadeMs`.
+   */
+  floor: { to: 0.06, ms: 0, releaseMs: 600, hard: false, fadeMs: 3000 }
 };
 
 /* ------------------------------------------------------------- the engine */
@@ -617,6 +625,7 @@ export function createAudio(options = {}) {
     const now = ctx.currentTime;
     const level = muted ? 0 : volume;
     const g = master.gain;
+    const down = spec.hard ? 0 : (spec.fadeMs ? spec.fadeMs / 1000 : 0.12);
     g.cancelScheduledValues(now);
     g.setValueAtTime(g.value, now);
     if (spec.hard) {
@@ -625,11 +634,19 @@ export function createAudio(options = {}) {
        * the whole point of the moment is that it is not one. */
       g.setValueAtTime(level * spec.to, now);
     } else {
-      g.linearRampToValueAtTime(level * spec.to, now + 0.12);
+      /* How long the way DOWN takes. 120 ms everywhere but the oil line, which
+       * is a three-second slope rather than a duck — see HUSH.floor. */
+      g.linearRampToValueAtTime(level * spec.to, now + down);
     }
-    g.setValueAtTime(level * spec.to, now + length);
-    g.linearRampToValueAtTime(level, now + length + spec.releaseMs / 1000);
-    hushing.until = Math.round((now + length + spec.releaseMs / 1000) * 1000);
+    /* The quiet lasts at least as long as it took to arrive, so a hush whose
+     * fade is longer than its declared hold (the oil line's is) does not start
+     * coming back before it has finished going away. For the purge and the
+     * accusation `down` is smaller than `length` and this is `length`, exactly
+     * as it was. */
+    const end = Math.max(length, down);
+    g.setValueAtTime(level * spec.to, now + end);
+    g.linearRampToValueAtTime(level, now + end + spec.releaseMs / 1000);
+    hushing.until = Math.round((now + end + spec.releaseMs / 1000) * 1000);
     hushLog.push({ kind, at: Math.round(now * 1000), ms: Math.round(length * 1000), hard: !!spec.hard });
     if (hushLog.length > 32) hushLog.shift();
     return { kind, applied: true, ms: Math.round(length * 1000), hard: !!spec.hard };

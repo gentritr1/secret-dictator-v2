@@ -47,6 +47,9 @@ import * as viewModule from './view.js';
  * orator.js reads self.SD and self.SDFloor at load time. */
 import * as floorModule from './floor.js';
 import * as oratorModule from './orator.js';
+/* The third extension, and the last one in this chain: intents.js reads
+ * self.SD, self.SDFloor and self.SDOrator at load time, so it goes after both. */
+import * as intentsModule from './intents.js';
 
 const g = /** @type {any} */ (globalThis);
 
@@ -57,6 +60,7 @@ export const Human = g.SDHuman || humanModule.default || humanModule;
 export const View = g.SDView || viewModule.default || viewModule;
 export const Floor = g.SDFloor || floorModule.default || floorModule;
 export const Orator = g.SDOrator || oratorModule.default || oratorModule;
+export const Intents = g.SDIntents || intentsModule.default || intentsModule;
 
 /* Fail loudly and early rather than throwing "undefined is not a function"
  * somewhere deep in the first step. */
@@ -67,7 +71,8 @@ for (const [name, api, probe] of [
   ['Human', Human, 'createSession'],
   ['View', View, 'viewFor'],
   ['Floor', Floor, 'createRecorder'],
-  ['Orator', Orator, 'holdFloor']
+  ['Orator', Orator, 'holdFloor'],
+  ['Intents', Intents, 'stripFor']
 ]) {
   if (!api || typeof api[probe] !== 'function') {
     throw new Error(

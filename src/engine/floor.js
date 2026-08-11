@@ -701,6 +701,17 @@
       /* Whoever was questioned takes the first beat, and may take a second beat
        * on this floor where nobody else may. */
       obliged: owed.map(function (o) { return o.target; }),
+      /*
+       * The second way a citizen gets a second beat on one floor, and the only
+       * other one: an accusation that was answered with silence buys its
+       * accuser a follow-up. "The accuser gets a free follow-up beat, appended
+       * to this floor. An unanswered accusation is spoken twice."
+       *
+       * Held as a LIST rather than a flag because the same accuser can be
+       * stonewalled twice on one floor, and because the beat budget grows by
+       * one for each — see grantFollowUp().
+       */
+      followUps: [],
       utterances: []
     };
     record.floors.push(f);
@@ -716,12 +727,19 @@
     return f;
   }
 
+  function countIn(list, seat) {
+    var n = 0;
+    for (var i = 0; list && i < list.length; i++) if (list[i] === seat) n++;
+    return n;
+  }
+
   /**
    * Is the floor open to this seat for one more beat?
    *
    * Three caps, all from the handoff: six beats per floor including carry-overs,
-   * no citizen takes two beats on one floor unless a QUESTION obliges, and the
-   * dead do not speak.
+   * no citizen takes two beats on one floor unless a QUESTION obliges (or an
+   * unanswered accusation of theirs bought them one — see grantFollowUp), and
+   * the dead do not speak.
    */
   function floorOpenTo(record, seat) {
     var f = currentFloor(record);
@@ -733,9 +751,36 @@
       var u = utteranceById(record, f.utterances[i]);
       if (u && u.speaker === seat) spoken++;
     }
-    if (spoken === 0) return true;
-    /* A second beat only for a citizen a QUESTION obliged, and only once. */
-    return spoken === 1 && f.obliged.indexOf(seat) !== -1;
+    /* One beat for everybody; one more for a citizen a QUESTION obliged; one
+     * more again for each follow-up their own unanswered accusation bought.
+     * With no obligation and no follow-up this is exactly the old rule — one
+     * beat, and a second only when obliged. */
+    var allowance = 1 + (f.obliged.indexOf(seat) !== -1 ? 1 : 0) +
+      countIn(f.followUps, seat);
+    return spoken < allowance;
+  }
+
+  /**
+   * An unanswered accusation buys its accuser one more beat on this floor.
+   *
+   * The handoff's second consequence of silence, and it is deliberately a CALL
+   * rather than a rule inside speak(): "what silence costs" is written about
+   * the player's turn, and making every bot silence grant a follow-up would
+   * rewrite the bot-only record for every seed that already exists. The caller
+   * that owns the player's beat (src/play/floor-voice.js) grants it; nothing
+   * else does, and test/strip.test.js asserts an all-bot match never sees one.
+   *
+   * The budget grows with the beat, capped at FLOOR_BEAT_CAP, so the follow-up
+   * is genuinely extra rather than taken off somebody else.
+   */
+  function grantFollowUp(record, seat) {
+    var f = currentFloor(record);
+    if (!f) return false;
+    if (!isAlive(record, seat)) return false;
+    if (f.beats >= FLOOR_BEAT_CAP) return false;
+    f.followUps.push(seat);
+    f.beats = Math.min(f.beats + 1, FLOOR_BEAT_CAP);
+    return true;
   }
 
   /* ---------------------------------------------------------- references */
@@ -929,6 +974,68 @@
     });
 
     return u;
+  }
+
+  /* ------------------------------------------------------- the dry run */
+
+  /**
+   * WOULD this utterance be accepted, right now, without recording it?
+   *
+   * The intent strip's whole safety property is "a slot is offered only if the
+   * schema would accept the resulting utterance", and there are two ways to
+   * have that. One is to re-derive the validity rules in the strip, which is
+   * two implementations of one law and the classic way a fuzz sweep goes green
+   * against a strip that is wrong in the same direction as its test. The other
+   * is to ask the constructor itself, which is this.
+   *
+   * It runs the REAL speak() and then unwinds it exactly. That is only honest
+   * if the unwind is exhaustive, so here is speak()'s complete list of writes,
+   * beside the undo for each:
+   *
+   *   record._nextUtterance += 1          restored from the mark
+   *   record.utterances.push(u)           truncated back
+   *   floor.utterances.push(u.id)         truncated back
+   *   record.obligations.push(...)        truncated back (QUESTION only)
+   *   o.discharged / o.answer             restored per obligation
+   *   o.silences.push(u.id)               truncated per obligation
+   *
+   * Nothing else in speak() writes anywhere. That sentence is the thing that
+   * could rot, so test/strip.test.js does not trust it: it JSON-serialises the
+   * whole record before and after thousands of attempts and requires it to be
+   * byte-identical, which is a statement about the record rather than about
+   * this comment.
+   *
+   * Returns null when the utterance would be accepted, or the Error that
+   * refused it (with `.rule`), so a caller can report WHY a slot is missing.
+   */
+  function attempt(record, fields) {
+    var f = currentFloor(record);
+    var mark = {
+      next: record._nextUtterance,
+      utterances: record.utterances.length,
+      floor: f ? f.utterances.length : 0,
+      obligations: record.obligations.length,
+      state: record.obligations.map(function (o) {
+        return { discharged: o.discharged, answer: o.answer, silences: o.silences.length };
+      })
+    };
+    var err = null;
+    try {
+      speak(record, fields);
+    } catch (e) {
+      err = e;
+    }
+    record._nextUtterance = mark.next;
+    record.utterances.length = mark.utterances;
+    if (f) f.utterances.length = mark.floor;
+    for (var i = 0; i < mark.state.length; i++) {
+      var o = record.obligations[i];
+      o.discharged = mark.state[i].discharged;
+      o.answer = mark.state[i].answer;
+      o.silences.length = mark.state[i].silences;
+    }
+    record.obligations.length = mark.obligations;
+    return err;
   }
 
   /* --------------------------------------------------------- CLAIM_HAND */
@@ -1539,6 +1646,8 @@
       openFloor: function (spec) { return openFloorNow(record, spec); },
       closeFloor: function () { return closeFloor(record); },
       openTo: function (seat) { return floorOpenTo(record, seat); },
+      grantFollowUp: function (seat) { return grantFollowUp(record, seat); },
+      attempt: function (fields) { return attempt(record, fields); },
       speak: function (fields) { return speak(record, fields); },
       claimHand: function (f) { f.kind = KIND.CLAIM_HAND; return speak(record, f); },
       accuse: function (f) { f.kind = KIND.ACCUSE; return speak(record, f); },
@@ -1575,7 +1684,9 @@
     openFloor: openFloorNow,
     closeFloor: closeFloor,
     floorOpenTo: floorOpenTo,
+    grantFollowUp: grantFollowUp,
 
+    attempt: attempt,
     speak: speak,
     contradictions: contradictions,
     ledger: ledger,

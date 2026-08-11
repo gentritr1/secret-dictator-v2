@@ -61,6 +61,7 @@ var AI = require('../src/engine/ai.js');
 var Driver = require('../src/engine/driver.js');
 var Floor = require('../src/engine/floor.js');
 var Orator = require('../src/engine/orator.js');
+var Intents = require('../src/engine/intents.js');
 
 var NAMES = ['Alice', 'Bo', 'Chen', 'Dara', 'Eze', 'Fin', 'Gita', 'Hale', 'Ivo', 'Juno'];
 var GAMES = parseInt(process.argv[2], 10) || 50;
@@ -373,39 +374,164 @@ say('determinism   ' + detGames + ' seeds played twice: identical utterance reco
 say('              flags; different seeds and a different selection salt both diverged');
 
 /* ===================================================================== */
-/* 5. THE HUMAN SEAT IS NOT IN THIS CONVERSATION                         */
+/* 5. THE HUMAN SEAT IS IN THIS CONVERSATION — D3 LIFTED THE EXCLUSION    */
 /* ===================================================================== */
 
+/*
+ * D2 asserted the exact opposite of what follows, and said why in the same
+ * breath: "the player has no way to answer and being accused with no way to
+ * answer is worse than not being accused". The intent strip is the way to
+ * answer, so the two exclusions in src/engine/orator.js — one in `targets()`,
+ * one in `beatOrder()` — are gone, and this section is INVERTED rather than
+ * deleted. A deleted assertion leaves a silent hole; an inverted one leaves a
+ * statement, which is the same rule §7d already follows in this file.
+ *
+ * What must NOT have been lifted with it is the basis discipline: a bot may
+ * name the player only on something the public record actually supports, on the
+ * same ladder and through the same constructor as everybody else. That is the
+ * second half below, and it is checked against the record rather than against
+ * the code, so a future short cut around `Floor.speak` would fail it.
+ */
 var humanBeats = 0, humanTargets = 0, humanSweeps = 0, humanSpoken = 0;
+var humanAccused = 0, humanBasis = {}, humanFloors = 0, humanSilentBeats = 0;
 for (var hg = 0; hg < GAMES; hg++) {
   var hCount = countFor(hg);
   var hSeat = hg % hCount;
   var hr = playWithOrator(seedFor(hg), hCount, { humanSeat: hSeat });
   humanSweeps++;
   humanSpoken += hr.record.utterances.length;
+  /* eslint-disable no-loop-func */
   hr.record.utterances.forEach(function (u) {
-    if (u.speaker === hSeat) humanBeats++;
-    if (u.target === hSeat) humanTargets++;
+    if (u.speaker === hSeat) {
+      humanBeats++;
+      if (u.kind === 'SILENCE') humanSilentBeats++;
+    }
+    if (u.target !== hSeat) return;
+    humanTargets++;
+    if (u.kind !== 'ACCUSE') return;
+    humanAccused++;
+    humanBasis[u.basis] = (humanBasis[u.basis] || 0) + 1;
+    /*
+     * THE BASIS THE PUBLIC RECORD SUPPORTS, re-checked from the outside.
+     *
+     * Every reference on an accusation aimed at the player has to resolve to
+     * something in the record — a government, an utterance, a floor, a power.
+     * `Floor.speak` already refused anything else on the way in; this asks the
+     * record the same question afterwards, so the two would have to be wrong
+     * together for the check to pass on a bad accusation.
+     */
+    Object.keys(u.refs).forEach(function (k) {
+      if (k === 'flag') return;                       // computed, not ordinal
+      var list = Array.isArray(u.refs[k]) ? u.refs[k] : [u.refs[k]];
+      list.forEach(function (id) {
+        var found = Floor.government(hr.record, id) || Floor.utterance(hr.record, id) ||
+          Floor.floor(hr.record, id) || Floor.power(hr.record, id);
+        check(!!found, 'an accusation aimed at the human seat referenced ' + id +
+          ', which is in no public record (seed ' + seedFor(hg) + ', ' + u.id + ')');
+      });
+    });
   });
+  /* eslint-enable no-loop-func */
+  humanFloors += hr.record.floors.length;
   hr.record.floors.forEach(function (f) {
     check(f.utterances.length > 0 || hr.record.alive.length <= 2,
       'seed ' + seedFor(hg) + ' ' + f.id + ': a floor opened and nobody spoke');
   });
+  check(hr.rejected.length === 0, 'seed ' + seedFor(hg) +
+    ': the schema refused ' + hr.rejected.length + ' utterances with a human seated');
 }
-check(humanBeats === 0, 'the human seat took ' + humanBeats + ' beats in D2');
-check(humanTargets === 0,
-  'the human seat was targeted ' + humanTargets + ' times — D2 gives them no way to answer');
+check(humanBeats > 200, 'the human seat took only ' + humanBeats +
+  ' beats — the exclusion in beatOrder() has not actually been lifted');
+check(humanTargets > 200, 'the human seat was targeted only ' + humanTargets +
+  ' times — the exclusion in targets() has not actually been lifted');
+check(humanAccused > 50, 'only ' + humanAccused +
+  ' accusations were ever aimed at the human seat; the headline moment is still unreachable');
+check(Object.keys(humanBasis).length >= 3, 'accusations aimed at the human seat used only ' +
+  Object.keys(humanBasis).length + ' bases — the ladder is not being walked for them');
 check(humanSpoken > 500, 'only ' + humanSpoken + ' utterances with a human seated — too few');
 
-/* Not vacuous: with no human seat declared, every seat is fair game. */
+/*
+ * `gut` is legal and stays legal — "a citizen with nothing but a feeling says
+ * so" is the handoff's own line, and the strip's answer slot has a sentence for
+ * it. What would be wrong is the player being the seat bots reach for when they
+ * have nothing: so the share of gut accusations aimed at the human is compared
+ * against the share aimed at everybody else, and has to be no worse.
+ */
+(function () {
+  var gutAt = humanBasis.gut || 0;
+  check(gutAt < humanAccused * 0.6, gutAt + ' of ' + humanAccused +
+    ' accusations aimed at the human seat rested on nothing but a feeling');
+})();
+
+/* Not vacuous in the other direction either: the seat is only special because
+ * a person is in it, and with nobody declared human seat 0 is still spoken to. */
 var noHuman = playWithOrator(seedFor(0), 7);
 check(noHuman.record.utterances.some(function (u) { return u.target === 0; }) ||
       noHuman.record.utterances.some(function (u) { return u.speaker === 0; }),
-  'seat 0 was untouched even with no human declared — the exclusion check is vacuous');
+  'seat 0 was untouched even with no human declared');
+
+/*
+ * AND THE NEW HALF: `awaitHuman` stops the floor at that seat instead of
+ * speaking for it. Without it the loop is D2's loop, which is what every
+ * headless sweep in this file (and every seed fingerprint in the repo) runs.
+ */
+(function () {
+  var seed = seedFor(4);
+  var G = SD.createGame({ names: NAMES.slice(0, 7), seed: seed });
+  var minds = AI.create(G);
+  var record = Floor.createRecord();
+  var ctx = {
+    draw: Orator.streamFor(seed), minds: minds, memory: Orator.createMemory(),
+    humanSeat: 0, awaitHuman: true
+  };
+  var guard = 0;
+  var stopped = 0;
+  var spoken = [];
+  Floor.observe(record, G);
+  while (G.phase !== SD.PHASE.GAME_OVER && guard++ < 4000) {
+    Driver.step(G, minds);
+    Floor.observe(record, G);
+    var ts = Floor.triggers(record);
+    if (!ts.length) continue;
+    var st = Orator.holdFloor(record, ts[0], ctx);
+    st.utterances.forEach(function (u) { spoken.push({ orator: u.speaker === 0, u: u }); });
+    var spins = 0;
+    while (st.pending !== null && spins++ < 12) {
+      stopped++;
+      check(st.pending === 0, 'the floor stopped at seat ' + st.pending + ', not the human');
+      check(record.openFloor !== null,
+        'the floor was CLOSED while the player still owed a beat — the strip would have ' +
+        'nothing to speak into');
+      check(!spoken.some(function (u) { return u.orator; }),
+        'something was CHOSEN for the human seat while awaitHuman was on');
+      /*
+       * The player answers — with silence, which is the cheapest legal answer
+       * and the one the oil line produces on its own. A caller that answered
+       * nothing at all would simply be offered the same beat again, for ever,
+       * which is the correct behaviour and not a loop worth testing.
+       */
+      var fields = Intents.silenceFields(record, 0, Intents.promptFor(record, 0), true);
+      check(!!fields, 'the strip could not even offer silence at a beat it was handed');
+      spoken.push({ orator: false, u: Floor.speak(record, fields) });
+      st = Orator.resumeFloor(record, ctx, st, null);
+      st.utterances.forEach(function (u) {
+        if (!spoken.some(function (s) { return s.u === u; })) {
+          spoken.push({ orator: u.speaker === 0, u: u });
+        }
+      });
+    }
+    check(record.openFloor === null, 'the floor did not close once the order ran out');
+  }
+  check(stopped > 3, 'awaitHuman stopped the floor only ' + stopped +
+    ' times — the pause is barely exercised');
+  say('awaitHuman    ' + stopped + ' beats handed to the seat instead of spoken for it, the ' +
+      'floor left open each time');
+})();
 
 say('human         ' + humanSweeps + ' matches with a seat declared human: ' + humanSpoken +
-    ' utterances, 0 spoken by them');
-say('              and 0 aimed at them; the same seat is spoken to freely when nobody is human');
+    ' utterances, ' + humanBeats + ' spoken by them (' + humanSilentBeats + ' silences)');
+say('              and ' + humanTargets + ' aimed at them, of which ' + humanAccused +
+    ' accusations on ' + j(humanBasis));
 
 /* ===================================================================== */
 /* 6. PRIVATE MEMORY, AND ONE REAL LIE                                   */
@@ -527,31 +653,43 @@ check(lies < truthful,
       (Object.keys(spurious).length ? ' (SPURIOUS: ' + j(spurious) + ')' : ''));
 })();
 
-/* THE FINGERPRINT. Quoted in docs/step-10.md and in the review report, so a
- * reviewer reproduces the exact lie rather than a lie like it. */
+/*
+ * THE FINGERPRINT. Quoted in the review report so a reviewer reproduces the
+ * exact lie rather than a lie like it.
+ *
+ * IT MOVED IN D3, AND THE MOVE IS THE POINT. docs/step-10.md quotes
+ * `C3:u-18:u-17:g-2` for this seed, and that id is now historical: seat 0 is
+ * declared human, the human seat has been lifted into the beat order and into
+ * every target pool, so seat 0 now speaks and is spoken to on the same floors —
+ * and every utterance ordinal after the first of them shifts. The LIE is the
+ * same lie, by the same citizen, about the same government, caught by the same
+ * rule against the same pair. Only its address changed, which is exactly what
+ * an ordinal is. See docs/step-15.md §fingerprint.
+ */
 (function () {
   /* Seat 0 human, which is what play.html deals by default — so the reviewer's
    * browser run and this check are looking at the same square. */
   var r = playWithOrator(1000, 7, { humanSeat: 0 });
   var flags = Floor.contradictions(r.record);
-  var want = flags.filter(function (f) { return f.id === 'C3:u-18:u-17:g-2'; })[0];
-  check(!!want, 'seed 1000 / 7 citizens no longer raises C3:u-18:u-17:g-2 — the quoted ' +
-    'caught lie in docs/step-10.md is stale (flags now: ' +
+  var want = flags.filter(function (f) { return f.id === 'C3:u-22:u-16:g-2'; })[0];
+  check(!!want, 'seed 1000 / 7 citizens no longer raises C3:u-22:u-16:g-2 — the quoted ' +
+    'caught lie in docs/step-15.md is stale (flags now: ' +
     flags.map(function (f) { return f.id; }).join(', ') + ')');
   if (!want) return;
-  var lie = Floor.utterance(r.record, 'u-17');
+  var lie = Floor.utterance(r.record, 'u-16');
   var truth = r.memory.forSeat(lie.speaker)['g-2'];
   check(lie.speaker === 2 && lie.seat_role === 'deputy' && lie.received.seize === 2 &&
         lie.received.reform === 0,
-    'seed 1000: u-17 is not Chen claiming two Seizes any more');
+    'seed 1000: u-16 is not Chen claiming two Seizes any more');
   check(!!truth && truth.received.reform === 1 && truth.received.seize === 1,
     'seed 1000: Chen was not actually passed one of each');
   check(j(want.seats) === j([2, 3]), 'seed 1000: the C3 pair is no longer seats 2 and 3');
   check(want.class === 'pair', 'the C3 flag stopped being a pair flag');
   say('caught lie    seed 1000, 7 citizens, day 3: Chen (seat 2) was passed {reform 1, seize 1}');
   say('              as Deputy of g-2 and claimed {reform 0, seize 2} — "no choice". The');
-  say('              Speaker\'s own account (u-18) disagrees and C3:u-18:u-17:g-2 flags the');
-  say('              pair [2,3] without saying which of them lied');
+  say('              Speaker\'s own account (u-22) disagrees and C3:u-22:u-16:g-2 flags the');
+  say('              pair [2,3] without saying which of them lied (D2 addressed the same lie');
+  say('              as C3:u-18:u-17:g-2; the ordinals moved when seat 0 joined the floor)');
 })();
 
 say('lying         ' + memRows + ' private hand rows, each held only by the seat that held it;');

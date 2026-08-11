@@ -241,15 +241,25 @@
   /**
    * Everybody this seat may aim something at.
    *
-   * The human seat is excluded here and nowhere else, so there is exactly one
-   * place for the D2 rule "the player is never targeted" to be true. In D2 the
-   * player has no voice yet — the intent strip is work item 4 — and being
-   * accused with no way to answer is worse than not being accused.
+   * THE D2 EXCLUSION IS GONE, and this one function is where it lived.
+   *
+   * D2 kept the human seat out of every pool with the reason written beside it:
+   * "the player has no voice yet — the intent strip is work item 4 — and being
+   * accused with no way to answer is worse than not being accused." Work item 4
+   * is this gate, the player has a voice, and so the pool is simply the living
+   * square minus yourself. There is no `humanSeat` branch left here on purpose:
+   * a seat that could be targeted only under some condition would be a
+   * behavioural channel, and the whole point of the strip is that the answer
+   * exists.
+   *
+   * What did NOT change is what a bot may say about anybody. The basis rules
+   * are the same rules — `accuseFields` below walks the same ladder in the same
+   * order, every candidate goes through the same `Floor.speak` validation, and
+   * a basis the public record cannot support is refused for the player exactly
+   * as it is refused for a bot. There is no weaker path to accusing you.
    */
   function targets(record, seat, ctx) {
-    return record.alive.filter(function (s) {
-      return s !== seat && s !== ctx.humanSeat;
-    });
+    return record.alive.filter(function (s) { return s !== seat; });
   }
 
   /**
@@ -419,21 +429,24 @@
   /* ------------------------------------------------------ what to accuse */
 
   /**
-   * The strongest basis the public record will actually support, in the
-   * handoff's own order of strength. `gut` is last and is meant to read as
-   * weak — a citizen with nothing but a feeling says so.
+   * The strongest basis the public record will actually support against ONE
+   * named citizen, in the handoff's own order of strength. `gut` is last and is
+   * meant to read as weak — a citizen with nothing but a feeling says so.
+   *
+   * Split out from `accuseFields` because the intent strip needs the identical
+   * answer for the identical question. The strip could have re-derived "the
+   * strongest basis the record supports" beside this one; two implementations
+   * of one law is how a fuzz sweep goes green against a strip that is wrong in
+   * the same direction as its test, so there is one ladder and both callers
+   * walk it. `accuseFields` picks WHO with a mind and a draw; this picks WHAT,
+   * from the public record alone, and takes neither.
+   *
+   * Returns `{ basis, refs }`, never null: `gut` always holds.
    */
-  function accuseFields(record, seat, ctx) {
-    var target = accuseTarget(record, seat, ctx);
-    if (target === null) return null;
+  var ACCUSE_STRENGTH = ['contradiction', 'claim_consistency', 'enactment',
+                         'vote_pattern', 'power_use', 'isolation', 'silence', 'gut'];
 
-    function out(basis, refs) {
-      return {
-        kind: KIND.ACCUSE, speaker: seat, target: target, basis: basis,
-        refs: refs, text_id: 'accuse.' + basis
-      };
-    }
-
+  function accuseBasisFor(record, seat, target) {
     var i;
 
     /* contradiction — a flag that currently holds and names them. */
@@ -441,17 +454,17 @@
     for (i = 0; i < flags.length; i++) {
       if (flags[i].seats.indexOf(target) === -1) continue;
       if (!flags[i].refs.utterances.length) continue;
-      return out('contradiction', {
+      return { basis: 'contradiction', refs: {
         utterances: flags[i].refs.utterances.slice(), flag: flags[i].id
-      });
+      } };
     }
 
     /* claim_consistency — two of their own claims, side by side. */
     var theirClaims = claimsOf(record, target);
     if (theirClaims.length >= 2) {
-      return out('claim_consistency', {
+      return { basis: 'claim_consistency', refs: {
         utterances: theirClaims.slice(-2).map(function (u) { return u.id; })
-      });
+      } };
     }
 
     /* enactment — they sat in a government that put a Seize on the board. */
@@ -459,7 +472,7 @@
       return g.resolution === 'enacted' && g.enacted === SD.TILE.SEIZE && satIn(g, target);
     });
     if (seizes.length) {
-      return out('enactment', { government: seizes[seizes.length - 1].id });
+      return { basis: 'enactment', refs: { government: seizes[seizes.length - 1].id } };
     }
 
     /* vote_pattern — two tallies they are recorded in. */
@@ -468,69 +481,87 @@
                           g.ballot.nay.indexOf(target) !== -1);
     });
     if (voted.length >= 2) {
-      return out('vote_pattern', {
+      return { basis: 'vote_pattern', refs: {
         governments: voted.slice(-2).map(function (g) { return g.id; })
-      });
+      } };
     }
 
     /* power_use — a power they held. */
     var held = record.powers.filter(function (p) { return p.holder === target; });
-    if (held.length) return out('power_use', { power: held[held.length - 1].id });
+    if (held.length) {
+      return { basis: 'power_use', refs: { power: held[held.length - 1].id } };
+    }
 
     /* isolation — three governments they were nowhere near. */
     var away = record.governments.filter(function (g) {
       return !satIn(g, target) && g.nominee !== target;
     });
     if (away.length >= 3) {
-      return out('isolation', {
+      return { basis: 'isolation', refs: {
         governments: away.slice(-3).map(function (g) { return g.id; })
-      });
+      } };
     }
 
     /* silence — two floors they said nothing on. */
     var quiet = silentFloorsOf(record, target);
-    if (quiet.length >= 2) return out('silence', { floors: quiet.slice(-2) });
+    if (quiet.length >= 2) return { basis: 'silence', refs: { floors: quiet.slice(-2) } };
 
-    return out('gut', {});
+    return { basis: 'gut', refs: {} };
+  }
+
+  function accuseFields(record, seat, ctx) {
+    var target = accuseTarget(record, seat, ctx);
+    if (target === null) return null;
+    var pick = accuseBasisFor(record, seat, target);
+    return {
+      kind: KIND.ACCUSE, speaker: seat, target: target, basis: pick.basis,
+      refs: pick.refs, text_id: 'accuse.' + pick.basis
+    };
   }
 
   /* ----------------------------------------------------- what to support */
 
-  function supportFields(record, seat, ctx) {
-    var target = supportTarget(record, seat, ctx);
-    if (target === null) return null;
-
-    function out(basis, refs) {
-      return {
-        kind: KIND.SUPPORT, speaker: seat, target: target, basis: basis,
-        refs: refs, text_id: 'support.' + basis
-      };
-    }
-
+  /** The strongest thing this seat can say FOR one named citizen, or null. */
+  function supportBasisFor(record, seat, target) {
     var shared = record.governments.filter(function (g) {
       return satIn(g, target) && satIn(g, seat);
     });
-    if (shared.length) return out('partner', { government: shared[shared.length - 1].id });
+    if (shared.length) {
+      return { basis: 'partner', refs: { government: shared[shared.length - 1].id } };
+    }
 
     var theirs = record.utterances.filter(function (u) {
       return u.speaker === target && u.kind !== KIND.SILENCE;
     });
-    if (theirs.length) return out('corroborate', { utterance: theirs[theirs.length - 1].id });
+    if (theirs.length) {
+      return { basis: 'corroborate', refs: { utterance: theirs[theirs.length - 1].id } };
+    }
 
     var theirClaims = claimsOf(record, target);
     if (theirClaims.length >= 2) {
-      return out('claim_consistency', {
+      return { basis: 'claim_consistency', refs: {
         utterances: theirClaims.slice(-2).map(function (u) { return u.id; })
-      });
+      } };
     }
 
     var tallied = record.governments.filter(function (g) { return !!g.ballot; });
     if (tallied.length >= 2) {
-      return out('vote_pattern', {
+      return { basis: 'vote_pattern', refs: {
         governments: tallied.slice(-2).map(function (g) { return g.id; })
-      });
+      } };
     }
     return null;
+  }
+
+  function supportFields(record, seat, ctx) {
+    var target = supportTarget(record, seat, ctx);
+    if (target === null) return null;
+    var pick = supportBasisFor(record, seat, target);
+    if (!pick) return null;
+    return {
+      kind: KIND.SUPPORT, speaker: seat, target: target, basis: pick.basis,
+      refs: pick.refs, text_id: 'support.' + pick.basis
+    };
   }
 
   /* ---------------------------------------------------- what to ask about */
@@ -551,33 +582,39 @@
     if (target === null) target = accuseTarget(record, seat, ctx);
     if (target === null) return null;
 
-    function out(about, refs) {
-      return {
-        kind: KIND.QUESTION, speaker: seat, target: target, about: about,
-        refs: refs, text_id: 'question.' + about
-      };
-    }
+    var pick = questionAboutFor(record, seat, target);
+    if (!pick) return null;
+    return {
+      kind: KIND.QUESTION, speaker: seat, target: target, about: pick.about,
+      refs: pick.refs, text_id: 'question.' + pick.about
+    };
+  }
 
+  /** The most pointed thing this seat can ask one named citizen, or null. */
+  function questionAboutFor(record, seat, target) {
     var unclaimed = seatedGovernments(record, target).filter(function (g) {
       return !hasClaimed(record, target, g.id);
     });
     if (unclaimed.length) {
-      return out('hand', { government: unclaimed[unclaimed.length - 1].id });
+      return { about: 'hand', refs: { government: unclaimed[unclaimed.length - 1].id } };
     }
 
     var theirAccusations = record.utterances.filter(function (u) {
       return u.kind === KIND.ACCUSE && u.speaker === target;
     });
     if (theirAccusations.length) {
-      return out('accusation', { utterance: theirAccusations[theirAccusations.length - 1].id });
+      return { about: 'accusation', refs: {
+        utterance: theirAccusations[theirAccusations.length - 1].id
+      } };
     }
 
     var quiet = silentFloorsOf(record, target);
-    if (quiet.length) return out('silence', { floors: quiet.slice(-2) });
+    if (quiet.length) return { about: 'silence', refs: { floors: quiet.slice(-2) } };
 
     var tallied = record.governments.filter(function (g) { return !!g.ballot; });
-    if (tallied.length) return out('vote', { government: tallied[tallied.length - 1].id });
-
+    if (tallied.length) {
+      return { about: 'vote', refs: { government: tallied[tallied.length - 1].id } };
+    }
     return null;
   }
 
@@ -632,8 +669,8 @@
    * write into.
    *
    * `explicit: true` on every silence a bot produces is deliberate: a bot that
-   * says nothing has CHOSEN to. `explicit: false` is the player's clock running
-   * out, and only the intent strip (work item 4) can produce one.
+   * says nothing has CHOSEN to. `explicit: false` is the player's oil line
+   * running out, and src/engine/intents.js is the only thing that produces one.
    */
   function chooseUtterance(record, seat, ctx) {
     var owed = obligationFor(record, seat);
@@ -709,22 +746,24 @@
    * starting after the first speaker so the same neighbour does not always take
    * the second beat.
    *
-   * The human seat is not in this list, at all, in D2.
+   * THE HUMAN SEAT IS IN THIS LIST NOW. It was not in D2, and the exclusion was
+   * the other half of the one in `targets()` above: a seat that could be named
+   * but never answer, or answer but never be named, is not a citizen. It takes
+   * its turn where the ring puts it, on the same terms as everybody else.
    */
   function beatOrder(record, f, ctx) {
     var out = [];
     function once(s) {
       if (s === null || s === undefined) return;
-      if (s === ctx.humanSeat) return;
       if (record.alive.indexOf(s) === -1) return;
       if (out.indexOf(s) === -1) out.push(s);
     }
     once(f.first);
     once(f.then);
     f.obliged.forEach(function (s) {
-      if (s !== ctx.humanSeat && out.indexOf(s) !== -1) out.push(s);
+      if (out.indexOf(s) !== -1) out.push(s);
     });
-    var ring = record.alive.filter(function (s) { return s !== ctx.humanSeat; });
+    var ring = record.alive.slice();
     var start = f.first === null || f.first === undefined ? 0 : ring.indexOf(f.first) + 1;
     if (start < 0) start = 0;
     for (var i = 0; i < ring.length; i++) once(ring[(start + i) % ring.length]);
@@ -745,23 +784,125 @@
    */
   function holdFloor(record, spec, ctx) {
     var f = Floor.openFloor(record, spec);
-    var order = beatOrder(record, f, ctx);
-    var said = [];
-    var rejected = [];
-    for (var i = 0; i < order.length; i++) {
-      var seat = order[i];
+    return runBeats(record, ctx, {
+      floor: f, order: beatOrder(record, f, ctx), at: 0,
+      utterances: [], rejected: [], pending: null, replied: false
+    });
+  }
+
+  /**
+   * Work down the beat order until the floor closes — or until it reaches a
+   * seat that is not going to be spoken for.
+   *
+   * `ctx.awaitHuman` is the whole of the new behaviour, and it is off by every
+   * default: with it unset this walks the entire order exactly as D2's loop
+   * did, choosing an utterance for every seat including the human's. With it
+   * ON, the walk STOPS when it reaches `ctx.humanSeat` and hands back a state
+   * with `pending` set and the floor still OPEN. Nothing has been decided for
+   * that seat and nothing has been written; the caller shows a strip, waits for
+   * however long it waits, records whatever the player chose through
+   * `Floor.speak`, and calls `resumeFloor` with the same state.
+   *
+   * The bots after the player are therefore selected AFTER the player has
+   * spoken, which is the point: an argument where the replies were chosen
+   * before the answer is not an argument. It also means a floor is no longer
+   * selected in one synchronous burst when a human is in it — the invariant
+   * that survives, and the one that matters for replay, is that selection
+   * advances only when a beat is actually taken. `ctx.draw` is consumed in
+   * exactly the same order for the same sequence of player choices, whatever
+   * the wall clock did in between.
+   */
+  function runBeats(record, ctx, state) {
+    while (state.at < state.order.length) {
+      var seat = state.order[state.at];
+      if (ctx.awaitHuman && seat === ctx.humanSeat) {
+        if (Floor.floorOpenTo(record, seat)) {
+          state.pending = seat;
+          return state;
+        }
+        state.at++;
+        continue;
+      }
+      state.at++;
       if (!Floor.floorOpenTo(record, seat)) continue;
       var seatCtx = contextFor(ctx, seat);
       var fields = chooseUtterance(record, seat, seatCtx);
       if (!fields) continue;
       try {
-        said.push(Floor.speak(record, fields));
+        var said = Floor.speak(record, fields);
+        state.utterances.push(said);
+        rightOfReply(record, ctx, state, said);
       } catch (e) {
-        rejected.push({ seat: seat, kind: fields.kind, rule: e.rule || '?', why: e.message });
+        state.rejected.push({
+          seat: seat, kind: fields.kind, rule: e.rule || '?', why: e.message
+        });
       }
     }
+    state.pending = null;
     Floor.closeFloor(record);
-    return { floor: f, utterances: said, rejected: rejected };
+    return state;
+  }
+
+  /**
+   * THE RIGHT OF REPLY, and it is a decision this gate made rather than a
+   * sentence it found in the handoff. It is written out here because it is the
+   * one place the record's shape changed for a reason the brief did not spell.
+   *
+   * The spec's whole premise is "an accusation lands — everything the player
+   * needs is on screen inside one second", and the objective line it specifies
+   * says *answer on the floor*. Measured over forty matches with the player
+   * answering, 221 accusations were aimed at the human seat and only 39 of them
+   * arrived while that seat still had a beat: the ring gives everybody one turn
+   * in seat order, and four times out of five you are named after yours is
+   * spent. The staging would then fire, the square would turn to look at you,
+   * the line would tell you to answer — and there would be nothing to press.
+   * That is the exact failure D2 refused to ship (being accused with no way to
+   * answer), arriving through a different door.
+   *
+   * So an accusation aimed at a seat a person is sitting in buys that seat a
+   * beat, immediately after the accuser, once per floor. It is the same
+   * mechanism and the same budget rule the handoff already blesses in the other
+   * direction — "the accuser gets a free follow-up beat, appended to this
+   * floor" when the answer is silence — pointed at the person instead of at the
+   * bot.
+   *
+   * IT CANNOT REACH AN ALL-BOT MATCH. `ctx.awaitHuman` is set only by the
+   * caller that is actually going to show somebody a strip and wait; every
+   * headless sweep, every parity run and every seed fingerprint that does not
+   * set it walks the identical loop D2 walked.
+   */
+  function rightOfReply(record, ctx, state, said) {
+    if (!ctx.awaitHuman) return false;
+    var you = ctx.humanSeat;
+    if (you === null || you === undefined) return false;
+    if (state.replied) return false;
+    if (!said || said.kind !== KIND.ACCUSE || said.target !== you) return false;
+    /* Still to come, or still able to speak: they do not need one. */
+    if (state.order.indexOf(you, state.at) !== -1) return false;
+    if (Floor.floorOpenTo(record, you)) return false;
+    if (!Floor.grantFollowUp(record, you)) return false;
+    state.replied = true;
+    state.order.splice(state.at, 0, you);
+    return true;
+  }
+
+  /**
+   * Carry on after the player's beat.
+   *
+   * `insert` is the free follow-up: a seat queued to speak NEXT rather than at
+   * the end of the ring, because "the accuser gets a free follow-up beat,
+   * appended to this floor" is about an accusation being spoken twice in a row
+   * over a silence, and an answer that arrives three beats later is a different
+   * beat. The budget for it is granted separately by `Floor.grantFollowUp` —
+   * this only decides where in the queue it sits.
+   */
+  function resumeFloor(record, ctx, state, insert) {
+    state.pending = null;
+    state.at++;
+    if (insert !== null && insert !== undefined) {
+      state.order.splice(state.at, 0, insert);
+    }
+    return runBeats(record, ctx, state);
   }
 
   /** One seat's view of the shared context: its own mind, its own memory. */
@@ -785,7 +926,18 @@
     chooseUtterance: chooseUtterance,
     beatOrder: beatOrder,
     holdFloor: holdFloor,
+    resumeFloor: resumeFloor,
     contextFor: contextFor,
+
+    /*
+     * The three ladders, shared with src/engine/intents.js so the strip and the
+     * bots cannot disagree about what the record supports. Pure: no mind, no
+     * draw, no game.
+     */
+    ACCUSE_STRENGTH: ACCUSE_STRENGTH,
+    accuseBasisFor: accuseBasisFor,
+    supportBasisFor: supportBasisFor,
+    questionAboutFor: questionAboutFor,
 
     /* Exported for the suite, which sweeps each builder on its own. */
     claimFields: claimFields,
@@ -793,6 +945,8 @@
     supportFields: supportFields,
     questionFields: questionFields,
     silenceFields: silenceFields,
-    targets: targets
+    targets: targets,
+    seatedGovernments: seatedGovernments,
+    hasClaimed: hasClaimed
   };
 });
