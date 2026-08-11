@@ -46,7 +46,8 @@ src/play/murmur.js       the square's table-talk, and the queue every bubble sha
 src/play/floor-voice.js  the floor out loud: text_id -> prose, and when each beat lands
 src/play/assets.js       the runtime asset tables: environment rows and the citizen cast, with per-row fallback
 src/play/lighting.js     the lighting director — a pure map from the player-safe view to a named state
-src/play/audio.js        minimal sound: five moments and one bed, off the same public state
+src/play/stage.js        the staging director: WHEN the five juice-map moments happen, and in what order
+src/play/audio.js        minimal sound: five moments, one bed, and the two silences
 src/lab/                 the asset lab: fixed review cameras, moods, collider overlay, stats
 index.html               Vite entry point for the playground
 walk.html                Vite entry point for the workbench
@@ -148,6 +149,7 @@ npm run test:objective                     # the objective line: mapping, routin
 npm run test:pace                          # the deliberation clock cannot change a match
 npm run test:ambience                      # the lighting map and the sound cues: mapped, lawful, leak-free
 npm run test:tell                          # no presentation channel correlates with a hidden role
+npm run test:stage                         # the five moments' schedule: the 700 ms cap, the 180 ms stagger, the 800 ms silence
 npm run test:glb                           # the shipping GLB's contract, three layers deep
 npm run test:floor                         # the claim schema: what may be said, and that saying it changes nothing
 npm run test:orator                        # the orator: bots speak, some lie, and the match is unchanged
@@ -454,9 +456,9 @@ measured warm-pixel fraction printed beside each shot. Output lives in
 
 ### The square
 
-`play.html` — the first playable match. You walk a capsule around a mostly
-graybox square among a crowd of carved-wood citizens and play a whole game
-through real decisions:
+`play.html` — the first playable match. You walk a carved-wood citizen around a
+mostly graybox square among a crowd of them and play a whole game through real
+decisions:
 nominate when you hold the gavel, vote on every government, draft when you are
 elected, aim the powers the Seize board grants you. The dais and lectern are
 loaded from `env-dais-a.glb` and the ring of bots from the four
@@ -467,6 +469,15 @@ The current review target is desktop keyboard and mouse. The HUD is laid out for
 1280 px and is not yet responsive, and there is no touch movement/use path;
 mobile support is not claimed for this milestone.
 
+**Your body is a citizen, not a capsule** (Gate 14, `docs/step-14.md`). It is
+the figure your seat implies, through the same `variantForSeat` arithmetic every
+bot goes through, so nothing on screen distinguishes the human's body from a
+bot's. The COLLIDER is unchanged and always will be — `src/walk/controller.js`
+still collides a 0.35 × 1.7 m capsule, and every Step 3 measurement still holds
+to the digit. `?body=capsule` renders the old graybox body, the way
+`?tone=linear` turns the tone mapping off: the swap costs +0.37 warm points and
+that is a number somebody should be able to check rather than take on trust.
+
 WASD or arrows to walk, drag to orbit, wheel to zoom, **E** to take whatever you
 are facing. Then **1–9** names a citizen — *their own permanent number*, the one
 on their nameplate — A or Y is Aye, N is Nay, ↵ continues, **Tab** moves between
@@ -474,6 +485,35 @@ the answers on a centred card, Esc steps back without answering, and **?**
 shows the keys. Whatever holds the decision owns the keyboard while it does — A
 is "Aye" here and "strafe left" everywhere else — and the body does not move
 behind it.
+
+**Five moments are staged** (Gate 14, `docs/step-14.md`), from the design
+review's juice map, in the order it ranked them:
+
+- **The accusation aimed at you.** The murmur bed cuts to near-silence first,
+  the accuser's lantern lifts while every other pulls back, a cool rim finds
+  your figure from the side the voice is coming from, your figure turns to face
+  them without your input, the camera pushes 6% over 400 ms, and the objective
+  line becomes *"Chen names you — answer on the floor."* Nothing lands later
+  than 620 ms. (Built and reachable, but no bot names you yet: that waits on the
+  intent strip — see `docs/step-14.md` §1.)
+- **The ballot reveal.** Ballots land one at a time, in seat order, 180 ms
+  apart, with the count accumulating beside them — so a viewer with the sound
+  off knows the result before the count finishes.
+- **The tile enacted.** It travels from the lectern to its slot on the board
+  over 520 ms and settles. The empty slots stay visible beside it.
+- **The purge.** The beam narrows onto the named citizen, the square is
+  completely silent for 800 ms — the bed cuts, it does not fade — then one
+  gavel, and nothing else at all.
+- **The curtain call.** At game over each figure turns to camera in seat order
+  250 ms apart and its role seal presses onto its own nameplate; the Dictator
+  turns last and is held alone. Only then does the reveal table appear beneath
+  it. It is the one moment role colour is allowed outside the private card.
+
+**Reduced motion is honoured**, from the operating system's
+`prefers-reduced-motion` or from the page's own setting, either one. The camera
+and the body snap; **the light keeps its crossfade**, because which two people
+are lit is the information and information should not snap. Every decision stays
+reachable in every mode.
 
 **The HUD is four surfaces** (Gates D3 and D4, `docs/step-11.md` and
 `docs/step-12.md`); the 330 px debug sidebar it replaced is gone.
