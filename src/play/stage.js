@@ -110,15 +110,23 @@ export const ACCUSE = {
    * MEASURED AGAINST THE PICTURE, not chosen.
    *
    * The first value was 5.2, which is roughly what a lantern burns at — and at
-   * a lantern's brightness, from 1 m away with a physical falloff, the second
-   * figure in the frame stayed a silhouette. "Two lit people in a dark square is
-   * the grammar of an accusation" is the whole of this moment, and a rim nobody
-   * can see is the moment not happening. 14 is what made the player's own figure
-   * read as LIT against the trial's dark in the acceptance frame
+   * a lantern's brightness, from a metre away with a physical falloff, the
+   * second figure in the frame stayed a silhouette. "Two lit people in a dark
+   * square is the grammar of an accusation" is the whole of this moment, and a
+   * rim nobody can see is the moment not happening. 14 is what made the player's
+   * own figure read as LIT against the trial's dark in the acceptance frame
    * (design/reviews/gate-14-juice/01b-accusation-staged.png).
    *
-   * It costs nothing against the warm budget, because the colour is hue 218 —
-   * the accusation frame measures COLDER than the frame before it, not warmer.
+   * WHAT IT COSTS, corrected by the measurement rather than argued from the
+   * hue. At 5.2 the staged frame measured 0.15 points COLDER than the frame
+   * before it, and the obvious conclusion — a cool light cannot spend a warm
+   * budget — is wrong. At 14 the same comparison is +0.10: hue 218 means the
+   * rim's own pixels are not counted, but the light still lifts the painted
+   * TIMBER it lands on over the classifier's saturation and lightness floors,
+   * and timber is amber. It is a tenth of a point on a frame with 1.6 points of
+   * margin, and the composited trial frame is 8.43% against a ceiling of 10 —
+   * so it is affordable, and it is affordable as a fact rather than as a
+   * property of the colour wheel.
    */
   rimIntensity: 14,
   /*
