@@ -41,7 +41,7 @@ import { createController, defaultTuning } from '../walk/controller.js';
 import { createCameraRig } from '../walk/camera.js';
 import { createBvhWorld } from '../walk/bvh-world.js';
 import { buildSquare, seatPosition, SPAWN, DAIS, BELL, BENCH } from './square.js';
-import { ENVIRONMENT, loadEnvironment, CHR_CITIZENS, loadCast, variantForSeat } from './assets.js';
+import { ENVIRONMENT, loadEnvironment, CHR_CITIZENS, loadCast, loadTiles, variantForSeat } from './assets.js';
 import { createInteractions } from './interact.js';
 import { createPanels } from './panels.js';
 import { objectFor } from './objective.js';
@@ -182,6 +182,12 @@ const audio = createAudio();
 let world = null;
 /** The load report, for the console and for __play.environment. */
 let environment = null;
+/* The two tile templates, the group their clones live in, and which slots are
+ * already filled. `seated` is keyed by logical socket name so the check costs
+ * nothing and cannot double-fill a slot on a re-render. */
+let tiles = null;
+let tileGroup = null;
+const filledSlots = new Set();
 
 /*
  * Where the podium's panels open, in world space.
@@ -2181,11 +2187,40 @@ function ambience(next) {
   return applyAmbience(next, edges, ownSubmission);
 }
 
+/*
+ * The enacted laws, seated in the board's slots.
+ *
+ * Driven off the player-safe view like everything else on screen — `reform` and
+ * `seize` are public counts, and this reads nothing else. It is idempotent and
+ * additive: tiles already seated are left alone, so a refresh mid-match does not
+ * rebuild the board, and a restart clears the group. Nothing here animates; the
+ * tile's arrival is the enactment sting's business, not this function's.
+ */
+function seatTiles() {
+  if (!tiles || !tileGroup || !environment) return;
+  const want = { reform: view.reform | 0, seize: view.seize | 0 };
+  for (const kind of ['reform', 'seize']) {
+    for (let i = 1; i <= want[kind]; i++) {
+      const key = 'board' + kind[0].toUpperCase() + kind.slice(1) + i;
+      const socket = environment.sockets[key];
+      if (!socket || filledSlots.has(key)) continue;
+      const tile = tiles[kind].clone();
+      tile.position.set(socket.x, socket.y, socket.z);
+      /* The board faces the crowd (yaw PI); a tile authored facing +Z has to
+       * turn with it or it seats back-to-front in its own slot. */
+      tile.rotation.y = Math.PI;
+      tileGroup.add(tile);
+      filledSlots.add(key);
+    }
+  }
+}
+
 function refresh() {
   if (!session) return;
   waiting = session.waitingFor();
   view = View.viewFor(session.G, session.humanId, { waitingFor: waiting });
   objective = panels.renderHud(view, presentation());
+  seatTiles();
   /* The ledger reads the record, and the record has just moved: answering a
    * decision with the panel open must update what is in front of you rather
    * than leaving a stale fold on screen with the word "paused" over it. */
@@ -2320,6 +2355,18 @@ function refresh() {
 
 function restart(seed = DEFAULT_SEED, playerCount = DEFAULT_PLAYERS, humanIndex = DEFAULT_HUMAN) {
   stopLoop();
+  /*
+   * Empty the board.
+   *
+   * The clones own their own geometry (`Object3D.clone` shares it with the
+   * template, which is the point — one buffer, many tiles), so nothing is
+   * disposed here. Disposing shared cached geometry is precisely the bug the
+   * cast hit at Gate 3: correct-looking, and fatal on the second deal.
+   */
+  if (tileGroup) {
+    for (const tile of tileGroup.children.slice()) tileGroup.remove(tile);
+    filledSlots.clear();
+  }
   const count = Math.min(10, Math.max(5, playerCount | 0));
   const human = Math.min(count - 1, Math.max(0, humanIndex | 0));
   const dealSeed = (seed >>> 0) || DEFAULT_SEED;
@@ -3091,13 +3138,24 @@ async function boot() {
    * `loadCast` never rejects. A variant that will not load costs the seats that
    * would have used it and nothing else.
    */
-  const [env, castResult] = await Promise.all([
+  const [env, castResult, tileSet] = await Promise.all([
     loadEnvironment(ENVIRONMENT),
-    loadCast(CHR_CITIZENS)
+    loadCast(CHR_CITIZENS),
+    loadTiles()
   ]);
   environment = env;
   castLibrary = castResult;
   buildGround(env);
+  /* The tile templates and the group their clones live in. Installed before the
+   * first restart so a match that begins with a board already showing laws —
+   * which no match does today, but a resumed one would — seats them on its
+   * first refresh rather than a frame later. */
+  if (tileSet) {
+    tiles = tileSet;
+    tileGroup = new THREE.Group();
+    tileGroup.name = 'board-tiles';
+    scene.add(tileGroup);
+  }
   restart(DEFAULT_SEED, DEFAULT_PLAYERS, DEFAULT_HUMAN);
   requestAnimationFrame(frame);
   /* The third clock. See STAGE_POLL: it only pumps, it never steps the game. */

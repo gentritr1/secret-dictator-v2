@@ -219,15 +219,14 @@ export const ENVIRONMENT = [
    * the tracks "the one number you must never squint at".
    *
    * Its eleven `SOCKET_reform_n` / `SOCKET_seize_n` empties are where enacted
-   * tiles will be seated. Nothing fills them yet: the slots read as recesses in
-   * the meantime, which is honest — an empty board is what an empty board looks
-   * like. The sockets are deliberately NOT claimed in `sockets` below, because
-   * the flat socket map allows one claimant per logical name and eleven names
-   * for one feature belong to whatever wires the tiles, not to this row.
+   * tiles seat. They ARE claimed now — when the board first shipped they were
+   * left unclaimed because nothing consumed them and eleven names for a feature
+   * with no consumer is noise; `seatTiles` in main.js is that consumer.
    */
   { id: 'env-board-a', category: 'environment',
     place: { x: 0, y: 0, z: 11.0, yaw: Math.PI },
     requiredNodes: ['COL_board', 'SOCKET_reform_1', 'SOCKET_seize_1'],
+    sockets: boardSockets(),
     fallback: 'capsule' },
   { id: 'env-bell-a', category: 'environment',
     place: { x: 5.5, y: 0, z: 5.5, yaw: 0 },
@@ -306,6 +305,71 @@ return rows;
  * on a façade yet. Each bay faces the square: the north wall turns south
  * (yaw PI), the side walls turn inward.
  */
+/**
+ * The board's eleven slots, as logical socket names.
+ *
+ * `boardReform1..5` / `boardSeize1..6` -> `SOCKET_reform_n` / `SOCKET_seize_n`.
+ * Generated rather than typed out because the counts are the rules' counts: a
+ * hand-written list would be one more place that has to be right when a variant
+ * of the game changes how many laws win it.
+ */
+function boardSockets() {
+  const map = {};
+  for (let i = 1; i <= 5; i++) map['boardReform' + i] = 'SOCKET_reform_' + i;
+  for (let i = 1; i <= 6; i++) map['boardSeize' + i] = 'SOCKET_seize_' + i;
+  return map;
+}
+
+/**
+ * The tile pair, loaded once and cloned per enacted law.
+ *
+ * A tile is not *placed* — it is stamped into a socket as the board fills, the
+ * same shape of thing the cast is, so it gets its own small loader rather than
+ * an ENVIRONMENT row that would need a position it never uses. Returns two
+ * templates to clone, or null if the file is missing: the board then keeps its
+ * empty recesses and the tray still carries the count, which is the same
+ * "a missing asset is not a broken game" rule as everything else here.
+ */
+export function loadTiles() {
+  return new Promise((resolve) => {
+    new GLTFLoader().load(
+      '/assets/models/environment/env-tile-a.glb',
+      (gltf) => {
+        const pick = (prefix) => {
+          const group = new THREE.Group();
+          gltf.scene.traverse((node) => {
+            if (!node.isMesh || node.name.indexOf(prefix) !== 0) return;
+            const clone = node.clone();
+            clone.position.copy(node.getWorldPosition(new THREE.Vector3()));
+            clone.castShadow = true;
+            clone.receiveShadow = true;
+            group.add(clone);
+          });
+          /* Authored side by side in one file, so each tile carries its own X
+           * offset. Re-centre, or every tile lands 0.30 m off its slot. */
+          const box = new THREE.Box3().setFromObject(group);
+          const centre = box.getCenter(new THREE.Vector3());
+          for (const child of group.children) child.position.x -= centre.x;
+          return group;
+        };
+        const reform = pick('VIS_tile_reform');
+        const seize = pick('VIS_tile_seize');
+        if (!reform.children.length || !seize.children.length) {
+          console.warn('[assets] env-tile-a loaded but a tile face is missing — the board stays empty.');
+          resolve(null);
+          return;
+        }
+        resolve({ reform, seize });
+      },
+      undefined,
+      () => {
+        console.warn('[assets] env-tile-a not loaded — the board keeps its empty slots; the tray still counts.');
+        resolve(null);
+      }
+    );
+  });
+}
+
 function facadeRow() {
   const BAY = 4.5;              // bay width plus its own frame
   const WALL = 13.6;            // just outside the kerb at 13
