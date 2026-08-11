@@ -31,7 +31,12 @@
        tray's row stays live behind it. See src/play/ledger.js. -->
   <aside id="ledger" class="hidden"></aside>
 
-  <div id="controls">
+  <!-- Setup, folded away. Every control inside keeps the id main.js binds to;
+       the only change is that the match is not played with them open. See the
+       long note in style.css for why this is a <details> and not a panel. -->
+  <details id="controls">
+    <summary title="seed, table size, seat, pace and sound">setup</summary>
+    <div class="rack">
     <label for="c-seed">seed</label>
     <input id="c-seed" type="number" min="0" step="1" value="1000" />
     <label for="c-players">citizens</label>
@@ -56,7 +61,8 @@
     <input id="c-volume" type="range" min="0" max="100" step="5" value="70"
            aria-label="sound volume" />
     <button id="c-mute" type="button" aria-pressed="false">Mute</button>
-  </div>
+    </div>
+  </details>
 
   <!-- The persistent objective: one line, always on screen, saying what to do
        and where to do it. Filled from src/play/objective.js, which is a pure

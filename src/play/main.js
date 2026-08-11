@@ -41,7 +41,8 @@ import { createController, defaultTuning } from '../walk/controller.js';
 import { createCameraRig } from '../walk/camera.js';
 import { createBvhWorld } from '../walk/bvh-world.js';
 import { buildSquare, seatPosition, SPAWN, DAIS, BELL, BENCH } from './square.js';
-import { ENVIRONMENT, loadEnvironment, CHR_CITIZENS, loadCast, loadTiles, variantForSeat } from './assets.js';
+import { ENVIRONMENT, loadEnvironment, CHR_CITIZENS, loadCast, loadTiles, variantForSeat,
+  clothForSeat, bodyPartOf } from './assets.js';
 import { createInteractions } from './interact.js';
 import { createPanels } from './panels.js';
 import { objectFor } from './objective.js';
@@ -294,8 +295,13 @@ function buildAvatarFigure(seat) {
   const variant = BODY_CAPSULE || !castLibrary || !row ? null : castLibrary.byId[row.id];
 
   if (variant) {
+    /* Your own coat, on the same seat arithmetic as everybody else's. You see
+     * yourself from behind all match, so being the one undyed figure in the
+     * square would read as the crowd having a uniform you were left out of. */
+    const bodyPart = bodyPartOf(variant.parts);
     for (const part of variant.parts) {
       const material = part.material.clone();
+      if (part === bodyPart) material.color.setHex(clothForSeat(seat));
       avatarOwns.materials.push(material);
       avatarSkins.push({ material, authored: material.color.getHex() });
       const mesh = new THREE.Mesh(part.geometry, material);
@@ -467,8 +473,18 @@ function setRoster(view) {
          * time anybody died. Two clones at most per seat, ten seats — cheaper
          * than the bug.
          */
+        const body = bodyPartOf(variant.parts);
         for (const part of variant.parts) {
           const material = part.material.clone();
+          /* This seat's coat. It is written onto the CLONE, so the loader's
+           * cached material still holds the authored tan and a second seat on
+           * the same variant is dyed independently — the same shared-material
+           * hazard the greying already had to answer for.
+           *
+           * `authored` records the DYED colour, not #917a5c: it is what a
+           * revive restores to, and restoring the tan would undress one
+           * citizen mid-match. */
+          if (part === body) material.color.setHex(clothForSeat(p.id));
           owns.materials.push(material);
           skins.push({ material, authored: material.color.getHex() });
           const mesh = new THREE.Mesh(part.geometry, material);
@@ -3106,6 +3122,21 @@ function buildGround(env) {
    * hangs nothing, and the square is exactly the square it was before this gate.
    */
   const hung = lighting.attachLanterns(env.sockets, env.loaded);
+  /*
+   * And the painted town, handed over the same way: this file says WHICH asset
+   * is the backdrop, and the director decides what colour the sky makes it.
+   * Named here rather than sniffed for over there, so a backdrop that failed to
+   * load simply leaves the sky dome showing instead of half-painting something
+   * else. `fallback: 'omit'` in the asset table means that is a real case.
+   */
+  const painted = (env.loaded || []).filter((a) => a && a.id === 'env-backdrop-a');
+  const flats = painted.reduce((n, a) => n + lighting.attachBackdrop(a), 0);
+  console.info(
+    flats
+      ? `[lighting] ${flats} backdrop flats painted from the sky's own two colours; ` +
+        'the distant town changes with the hour like everything else.'
+      : '[lighting] no backdrop loaded — the sky dome stands on its own.'
+  );
   if (hung.length < LANTERN_ORDER.length) {
     console.warn(
       `[lighting] ${hung.length} of ${LANTERN_ORDER.length} declared lantern sockets got a light ` +
@@ -3204,6 +3235,17 @@ boot();
  * boundary a suggestion.
  */
 window.__play = {
+  /*
+   * The scene graph, for art review only.
+   *
+   * Every other handle on this object is a fact about the GAME, and the game
+   * object itself is deliberately absent two paragraphs up. This is neither:
+   * it is the renderer's tree, which carries no hidden state — a role is not
+   * something a mesh knows. It exists because measuring the square by reading
+   * asset tables is how a 25.8 m backdrop got called a distant roofline, and
+   * "verify against runtime truth, not config" needs something to read.
+   */
+  scene: () => scene,
   state: () => (session ? View.viewFor(session.G, session.humanId, { waitingFor: session.waitingFor() }) : null),
   waitingFor: () => (session ? session.waitingFor() : null),
 

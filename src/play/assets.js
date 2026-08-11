@@ -464,6 +464,88 @@ export function variantForSeat(seat, table = CHR_CITIZENS) {
 }
 
 /**
+ * What this seat is wearing.
+ *
+ * THE PROBLEM THIS SOLVES, measured rather than felt: all four citizen GLBs
+ * carry the same body material, `CarvedWood` at #917a5c. Four silhouettes
+ * cycled across seven seats means seats 0 and 4, 1 and 5, and 2 and 6 were the
+ * same shape AND the same colour — three pairs of people who could not be told
+ * apart across the square. In a game whose whole subject is remembering who
+ * said what, that is not a finish problem, it is a rules problem.
+ *
+ * THREE CONSTRAINTS, and every colour below is chosen against all three:
+ *
+ *   ARITHMETIC, NOT CHANCE. Same doctrine as variantForSeat above, for the
+ *   same reasons: a draw from the engine's stream would shift every later bot
+ *   decision, and a draw from the platform's generator would make one seed
+ *   deal the same match to a differently-dressed crowd.
+ *
+ *   IT MAY NOT BE A TELL. The only input is the seat index. Roles are dealt
+ *   per seed and this map is fixed, so no colour can correlate with one —
+ *   which is a property of the signature, not a promise about the body.
+ *
+ *   IT MAY NOT SPEND THE WARM BUDGET. STYLE_BIBLE reserves the lantern-glow
+ *   family for ATTENTION, and test/ambience.test.js pins that family down as
+ *   hue 20-65 degrees above 0.25 saturation. Every entry here sits outside
+ *   that band with margin — nearest is #8a5a55 at 6 degrees — so seven lit
+ *   citizens can never read as seven lamps. test/cast.test.js checks it.
+ *
+ * Ten, so a ten-seat match dresses every citizen differently. Dyed wool and
+ * undyed flax: muted, low-saturation, period. Nobody is wearing a colour.
+ */
+export const CLOTH = [
+  0x7a5a52,   // dull umber
+  0x6b7a5e,   // moss
+  0x55707a,   // slate teal
+  0x6a5f7d,   // plum grey
+  0x8a5a55,   // madder red
+  0x5f6b8a,   // woad blue
+  0x74786a,   // undyed flax
+  0x85606e,   // dusty mauve
+  0x4f6f66,   // verdigris
+  0x6e6a78    // grey violet
+];
+
+/**
+ * @param {number} seat   the seat index, 0-based
+ * @param {number[]} [table]
+ * @returns {number} a hex colour for this seat's body
+ */
+export function clothForSeat(seat, table = CLOTH) {
+  const n = table.length;
+  if (!n) return 0x917a5c;
+  const i = Math.trunc(Number(seat) || 0);
+  return table[((i % n) + n) % n];
+}
+
+/**
+ * Which of a cast member's merged parts is the BODY — the one that gets dyed.
+ *
+ * By triangle count, deliberately, and not by material name. The body is the
+ * figure and the other part is a cane, an apron, a shawl or a hatband, so the
+ * body is several times the larger every time; `CarvedWood` happens to name it
+ * in all four GLBs today, but matching on that would mean a material renamed
+ * in Blender silently dyes somebody's cane instead of their coat, and the
+ * failure would be a person in a strange colour rather than an error.
+ *
+ * @param {{geometry: object}[]} parts  from a built cast variant
+ * @returns {object|null} the part to dye, or null for a variant with no parts
+ */
+export function bodyPartOf(parts) {
+  if (!parts || !parts.length) return null;
+  let best = null;
+  let most = -1;
+  for (const part of parts) {
+    const g = part && part.geometry;
+    const attr = g && g.attributes && g.attributes.position;
+    if (!attr) continue;
+    const tris = g.index ? g.index.count / 3 : attr.count / 3;
+    if (tris > most) { most = tris; best = part; }
+  }
+  return best;
+}
+
+/**
  * Build one cast member from an already-parsed glTF scene.
  *
  * Split out from the network for the same reason `buildEnvironment` is:

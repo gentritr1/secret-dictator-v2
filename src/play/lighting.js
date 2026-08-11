@@ -226,6 +226,7 @@ export const LIGHTING_STATES = {
     beam: { intensity: 0, angle: 0.30, penumbra: 0.5 },
     lantern: { intensity: 0 },   /* no lit lanterns at all in the day reference, and a lantern that comes up at dusk is an event because of it */
     background: 0x8e9fa9,
+    horizon: 0xc4ccc8,   /* pale overcast haze; the only state where the horizon is LIGHTER than the zenith */
     fog: { color: 0x94a5ae, near: 44, far: 115 },
     warmBudget: 1.0
   },
@@ -244,6 +245,7 @@ export const LIGHTING_STATES = {
     beam: { intensity: 14, angle: 0.30, penumbra: 0.6 },
     lantern: { intensity: 5 },   /* "first lanterns lit" — mood-dusk-gathering, literally */
     background: 0x6a6076,
+    horizon: 0xbe7a52,   /* the amber band the dusk reference is built on — the one warm sky in the table */
     fog: { color: 0x63566a, near: 30, far: 92 },
     warmBudget: 0.45
   },
@@ -263,6 +265,7 @@ export const LIGHTING_STATES = {
     beam: { intensity: 190, angle: 0.34, penumbra: 0.42 },
     lantern: { intensity: 9 },   /* burning under the beam, not against it */
     background: 0x181828,
+    horizon: 0x2e3050,   /* night lifts to blue at the rooflines, never to black */
     fog: { color: 0x181828, near: 20, far: 66 },
     warmBudget: 0.10
   },
@@ -277,6 +280,7 @@ export const LIGHTING_STATES = {
     beam: { intensity: 235, angle: 0.30, penumbra: 0.5 },
     lantern: { intensity: 9 },   /* held with the beam */
     background: 0x1d1c2e,
+    horizon: 0x343456,
     fog: { color: 0x1d1c2e, near: 22, far: 70 },
     warmBudget: 0.10
   },
@@ -287,6 +291,7 @@ export const LIGHTING_STATES = {
     beam: { intensity: 140, angle: 0.22, penumbra: 0.35 },
     lantern: { intensity: 7 },   /* the square draws back */
     background: 0x141426,
+    horizon: 0x28284a,
     fog: { color: 0x141426, near: 18, far: 60 },
     warmBudget: 0.10
   },
@@ -304,6 +309,7 @@ export const LIGHTING_STATES = {
     beam: { intensity: 165, angle: 0.20, penumbra: 0.30 },
     lantern: { intensity: 8 },   /* the hall is dim; the posts are what is left of it */
     background: 0x161626,
+    horizon: 0x2c2c4e,
     fog: { color: 0x161626, near: 18, far: 62 },
     warmBudget: 0.10
   },
@@ -317,6 +323,7 @@ export const LIGHTING_STATES = {
     beam: { intensity: 178, angle: 0.24, penumbra: 0.34 },
     lantern: { intensity: 8 },   /* unchanged from the draft — the pressure is in the ambient, not the practicals */
     background: 0x16182c,
+    horizon: 0x2c3056,
     fog: { color: 0x16182c, near: 19, far: 64 },
     warmBudget: 0.10
   },
@@ -344,6 +351,7 @@ export const LIGHTING_STATES = {
      */
     lantern: { intensity: 4.0 },
     background: 0x121222,
+    horizon: 0x242442,   /* chaos is the darkest designed frame; even here the horizon is blue */
     fog: { color: 0x121222, near: 16, far: 56 },
     warmBudget: 0.10
   },
@@ -365,6 +373,7 @@ export const LIGHTING_STATES = {
     beam: { intensity: 110, angle: 0.30, penumbra: 0.5 },
     lantern: { intensity: 8 },   /* steady, and the flicker settles — see REFORM_STEADY_MS */
     background: 0x24384e,
+    horizon: 0x3f6284,   /* the Reform blue, carried up off the board and into the sky */
     fog: { color: 0x24384e, near: 24, far: 78 },
     transient: true,
     /* A sting has to ARRIVE, and at the mood crossfade's 2.4 s it never does:
@@ -381,6 +390,7 @@ export const LIGHTING_STATES = {
     beam: { intensity: 110, angle: 0.30, penumbra: 0.5 },
     lantern: { intensity: 5 },   /* the square dims as the tile lands, a beat before one post goes out for good */
     background: 0x3a1a1e,
+    horizon: 0x6e2a26,   /* and the Seize red doing the same */
     fog: { color: 0x3a1a1e, near: 24, far: 78 },
     transient: true,
     transition: 0.3,
@@ -396,6 +406,7 @@ export const LIGHTING_STATES = {
     beam: { intensity: 60, angle: 0.32, penumbra: 0.6 },
     lantern: { intensity: 7 },   /* the town still lit at the end of it */
     background: 0x2b3a52,
+    horizon: 0x51708f,
     fog: { color: 0x2b3a52, near: 34, far: 96 },
     warmBudget: 1.0
   },
@@ -406,6 +417,7 @@ export const LIGHTING_STATES = {
     beam: { intensity: 60, angle: 0.32, penumbra: 0.6 },
     lantern: { intensity: 4 },   /* whatever the Rebels left burning */
     background: 0x422026,
+    horizon: 0x7a3730,
     fog: { color: 0x422026, near: 34, far: 96 },
     warmBudget: 1.0
   },
@@ -419,6 +431,7 @@ export const LIGHTING_STATES = {
     beam: { intensity: 0, angle: 0.30, penumbra: 0.5 },
     lantern: { intensity: 0 },   /* undesigned states get daylight, and daylight has no lanterns */
     background: 0x8e9fa9,
+    horizon: 0xc4ccc8,
     fog: { color: 0x94a5ae, near: 44, far: 115 },
     warmBudget: 1.0
   }
@@ -828,6 +841,89 @@ export function createLightingDirector(scene, options = {}) {
   scene.add(beam.target);
 
   /*
+   * THE SKY.
+   *
+   * src/play/assets.js has said since the backdrop shipped that the distant
+   * roofs "read as painted flats against the sky gradient". There was no sky
+   * gradient. `scene.background` is a single flat colour, so every frame in
+   * this game has been a sunlit town in front of a wall of one hex — which is
+   * exactly what a missing skybox looks like, and it is the largest surface in
+   * most shots.
+   *
+   * So: an inverted sphere, painted with the state's two colours, `horizon` at
+   * the rooflines going to `background` overhead. Toy theatre, not a skybox —
+   * two colours and a curve, the same amount of sky a painted flat carries.
+   *
+   * FOUR CHOICES THAT ARE NOT DECORATION, because each one is a way this
+   * would have silently changed everything already tuned:
+   *
+   *   toneMapped: false, and the colorspace include but no tonemapping one.
+   *     `scene.background` is not tone mapped (three.js applies AgX to the
+   *     scene, not to the clear colour), so a tone-mapped dome would have
+   *     darkened all thirteen states the moment it was added and every warm
+   *     measurement in this file would have been taken against a different
+   *     sky than the one they were tuned on. With this off and `horizon`
+   *     equal to `background`, the dome renders the frame that was already
+   *     there — which is the positive control this was built against.
+   *
+   *   fog: false. Fog on the sky is fog on the thing fog fades INTO; it
+   *     would flatten the gradient back to the fog colour and undo the point.
+   *
+   *   depthWrite: false + renderOrder -1000. It is behind everything by
+   *     construction rather than by being far away, so no near/far tuning of
+   *     the camera can ever put a roof through it.
+   *
+   *   frustumCulled = false, radius under the camera's 500 m far plane. A
+   *     sphere centred on the origin while the player walks 15 m off it is
+   *     not visibly off-centre at this radius, and not culling it means it
+   *     cannot blink out when the camera pitches up.
+   */
+  const skyUniforms = {
+    uHorizon: { value: new THREE.Color() },
+    uZenith: { value: new THREE.Color() },
+    /* Where the two colours meet, as a fraction of the way up the dome, and
+     * how hard. The horizon band wants to be a band and not half the sky:
+     * a pow() curve keeps it low and lets the zenith own the top of frame. */
+    uCurve: { value: 1.7 }
+  };
+  const sky = new THREE.Mesh(
+    new THREE.SphereGeometry(320, 32, 16),
+    new THREE.ShaderMaterial({
+      uniforms: skyUniforms,
+      side: THREE.BackSide,
+      depthWrite: false,
+      fog: false,
+      toneMapped: false,
+      vertexShader: `
+        varying vec3 vDir;
+        void main() {
+          vDir = normalize(position);
+          gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+        }
+      `,
+      fragmentShader: `
+        uniform vec3 uHorizon;
+        uniform vec3 uZenith;
+        uniform float uCurve;
+        varying vec3 vDir;
+        void main() {
+          /* Only the upper half is sky. Below the horizon the gradient is
+           * mirrored rather than clamped, so the couple of degrees of dome
+           * visible under a distant rooftop do not read as a hard seam. */
+          float h = clamp(abs(vDir.y), 0.0, 1.0);
+          vec3 c = mix(uHorizon, uZenith, pow(h, 1.0 / uCurve));
+          gl_FragColor = vec4(c, 1.0);
+          #include <colorspace_fragment>
+        }
+      `
+    })
+  );
+  sky.frustumCulled = false;
+  sky.renderOrder = -1000;
+  sky.name = 'sky-dome';
+  scene.add(sky);
+
+  /*
    * The staging overrides. All three rest at null and all three are pure
    * presentation: nothing here is reachable from the state table, the weather or
    * the flame, and `release()` is a complete undo.
@@ -884,7 +980,8 @@ export function createLightingDirector(scene, options = {}) {
       sunColor: new THREE.Color(), sunIntensity: 0, sunDir: new THREE.Vector3(0, 1, 0),
       beamIntensity: 0, beamAngle: 0.3, beamPenumbra: 0.5,
       lanternIntensity: 0,
-      background: new THREE.Color(), fog: new THREE.Color(), fogNear: 40, fogFar: 100
+      background: new THREE.Color(), horizon: new THREE.Color(),
+      fog: new THREE.Color(), fogNear: 40, fogFar: 100
     };
   }
 
@@ -953,6 +1050,126 @@ export function createLightingDirector(scene, options = {}) {
      * emptied with them or a re-attach would start with the previous rig's
      * multipliers applied to different posts. */
     focusLive.length = 0;
+  }
+
+  /*
+   * ------------------------------------------------------- the painted town
+   *
+   * `env-backdrop-a` is described in its own manifest row as "rooftop cut-outs
+   * as painted flats". Measured at runtime it was neither painted nor a
+   * roofline: two rings of LIT MeshPhysicalMaterial with a night-blue albedo
+   * (#232b3a and #2c3547), topping out at 35.3 deg and 32.9 deg of elevation
+   * from standing eye height, against a camera whose frame ends near 25 deg.
+   *
+   * Three things follow from those numbers, and the third is the one that
+   * matters:
+   *
+   *   1. The sky is never on screen in normal play. The backdrop IS the sky
+   *      the player sees, which is why the dome above went in unnoticed.
+   *   2. It is the same near-black in `day` as in `chaos`, because a fixed
+   *      albedo cannot know what time it is. A sunlit town under a wall of
+   *      night is what every frame of this game has been.
+   *   3. The distant town was the DARKEST thing in frame. Aerial perspective
+   *      runs the other way — far is hazier, closer in value to the sky —
+   *      and getting it backwards is what flattens a backdrop into a fence.
+   *
+   * So the flats become flats: unlit, painted from the state's own two sky
+   * colours, crossfaded with everything else. There is no second table of
+   * backdrop colours to disagree with the sky table — the same rule this file
+   * already states about the lantern glass, for the same reason. Per-mesh
+   * distance from the square's centre picks the shade, so the two authored
+   * rings get their two values without this module knowing their names, and a
+   * backdrop rebuilt with three rings would simply get three.
+   */
+
+  /** Shade of the sky the nearest and furthest flats are painted at. */
+  const BACKDROP_SHADE = { near: 0.55, far: 0.80 };
+  /** Where along the gradient the flats sample the sky: 0 horizon, 1 zenith. */
+  const BACKDROP_SAMPLE = 0.5;
+
+  /** `{ material, shade }` per painted flat. Empty until attachBackdrop(). */
+  const backdrop = [];
+  const backdropRef = new THREE.Color();
+
+  function releaseBackdrop() {
+    for (const flat of backdrop) flat.material.dispose();
+    backdrop.length = 0;
+  }
+
+  /**
+   * Take over the backdrop's materials and paint them.
+   *
+   * WHAT IS HANDED IN, and why it is not searched for: the caller says which
+   * asset is the backdrop, exactly as it says which sockets are lanterns.
+   * Nothing here matches on `BackdropNear` or on a node name, so renaming a
+   * material in Blender cannot silently un-paint the sky.
+   *
+   * Every material is CLONED before anything is written, for the reason
+   * claimFlame() spells out at length: two placements of one GLB share the
+   * loader's cached material, and writing the original reaches into every
+   * other thing built from that file. Double-sidedness is carried across —
+   * the manifest documents it as this asset's one contract exception, since a
+   * painted cut-out facing away from you should not vanish.
+   *
+   * @param {object} asset  one built asset from loadEnvironment().loaded
+   * @returns {number} how many flats are now painted
+   */
+  function attachBackdrop(asset) {
+    releaseBackdrop();
+    if (!asset || !asset.visual || !asset.visual.traverse) return 0;
+
+    /* First pass: how far out do the flats stand? The ramp is normalised
+     * against the real spread rather than against a constant, so it does not
+     * quietly depend on the radii the asset happens to have been built at. */
+    const spans = [];
+    asset.visual.updateMatrixWorld(true);
+    asset.visual.traverse((node) => {
+      if (!node.isMesh || !node.geometry) return;
+      if (!node.geometry.boundingSphere) node.geometry.computeBoundingSphere();
+      const at = node.geometry.boundingSphere.center.clone().applyMatrix4(node.matrixWorld);
+      spans.push({ node, dist: Math.hypot(at.x, at.z) });
+    });
+    if (!spans.length) return 0;
+    let lo = Infinity, hi = -Infinity;
+    for (const s of spans) { lo = Math.min(lo, s.dist); hi = Math.max(hi, s.dist); }
+
+    for (const s of spans) {
+      /* A single-ring backdrop has lo === hi and every flat lands on `near`,
+       * which is the honest answer: with one ring there is no depth to grade. */
+      const t = hi > lo ? (s.dist - lo) / (hi - lo) : 0;
+      const shade = BACKDROP_SHADE.near + (BACKDROP_SHADE.far - BACKDROP_SHADE.near) * t;
+      const list = Array.isArray(s.node.material) ? s.node.material : [s.node.material];
+      const painted = list.map((m) => {
+        const flat = new THREE.MeshBasicMaterial({
+          color: 0x000000,
+          side: m && m.side !== undefined ? m.side : THREE.DoubleSide,
+          /* Unfogged and untone-mapped, so the flats sit in exactly the colour
+           * regime the dome behind them does. Fog would be a SECOND depth cue
+           * fighting the shade ramp, tuned by numbers (fog.near = 44 m) that
+           * were chosen for objects inside the square. */
+          fog: false,
+          toneMapped: false
+        });
+        backdrop.push({ material: flat, shade });
+        return flat;
+      });
+      s.node.material = Array.isArray(s.node.material) ? painted : painted[0];
+    }
+    /* Paint immediately: waiting for the next update() would show one frame of
+     * pure black, which is the one colour the style bible reserves. */
+    paintBackdrop();
+    return backdrop.length;
+  }
+
+  function paintBackdrop() {
+    if (!backdrop.length) return;
+    /* The sky at the flats' own elevation — between the horizon and the zenith
+     * — so a state whose horizon is amber does not paint amber rooftops that
+     * stand well above the amber band. */
+    backdropRef.copy(live.horizon).lerp(live.background, BACKDROP_SAMPLE);
+    for (const flat of backdrop) {
+      flat.material.color.copy(backdropRef).multiplyScalar(flat.shade);
+    }
   }
 
   /**
@@ -1217,6 +1434,11 @@ export function createLightingDirector(scene, options = {}) {
      * quietly re-light it halfway through a fade. */
     slot.lanternIntensity = (s.lantern && s.lantern.intensity) || 0;
     slot.background.setHex(s.background);
+    /* Defaulted to the zenith rather than required, so a state added without a
+     * horizon renders the flat sky this file had before the dome instead of a
+     * black band — the failure mode of a missing colour should be the old
+     * picture, not a new bug. */
+    slot.horizon.setHex(s.horizon === undefined ? s.background : s.horizon);
     slot.fog.setHex(s.fog.color);
     slot.fogNear = s.fog.near;
     slot.fogFar = s.fog.far;
@@ -1295,6 +1517,15 @@ export function createLightingDirector(scene, options = {}) {
       }
     }
 
+    /* The dome carries the sky. `scene.background` is still written and still
+     * the zenith colour: it is what shows if the dome is ever removed, and it
+     * is what `measure()`'s offscreen probe clears to. Two writes of the same
+     * value, and no state where they can disagree. */
+    skyUniforms.uZenith.value.copy(live.background);
+    skyUniforms.uHorizon.value.copy(live.horizon);
+    /* The painted town rides the same two colours, so it can never be a state
+     * behind the sky it is standing against. */
+    paintBackdrop();
     if (!scene.background) scene.background = new THREE.Color();
     scene.background.copy(live.background);
     if (!scene.fog) scene.fog = new THREE.Fog(0x000000, live.fogNear, live.fogFar);
@@ -1344,6 +1575,7 @@ export function createLightingDirector(scene, options = {}) {
     to.beamPenumbra = from.beamPenumbra;
     to.lanternIntensity = from.lanternIntensity;
     to.background.copy(from.background);
+    to.horizon.copy(from.horizon);
     to.fog.copy(from.fog);
     to.fogNear = from.fogNear;
     to.fogFar = from.fogFar;
@@ -1404,6 +1636,7 @@ export function createLightingDirector(scene, options = {}) {
     live.beamPenumbra += (target.beamPenumbra - live.beamPenumbra) * b;
     live.lanternIntensity += (target.lanternIntensity - live.lanternIntensity) * b;
     live.background.lerp(target.background, b);
+    live.horizon.lerp(target.horizon, b);
     live.fog.lerp(target.fog, b);
     live.fogNear += (target.fogNear - live.fogNear) * b;
     live.fogFar += (target.fogFar - live.fogFar) * b;
@@ -1524,6 +1757,7 @@ export function createLightingDirector(scene, options = {}) {
     update,
     measure,
     attachLanterns,
+    attachBackdrop,
     setWeather,
     steadyFlame,
     setSeed,
@@ -1565,6 +1799,29 @@ export function createLightingDirector(scene, options = {}) {
           at: { x: beam.target.position.x, y: beam.target.position.y, z: beam.target.position.z }
         },
         background: '#' + live.background.getHexString(),
+        /* The dome's two colours, live. `background` above IS the zenith — the
+         * pair is reported rather than the top alone so a review can see which
+         * way the gradient runs without reading the table. */
+        sky: {
+          zenith: '#' + live.background.getHexString(),
+          horizon: '#' + live.horizon.getHexString(),
+          /* The painted flats, so a review can see the distant town is a value
+           * OF the sky and not a colour somebody typed in separately.
+           *
+           * SORTED BY SHADE, not taken off the ends of the array. `backdrop` is
+           * in traversal order, so index 0 is whichever flat the GLB happened
+           * to list first — the first version of this readback called that
+           * "nearest" and printed the far ring under a near label. Nearest is
+           * the darkest by construction (BACKDROP_SHADE.near is the smaller
+           * number), so shade is the thing to sort on. */
+          backdrop: backdrop.length
+            ? (() => {
+              const byShade = backdrop.slice().sort((a, b) => a.shade - b.shade);
+              return [byShade[0], byShade[byShade.length - 1]]
+                .map((f) => '#' + f.material.color.getHexString());
+            })()
+            : []
+        },
         fog: { color: '#' + live.fog.getHexString(), near: round(live.fogNear), far: round(live.fogFar) },
         budget: (LIGHTING_STATES[targetId] || LIGHTING_STATES.unknown).warmBudget,
         /*
@@ -1629,6 +1886,13 @@ export function createLightingDirector(scene, options = {}) {
       probe = null;
       probeBuffer = null;
       if (rim) { scene.remove(rim); rim.dispose(); rim = null; }
+      /* The dome's geometry and material were made here, so they are disposed
+       * here — the same rule the flame clones follow. A restart that left one
+       * sky per match behind would leak a 320 m sphere every time. */
+      scene.remove(sky);
+      sky.geometry.dispose();
+      sky.material.dispose();
+      releaseBackdrop();
       releaseLanterns();
     }
   };

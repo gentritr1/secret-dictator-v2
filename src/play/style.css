@@ -69,8 +69,22 @@ html, body {
   background: var(--bg);
   color: var(--ink);
   font: 13px/1.45 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  /*
+   * Dragging is how you orbit the camera, and a drag that starts on the canvas
+   * does not stop being a drag when the pointer crosses the tray. Without this
+   * the browser treats it as a text selection and paints the private card, the
+   * objective line and both law tracks selection-blue for the rest of the
+   * match — found by orbiting during an art review, not by any test here.
+   *
+   * On BODY rather than on #stage, because the selection it makes is of the
+   * HUD's text, and the canvas is not what needs protecting.
+   */
+  user-select: none;
+  -webkit-user-select: none;
 }
 
+/* The ledger is the one surface whose text is worth copying out — a citizen's
+ * claims, to paste into an argument. It opts back in. */
 #stage { position: fixed; inset: 0; }
 #stage canvas { display: block; }
 
@@ -490,6 +504,19 @@ html, body {
   color: var(--parchment);
   font-size: 11px; line-height: 1.45;
   overflow: hidden;
+  /*
+   * The one surface that opts back in to selection after body turned it off
+   * (see the note there — a camera drag was painting the whole HUD blue). A
+   * citizen's claims are the thing in this game worth copying out of it.
+   *
+   * It lives INSIDE this rule rather than in a `#ledger { ... }` of its own,
+   * which is where it was first written: test/ledger.test.js parses the first
+   * `#ledger {` block out of this file to check the panel is still 420px on the
+   * right, and a second one-line rule above it shadowed the block it reads.
+   * The gate caught it. Two rules for one selector was the actual mistake.
+   */
+  user-select: text;
+  -webkit-user-select: text;
 }
 #ledger.hidden { display: none; }
 #ledger:focus { outline: none; }
@@ -592,17 +619,72 @@ html, body {
 
 /* ----------------------------------------------------------- the controls */
 
+/*
+ * THE SETUP BAR, folded away.
+ *
+ * Until this pass it stood open across the top of the frame all match: seed,
+ * citizens, a seat picker, Restart, bot pace, a volume slider and Mute — eight
+ * controls, seven of which are set once before the first bell and never touched
+ * again, sitting in the same band of the screen as the objective line. It is
+ * the single least finished thing in any screenshot of this game, and it is at
+ * the top of every one of them.
+ *
+ * So it collapses. `<details>` rather than a scripted panel, because the whole
+ * behaviour — a summary that toggles, keyboard-operable, open state carried by
+ * the element — is what that tag already is. Nothing in main.js knows this
+ * happened: the controls keep their ids and their listeners, and a bar the
+ * player never opens is a bar whose inputs still hold their defaults.
+ *
+ * It does NOT go behind a key. `?` is taken by the keys legend and a setup
+ * affordance nobody can find is a restart nobody can reach.
+ */
 #controls {
   position: fixed; top: 10px; right: 10px;
-  display: flex; gap: 6px; align-items: center;
-  background: var(--panel); border: 1px solid var(--line);
-  padding: 6px 8px; border-radius: 4px; font-size: 11px;
+  font-size: 11px;
+  /* Above the objective line, which is fixed at top: 52px and would otherwise
+   * be painted straight across the open rack — it sits later in the document,
+   * so without this it wins on source order alone. Found by opening it. */
+  z-index: 5;
 }
+#controls > summary {
+  list-style: none; cursor: pointer; user-select: none;
+  display: inline-flex; align-items: center; gap: 6px;
+  background: var(--panel); border: 1px solid var(--line);
+  padding: 5px 9px; border-radius: 4px;
+  color: var(--parchment); float: right;
+}
+#controls > summary::-webkit-details-marker { display: none; }
+#controls > summary:hover { background: #262d38; color: var(--ink); }
+/* Open, the summary stops being a lozenge floating on its own and becomes the
+ * lid of the tray below it. */
+#controls[open] > summary {
+  border-bottom-left-radius: 0; border-bottom-right-radius: 0;
+  border-bottom-color: transparent; color: var(--ink);
+}
+/*
+ * A drop panel, not a bar laid back out sideways.
+ *
+ * Two columns — the label and the thing it names — so the rack is 232 px wide
+ * and reads down instead of stretching across the frame under the objective
+ * line. The grid also makes the wrapping deterministic: the two controls with
+ * no label of their own are told to span the row, and everything after them
+ * resumes in the label column instead of being one cell out of step.
+ */
+#controls > .rack {
+  clear: both;
+  display: grid; grid-template-columns: auto 1fr;
+  gap: 6px 8px; align-items: center; width: 232px;
+  background: var(--panel); border: 1px solid var(--line);
+  padding: 8px 10px; border-radius: 4px; border-top-right-radius: 0;
+}
+#controls #c-restart, #controls #c-mute { grid-column: 1 / -1; }
 #controls input, #controls select, #controls button {
   font: inherit; background: #1b2029; color: var(--ink);
   border: 1px solid var(--line); border-radius: 3px; padding: 3px 6px;
 }
-#controls input { width: 78px; }
+/* In the grid the second column is the control column, so everything in it
+ * takes the full width rather than each input having its own guess. */
+#controls input, #controls select { width: 100%; box-sizing: border-box; }
 #controls button { cursor: pointer; }
 #controls button:hover { background: #262d38; }
 /* The volume slider is a range, not a number box: it wants no border, no

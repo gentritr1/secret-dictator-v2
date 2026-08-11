@@ -227,9 +227,22 @@ async function main() {
     check(s.beam.angle > 0 && s.beam.angle < Math.PI / 2, id + ' has an impossible beam angle');
     check(s.fog.near < s.fog.far, id + ' has fog that ends before it starts');
     /* "Dark is blue, never black. Pure black is reserved for nothing." */
-    [s.hemi.sky, s.hemi.ground, s.sun.color, s.background, s.fog.color].forEach(function (c) {
+    [s.hemi.sky, s.hemi.ground, s.sun.color, s.background, s.horizon, s.fog.color].forEach(function (c) {
       check(c !== 0x000000, id + ' uses pure black, which STYLE_BIBLE reserves for nothing');
     });
+    /*
+     * THE SKY IS TWO COLOURS, and every state has to declare both.
+     *
+     * `readInto` defaults a missing horizon to the background so a forgotten
+     * one degrades to the flat sky rather than to a black band — which is the
+     * right runtime behaviour and exactly the wrong thing to leave unasserted,
+     * because the fallback is invisible. A state that renders the pre-dome
+     * picture while the other twelve have a gradient is a bug nobody would
+     * see until they happened to reach that state.
+     */
+    check(typeof s.horizon === 'number', id + ' declares no horizon colour for the sky dome');
+    check(s.horizon !== s.background,
+      id + ' declares a horizon identical to its zenith — that is the flat sky the dome replaced');
   });
 
   NIGHT_STATES.forEach(function (id) {
@@ -374,7 +387,7 @@ async function main() {
   LIGHTING_IDS.forEach(function (id) {
     var s = LIGHTING_STATES[id];
     var declared = JSON.stringify({
-      hemi: s.hemi, sun: s.sun, beam: s.beam, fog: s.fog, background: s.background
+      hemi: s.hemi, sun: s.sun, beam: s.beam, fog: s.fog, background: s.background, horizon: s.horizon
     });
     for (var sz = 0; sz <= 8; sz++) {
       var w = L.weatherFor({ seize: sz });
@@ -393,7 +406,7 @@ async function main() {
       });
       /* And the state's own rig is untouched by any of it. */
       check(JSON.stringify({
-        hemi: s.hemi, sun: s.sun, beam: s.beam, fog: s.fog, background: s.background
+        hemi: s.hemi, sun: s.sun, beam: s.beam, fog: s.fog, background: s.background, horizon: s.horizon
       }) === declared,
       'the weather changed a non-lantern channel of ' + id + ' at ' + sz + ' Seizes');
     }
@@ -409,7 +422,7 @@ async function main() {
   });
   say('weather       ' + floorChecked + ' state x weather compositions: Seizes only, ' +
     'monotonic, prefix order, saturating at the lanterns that exist — and 0 of them ' +
-    'touched the ambient, the sun, the beam, the fog or the background');
+    'touched the ambient, the sun, the beam, the fog or either colour of the sky');
 
   /* ------------------------------------------------------------ 3c. flame */
 
