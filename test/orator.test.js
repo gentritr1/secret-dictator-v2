@@ -45,10 +45,16 @@
  *            because if it did not, minds would not be informing anything and
  *            the whole feature would be inert.
  *
- * Plus: the human seat is never targeted and never takes a beat (work item 4
- * gives them a voice; being accused with no way to answer is worse than not
- * being accused), the private hand memory hands each seat only its own rows,
- * and one reproducible caught lie.
+ * Plus, INVERTED IN D3 rather than deleted: the human seat is now in the
+ * conversation. Section 5 asserted the opposite for a whole gate — zero beats
+ * taken, zero aimed at them — because being accused with no way to answer is
+ * worse than not being accused. The intent strip is the way to answer
+ * (docs/step-15.md), so the assertions are turned round and one is added: a bot
+ * may name that seat only on a basis the public record supports, re-resolved
+ * from the outside against the record rather than trusted from the ladder.
+ * Also here: the private hand memory hands each seat only its own rows, and one
+ * reproducible caught lie — whose ADDRESS moved when seat 0 joined the floor,
+ * which is what an ordinal does.
  */
 
 'use strict';

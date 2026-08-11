@@ -371,6 +371,20 @@ export function createFloorVoice(deps = {}) {
   let spokenByPlayer = 0;
   let silences = { explicit: 0, timeout: 0 };
 
+  /** The player's beat, as a copy. One shape, handed out from two places. */
+  function pendingView() {
+    if (!pending) return null;
+    return {
+      seat: pending.seat,
+      from: pending.from,
+      prompt: pending.prompt ? pending.prompt.id : null,
+      promptFrom: pending.prompt ? pending.prompt.speaker : null,
+      promptKind: pending.prompt ? pending.prompt.kind : null,
+      promptBasis: pending.prompt
+        ? (pending.prompt.basis || pending.prompt.about || null) : null
+    };
+  }
+
   function between(band, speed) {
     const s = Number(speed) > 0 ? Number(speed) : 1;
     return (band[0] + clock() * (band[1] - band[0])) / s;
@@ -460,7 +474,17 @@ export function createFloorVoice(deps = {}) {
       until: laid.until,
       floor: state.floor,
       convened: true,
-      pending: pending ? { seat: pending.seat, from: pending.from } : null
+      /*
+       * THE SAME PROJECTION THE GETTER HANDS OUT, and it has to be the same
+       * one. An earlier version returned `{ seat, from }` here and the full
+       * shape from the getter, so the page's "did this accusation open a beat"
+       * check — which reads `promptKind` — silently failed on the commonest
+       * path there is (the right of reply, whose lines come back through
+       * `say()` rather than through `observe()`). The acceptance capture
+       * recorded the strip arriving with no staging behind it, twice, before
+       * the two shapes were traced back to each other.
+       */
+      pending: pendingView()
     };
   }
 
@@ -496,13 +520,19 @@ export function createFloorVoice(deps = {}) {
     const prompt = pending.prompt;
     const speed = (opts && opts.speed) || pending.speed || 1;
     /*
-     * Never before the beat was answerable. `pending.from` is the end of the
-     * bubble that prompted you, and an answer laid out earlier than that would
-     * be your figure replying to a sentence the square has not heard yet — a
-     * keypress can beat the presentation, and the presentation is what the
-     * bubbles are.
+     * Never before the beat was answerable — but "answerable" is the caller's
+     * number, not this file's.
+     *
+     * A keypress can beat the presentation, and an answer laid out before the
+     * sentence it answers would be your figure replying to something the square
+     * has not heard yet. So the caller passes `notBefore`: the moment it put the
+     * strip on screen. Defaulting to `pending.from` (the end of the prompting
+     * bubble's whole layout, a deliberation gap later) is what the staged case
+     * must NOT use — that is a second clock on a moment the brief times to the
+     * millisecond, and it is how the strip came to arrive at 1970 ms.
      */
-    const now = Math.max((opts && opts.now) || 0, pending.from || 0);
+    const floor = (opts && opts.notBefore !== undefined) ? opts.notBefore : pending.from;
+    const now = Math.max((opts && opts.now) || 0, floor || 0);
     let said = null;
     try {
       said = recorder.speak(fields);
@@ -573,18 +603,7 @@ export function createFloorVoice(deps = {}) {
      * will write to. `from` is when the beat became answerable, on the page's
      * own clock — the oil line's zero, when the page decides to start it.
      */
-    get pending() {
-      if (!pending) return null;
-      return {
-        seat: pending.seat,
-        from: pending.from,
-        prompt: pending.prompt ? pending.prompt.id : null,
-        promptFrom: pending.prompt ? pending.prompt.speaker : null,
-        promptKind: pending.prompt ? pending.prompt.kind : null,
-        promptBasis: pending.prompt
-          ? (pending.prompt.basis || pending.prompt.about || null) : null
-      };
-    },
+    get pending() { return pendingView(); },
 
     /**
      * The four to six things you may say, right now.

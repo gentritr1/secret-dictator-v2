@@ -1387,10 +1387,23 @@ function takeFloorTurn(pending) {
   if (!pending || floorTurn) return null;
   floorTurn = {
     seat: pending.seat,
-    /* 700 ms after the accusation's trigger if one is staging, otherwise as
-     * soon as the bubble that prompted you is up. Never earlier than either. */
-    opensAt: Math.max(pending.from || nowMs(),
-      accusing ? accusing.plan.stripAt : 0),
+    /*
+     * WHEN THE STRIP IS ALLOWED TO ARRIVE, and the brief pins one of the two
+     * cases to the millisecond.
+     *
+     * Staged: **700 ms after the trigger**, full stop — "the tray's centre
+     * becomes the intent strip… nothing else appears, ever". The accusation's
+     * own schedule has already put the bubble on screen at 300 ms and swapped
+     * the objective line at 380, so by 700 the player has read what they are
+     * answering. Taking the LATER of this and the bubble's whole layout was the
+     * first version, and the acceptance capture measured what it cost: 1970 ms
+     * against a 700 ms cap, because a bubble's layout runs to the end of the
+     * deliberation gap after it. The cap is not a suggestion.
+     *
+     * Unstaged — a floor that simply came round to you — there is no schedule to
+     * hang it on, so it arrives when the beat before it has been read.
+     */
+    opensAt: accusing ? accusing.plan.stripAt : (pending.from || nowMs()),
     burned: 0,
     lastAt: null,
     opened: false,
@@ -1458,6 +1471,13 @@ function pumpFloorTurn() {
       return;
     }
     floorTurn.opened = true;
+    /* What the arrival actually cost, against the schedule that promised it.
+     * Recorded here rather than derived by an observer, because "the first
+     * frame on which a poller noticed" is a different number and the brief's
+     * cap is on this one. */
+    floorTurn.openedAt = now;
+    floorTurn.lateBy = Math.round(now - floorTurn.opensAt);
+    floorTurn.sinceTrigger = accusing ? Math.round(now - accusing.plan.hushAt) : null;
     panels.openStrip(view, offered, { floorWaits });
     if (view) objective = panels.renderObjective(view, presentation());
     return;
@@ -1489,23 +1509,68 @@ function pumpFloorTurn() {
  */
 function answerFloor(fields, how) {
   if (!floorTurn || !floorVoice || !floorVoice.pending) return null;
+  /* `notBefore` is the moment the strip actually appeared, so a fast answer is
+   * laid out from there rather than from the end of the prompting bubble's own
+   * layout — which is a deliberation gap later and would put the reply a second
+   * and a half after the key was pressed. */
+  const when = { now: nowMs(), notBefore: floorTurn.opensAt, speed };
   const out = how === 'said' && fields
-    ? floorVoice.say(fields, { now: nowMs(), speed })
+    ? floorVoice.say(fields, when)
     : how === 'ranOut'
-      ? floorVoice.runOut({ now: nowMs(), speed })
-      : floorVoice.sayNothing({ now: nowMs(), speed });
+      ? floorVoice.runOut(when)
+      : floorVoice.sayNothing(when);
   floorTurn = null;
   panels.closeStrip(view, presentation());
   if (out && out.lines.length) {
     murmurs.say(out.lines);
     floorUntil = Math.max(floorUntil, out.until);
   }
-  /* The square may have handed the beat straight back — a QUESTION obliges its
-   * target, and that target can be you. */
-  if (out && out.pending) takeFloorTurn(out.pending);
+  /*
+   * The square may have handed the beat straight back, and the commonest way it
+   * does is the one that matters most: the right of reply. An accusation aimed
+   * at you lands in the middle of THIS run of lines, not in the batch
+   * `refresh()` saw, and buys you a beat immediately after the accuser. So the
+   * same two questions are asked here — is any of it aimed at me, and did it
+   * open a beat — rather than only in refresh(). Missing this is why the first
+   * acceptance capture recorded the strip arriving with no staging behind it.
+   */
+  if (out && out.pending) {
+    stageIfNamed(out.lines, out.pending);
+    takeFloorTurn(out.pending);
+  }
   if (view) objective = panels.renderObjective(view, presentation());
   if (view) panels.renderTray(view, presentation());
   return out;
+}
+
+/**
+ * MOMENT 1, from either of the two places a floor line can arrive.
+ *
+ * The accusation and the beat it opened are ONE claim: the objective line the
+ * staging swaps in says *answer on the floor*, so staging it without a strip
+ * under it would be the square turning to look at you and offering nothing to
+ * press. Both halves are checked here, and nowhere else.
+ */
+function stageIfNamed(said, pending) {
+  if (!view || accusing || !pending) return null;
+  const aimed = accusationFrom(said, view.you.id);
+  if (!aimed) return null;
+  if (pending.promptKind !== 'ACCUSE' || pending.promptFrom !== aimed.from) return null;
+  const plan = stageAccusation(aimed.from);
+  /*
+   * THE BEAT MAY HAVE BEEN TAKEN BEFORE THE MOMENT WAS STAGED.
+   *
+   * `refresh()` and `answerFloor` both call this and then `takeFloorTurn`, but
+   * a beat opened on an earlier pass is already sitting there with an `opensAt`
+   * derived from the bubble rather than from a schedule — and `takeFloorTurn`
+   * will not recompute it, because a beat that re-decided its own arrival every
+   * time something else happened would be a moving target. So the schedule
+   * takes it back explicitly. Without this the strip arrived at 1691 ms of a
+   * 700 ms cap, measured, not guessed: the number came from the acceptance
+   * capture's own in-page clock and not from reading the two call sites.
+   */
+  if (plan && floorTurn && !floorTurn.opened) floorTurn.opensAt = plan.stripAt;
+  return plan;
 }
 
 /** Everything the floor beat owns, put back. Called on a deal and on a purge. */
@@ -2204,12 +2269,7 @@ function refresh() {
        * the lucky one. `__play.accuseMe()` still drives the staging alone, for
        * a review that wants the moment without the record.
        */
-      const aimed = accusationFrom(said.lines, view.you.id);
-      const owed = floorVoice.pending;
-      if (aimed && !accusing && owed && owed.promptKind === 'ACCUSE' &&
-          owed.promptFrom === aimed.from) {
-        stageAccusation(aimed.from);
-      }
+      stageIfNamed(said.lines, floorVoice.pending);
     }
     /* The beat itself, staged or not: a floor that simply came round to you is
      * still your turn, and the strip arrives for it without the ceremony. */
@@ -3806,6 +3866,14 @@ window.__play = {
           key: c.key, label: c.label, sentence: c.sentence, at: !!c.at
         })) : [],
       note: panels.tray ? panels.tray.note : null,
+      /* When the row was promised, when it actually arrived, and how far apart
+       * those two are — the brief's 700 ms is a claim about the second one. */
+      arrival: floorTurn ? {
+        opensAt: Math.round(floorTurn.opensAt),
+        openedAt: floorTurn.openedAt === undefined ? null : Math.round(floorTurn.openedAt),
+        lateBy: floorTurn.lateBy === undefined ? null : floorTurn.lateBy,
+        sinceTrigger: floorTurn.sinceTrigger === undefined ? null : floorTurn.sinceTrigger
+      } : null,
       oil: {
         burnMs: OIL.burnMs,
         burned: floorTurn ? Math.round(floorTurn.burned) : 0,
