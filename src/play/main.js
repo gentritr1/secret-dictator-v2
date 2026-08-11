@@ -36,7 +36,7 @@ import * as THREE from 'three';
 import { CSS2DRenderer, CSS2DObject } from 'three/examples/jsm/renderers/CSS2DRenderer.js';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 
-import { SD, AI, Human, View, Floor, Orator } from '../engine/index.js';
+import { SD, AI, Human, View, Floor, Orator, Intents } from '../engine/index.js';
 import { createController, defaultTuning } from '../walk/controller.js';
 import { createCameraRig } from '../walk/camera.js';
 import { createBvhWorld } from '../walk/bvh-world.js';
@@ -58,6 +58,7 @@ import {
   TILE, tilePlanFor, tileEase,
   PURGE, purgeFor, purgePlan,
   CURTAIN, curtainFor,
+  OIL, oilAt, oilFading, oilSpent,
   prefersReducedMotion
 } from './stage.js';
 import { announceFor } from './tray.js';
@@ -940,7 +941,11 @@ function presentation() {
      * moment the line is whatever it was, which is what makes the swap a beat
      * in the sequence rather than the first thing that happens.
      */
-    accusedBy: accusing && accusing.done.objective ? accusing.from : null
+    accusedBy: accusing && accusing.done.objective ? accusing.from : null,
+    /* The setting, so the strip can draw a static rule instead of a burning
+     * one. It is presentation in the purest sense: it changes no rule, and the
+     * only thing it can do is stop a clock. */
+    floorWaits
   };
 }
 
@@ -1129,6 +1134,30 @@ let tileFlight = null;
 let purging = null;
 /** Moment 5 — { plan, from, turned, tabled } while the square takes its bow. */
 let curtain = null;
+
+/*
+ * YOUR TURN ON THE FLOOR — the beat the square is waiting on you for.
+ *
+ *   opensAt   when the strip is allowed to appear, on the page's clock: 700 ms
+ *             after the accusation's trigger when one staged it, otherwise as
+ *             soon as the bubble that prompted you has been read.
+ *   burned    how long the beat has ACTUALLY been yours, in ms. Not a deadline
+ *             — see the oil line in src/play/stage.js. It only advances while
+ *             the beat is genuinely the only thing being asked of you, so a
+ *             rules decision, an open card and a pinned ledger all stop it dead
+ *             rather than eating into it.
+ *   fading    the crowd murmur has been told to go quiet (once, not per frame)
+ */
+let floorTurn = null;
+/**
+ * "The floor waits for you" — the setting that replaces the oil line with a
+ * static brass rule and holds the beat indefinitely.
+ *
+ * Off by default and stored on the page, not in the match: it is an
+ * accessibility and pace preference, it changes no rule, and with it on the
+ * only way to say nothing is to choose to.
+ */
+let floorWaits = false;
 
 /* ---------------------------------------------- the framing, and only that */
 
@@ -1341,6 +1370,148 @@ function releaseAccusation() {
   frameWith(null);
   if (view) objective = panels.renderObjective(view, presentation());
   return true;
+}
+
+/* ------------------------------------------ 1b. your turn on the floor */
+
+/**
+ * Take the beat the floor is holding for you.
+ *
+ * Called once, from refresh(), the moment `floorVoice.pending` appears. It does
+ * NOT open the strip: `opensAt` is when the strip is allowed to arrive, and the
+ * frame loop is what puts it there — because the arrival is a beat in a
+ * sequence ("700 ms: the tray's centre becomes the intent strip") rather than a
+ * consequence of the record changing.
+ */
+function takeFloorTurn(pending) {
+  if (!pending || floorTurn) return null;
+  floorTurn = {
+    seat: pending.seat,
+    /* 700 ms after the accusation's trigger if one is staging, otherwise as
+     * soon as the bubble that prompted you is up. Never earlier than either. */
+    opensAt: Math.max(pending.from || nowMs(),
+      accusing ? accusing.plan.stripAt : 0),
+    burned: 0,
+    lastAt: null,
+    opened: false,
+    fading: false
+  };
+  return floorTurn;
+}
+
+/**
+ * Is the beat genuinely the only thing being asked of you?
+ *
+ * THE LINE THE WHOLE SETTING QUESTION TURNS ON. The oil line may only burn
+ * while the floor is the one thing on the table. If the rules owe you a
+ * decision, if a centred card is open, or if you have pinned the ledger to
+ * read, the beat holds — otherwise the clock on the floor would become a clock
+ * on a rules decision by the back door, which is the one thing the brief says
+ * must never happen in either setting.
+ */
+function floorBeatIsYours() {
+  if (!floorTurn || !floorTurn.opened) return false;
+  if (panels.isOpen || panels.isLedgerOpen || panels.isArmed) return false;
+  if (waiting) return false;
+  return true;
+}
+
+/*
+ * THE OIL LINE IS FED FROM THE CLOCK, NOT FROM A FRAME DELTA.
+ *
+ * `pumpStage` is called from three places on purpose — the render loop, the
+ * 40 ms stage clock, and the match tick — because requestAnimationFrame does
+ * not run in a background tab or in a scripted review pane. A burn measured in
+ * frame deltas would therefore be added twice a frame in a visible tab and the
+ * beat would run out in six seconds instead of twelve. Measuring it off
+ * `nowMs()` makes every extra caller idempotent, and it inherits the ledger's
+ * pin for free: that clock stops, so the beat stops with it.
+ */
+function pumpFloorTurn() {
+  if (!floorTurn || !floorVoice) return;
+  const now = nowMs();
+  const since = floorTurn.lastAt === null ? 0 : Math.max(0, now - floorTurn.lastAt);
+  floorTurn.lastAt = now;
+
+  /*
+   * The beat can be taken away between one frame and the next: a Purge lands on
+   * you mid-floor and the square is not waiting on a dead citizen any more. The
+   * schema would refuse every card on the strip (V5), so what would be on
+   * screen is a row of keys that do nothing — which is exactly the lie the
+   * never-blank rule is about, pointed the other way.
+   */
+  if (!floorVoice.pending || (view && !view.you.alive)) {
+    floorTurn = null;
+    panels.closeStrip(view, presentation());
+    return;
+  }
+
+  if (!floorTurn.opened) {
+    if (now < floorTurn.opensAt) return;
+    const offered = floorVoice.strip();
+    if (!offered || !offered.slots.length) {
+      /* Nothing the schema will accept, not even silence — which means the
+       * floor is no longer open to this seat. Give the beat back rather than
+       * showing an empty row: the tray is never blank, and "no cards" is not a
+       * state it has. */
+      floorTurn = null;
+      return;
+    }
+    floorTurn.opened = true;
+    panels.openStrip(view, offered, { floorWaits });
+    if (view) objective = panels.renderObjective(view, presentation());
+    return;
+  }
+
+  if (!floorBeatIsYours()) return;
+  floorTurn.burned += since;
+  panels.setOil(floorTurn.burned, floorWaits);
+  panels.renderOil(oilAt(floorTurn.burned, floorWaits), floorWaits);
+
+  /*
+   * The pressure, and the whole of it: over the last three seconds the crowd
+   * murmur fades out. The rule under the tray does not flash, pulse or change
+   * colour — quiet is the instrument, and it costs no pixels.
+   */
+  if (!floorTurn.fading && oilFading(floorTurn.burned, floorWaits)) {
+    floorTurn.fading = true;
+    audio.hush('floor', 0);
+  }
+  if (oilSpent(floorTurn.burned, floorWaits)) answerFloor(null, 'ranOut');
+}
+
+/**
+ * Answer the floor: speak a card, choose silence, or let the beat run out.
+ *
+ * One function for all three so the record cannot disagree with the screen
+ * about which of them happened — and `explicit` is the field that tells the
+ * difference, set by the caller and never inferred.
+ */
+function answerFloor(fields, how) {
+  if (!floorTurn || !floorVoice || !floorVoice.pending) return null;
+  const out = how === 'said' && fields
+    ? floorVoice.say(fields, { now: nowMs(), speed })
+    : how === 'ranOut'
+      ? floorVoice.runOut({ now: nowMs(), speed })
+      : floorVoice.sayNothing({ now: nowMs(), speed });
+  floorTurn = null;
+  panels.closeStrip(view, presentation());
+  if (out && out.lines.length) {
+    murmurs.say(out.lines);
+    floorUntil = Math.max(floorUntil, out.until);
+  }
+  /* The square may have handed the beat straight back — a QUESTION obliges its
+   * target, and that target can be you. */
+  if (out && out.pending) takeFloorTurn(out.pending);
+  if (view) objective = panels.renderObjective(view, presentation());
+  if (view) panels.renderTray(view, presentation());
+  return out;
+}
+
+/** Everything the floor beat owns, put back. Called on a deal and on a purge. */
+function clearFloorTurn() {
+  floorTurn = null;
+  panels.closeStrip(view, null);
 }
 
 /* --------------------------------------------------- 2. the ballot reveal */
@@ -1732,6 +1903,7 @@ function staging() {
 /** All five moments, pumped from all three loops. See pumpAmbience for why. */
 function pumpStage() {
   pumpAccusation();
+  pumpFloorTurn();
   pumpBallots();
   pumpTile();
   pumpPurge();
@@ -1741,6 +1913,7 @@ function pumpStage() {
 /** Everything the staging owns, put back. Called on a deal. */
 function clearStage() {
   accusing = null;
+  clearFloorTurn();
   ballots = null;
   purging = null;
   curtain = null;
@@ -1799,7 +1972,12 @@ const panels = createPanels(document, {
     stopLoop();
     startLoop();
   },
-  onClose() { refresh(); }
+  onClose() { refresh(); },
+  /* The intent strip's two exits: a card was spoken, or the top level was
+   * dismissed. Both go through one function so a keypress, a mouse click and
+   * the oil line running out cannot take three different paths. */
+  onFloorSay(fields) { answerFloor(fields, 'said'); },
+  onFloorSilence() { answerFloor(null, 'chose'); }
 });
 
 const NO_EDGES = { gavel: false, tally: false, sting: null };
@@ -2013,17 +2191,29 @@ function refresh() {
        * it reads are who is speaking and whom the utterance publicly named. Both
        * are said out loud, in the middle of the square, in front of everybody.
        *
-       * In a shipped match this is null every time: `src/engine/orator.js`
-       * excludes the human seat from every target pool, because in D2 the player
-       * has no way to answer and "being accused with no way to answer is worse
-       * than not being accused". That exclusion belongs to the intent strip,
-       * which is work item 4. The staging is built and reachable;
-       * `__play.accuseMe()` drives this same path for a review. See
-       * `accusationFrom` in src/play/stage.js and docs/step-14.md §1.
+       * D2 said of this line: "in a shipped match this is null every time,
+       * because src/engine/orator.js excludes the human seat from every target
+       * pool". That exclusion is lifted, so it fires for real now.
+       *
+       * IT FIRES ONLY WHEN THERE IS SOMETHING TO PRESS. The objective line the
+       * staging swaps in says *answer on the floor*, and a square that turned
+       * to look at you, went quiet, lit you, and then offered you no way to
+       * answer would be the D2 problem arriving through a different door. So
+       * the trigger is the accusation AND the beat it opened — which the right
+       * of reply in src/engine/orator.js makes the ordinary case rather than
+       * the lucky one. `__play.accuseMe()` still drives the staging alone, for
+       * a review that wants the moment without the record.
        */
       const aimed = accusationFrom(said.lines, view.you.id);
-      if (aimed && !accusing) stageAccusation(aimed.from);
+      const owed = floorVoice.pending;
+      if (aimed && !accusing && owed && owed.promptKind === 'ACCUSE' &&
+          owed.promptFrom === aimed.from) {
+        stageAccusation(aimed.from);
+      }
     }
+    /* The beat itself, staged or not: a floor that simply came round to you is
+     * still your turn, and the strip arrives for it without the ceremony. */
+    if (floorVoice.pending) takeFloorTurn(floorVoice.pending);
   }
   if (phaseChanged || holding()) {
     stagedView = view;
@@ -2104,7 +2294,7 @@ function restart(seed = DEFAULT_SEED, playerCount = DEFAULT_PLAYERS, humanIndex 
   /* A fresh record for a fresh match, seeded from the same integer, so a
    * replayed seed hears the same argument as well as the same chatter. */
   floorVoice = createFloorVoice({
-    Floor, Orator,
+    Floor, Orator, Intents,
     seed: dealSeed,
     humanSeat: human,
     names: NAMES.slice(0, count),
@@ -2475,6 +2665,30 @@ window.addEventListener('keydown', (e) => {
    */
   if (panels.isArmed) {
     if (panels.handleTrayKey(e, view, waiting)) { e.preventDefault(); return; }
+  }
+
+  /*
+   * THE INTENT STRIP owns the keyboard while it is up, and it is deliberately
+   * BELOW the armed row and above everything else.
+   *
+   * Below the armed row, because arming is a deliberate act taken to answer a
+   * RULES decision, and a rules decision outranks a beat on the floor by the
+   * same rule that stops the oil line burning while one is pending. Above the
+   * ledger and the walk, because the strip is the square standing in front of
+   * you with a clock running and `1`, `E` and `Esc` all mean something else
+   * everywhere else on this page.
+   *
+   * `L` and `?` are let through on purpose — the ledger is what a player opens
+   * to decide WHAT to say, and pinning it stops the clock (see nowMs), so
+   * reading is free. That is the one collision worth resolving in favour of the
+   * thing that is not the strip.
+   */
+  if (panels.isStripOpen && !/^l$/i.test(e.key) && e.key !== '?') {
+    if (panels.handleStripKey(e)) {
+      if (view) panels.renderTray(view, presentation());
+      e.preventDefault();
+      return;
+    }
   }
 
   /*
@@ -3462,8 +3676,13 @@ window.__play = {
             camera: Math.round(accusing.plan.cameraAt - accusing.plan.hushAt),
             bubble: Math.round(accusing.plan.bubbleAt - accusing.plan.hushAt),
             objective: Math.round(accusing.plan.objectiveAt - accusing.plan.hushAt),
+            strip: Math.round(accusing.plan.stripAt - accusing.plan.hushAt),
             last: Math.round(accusing.plan.lastAt - accusing.plan.hushAt)
           },
+          /* Whether the strip the objective line promises is actually up. The
+           * two are one claim — "answer on the floor" with nothing to press is
+           * the moment failing — so they are read back together. */
+          stripUp: panels.isStripOpen,
           elapsed: Math.round(t - accusing.plan.hushAt),
           reduced: accusing.plan.reduced
         }
@@ -3544,6 +3763,64 @@ window.__play = {
   setReducedMotion(on) {
     reducedSetting = on === null || on === undefined ? null : !!on;
     return { setting: reducedSetting, effective: reducedMotion() };
+  },
+
+  /**
+   * "The floor waits for you" — the oil line off.
+   *
+   * The brief's own wording, and the whole of what it does: the rule under the
+   * tray becomes static brass, the beat holds indefinitely, and silence must
+   * then be CHOSEN. Nothing else changes — bots keep their own pace, the record
+   * is the same record, and no rules decision has a clock in either setting.
+   */
+  setFloorWaits(on) {
+    floorWaits = !!on;
+    panels.setOil(floorTurn ? floorTurn.burned : 0, floorWaits);
+    if (view) panels.renderTray(view, presentation());
+    return floorWaits;
+  },
+  get floorWaits() { return floorWaits; },
+
+  /**
+   * Your turn on the floor, as data: what is offered, what is highlighted, and
+   * how much of the oil line is left. A projection, and the readback half of
+   * the strip — the module's own answer beside the DOM the page wrote.
+   */
+  strip() {
+    if (!panels.isStripOpen) return null;
+    const s = panels.strip;
+    const st = panels.stripState;
+    return {
+      level: st.level,
+      cursor: st.cursor,
+      prompt: s.prompt,
+      promptKind: s.promptKind,
+      promptBasis: s.promptBasis,
+      slots: s.slots.map((x) => ({
+        id: x.id, kind: x.kind, basis: x.basis, target: x.target,
+        text_id: x.text_id, sentence: x.sentence,
+        options: (x.options || []).length
+      })),
+      cards: panels.tray && panels.tray.cards
+        ? panels.tray.cards.map((c) => ({
+          key: c.key, label: c.label, sentence: c.sentence, at: !!c.at
+        })) : [],
+      note: panels.tray ? panels.tray.note : null,
+      oil: {
+        burnMs: OIL.burnMs,
+        burned: floorTurn ? Math.round(floorTurn.burned) : 0,
+        left: oilAt(floorTurn ? floorTurn.burned : 0, floorWaits),
+        waits: floorWaits,
+        yours: floorBeatIsYours()
+      }
+    };
+  },
+  /** Press a key on the strip, for a scripted review. */
+  stripKey(key) {
+    if (!panels.isStripOpen) return null;
+    const consumed = panels.handleStripKey({ key: String(key) });
+    if (view) panels.renderTray(view, presentation());
+    return consumed;
   },
 
   /**

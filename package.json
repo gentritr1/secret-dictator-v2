@@ -2,7 +2,7 @@
   "name": "secret-dictator",
   "version": "2.0.0",
   "private": true,
-  "description": "Secret Dictator v2 — single-player social deduction against AI opponents.",
+  "description": "Secret Dictator v2 \u2014 single-player social deduction against AI opponents.",
   "type": "commonjs",
   "scripts": {
     "dev": "vite",
@@ -25,9 +25,10 @@
     "test:orator": "node test/orator.test.js",
     "test:hud": "node test/hud.test.js",
     "test:ledger": "node test/ledger.test.js",
+    "test:strip": "node test/strip.test.js 50",
     "parity": "node scripts/driver-parity.js",
     "simulate": "node scripts/simulate.js",
-    "verify": "npm test && npm run test:controller && npm run test:human && npm run test:contract && npm run test:view && npm run test:interact && npm run test:objective && npm run test:pace && npm run test:murmur && npm run test:ambience && npm run test:tell && npm run test:stage && npm run test:glb && npm run test:floor && npm run test:orator && npm run test:hud && npm run test:ledger && npm run parity && npm run build"
+    "verify": "npm test && npm run test:controller && npm run test:human && npm run test:contract && npm run test:view && npm run test:interact && npm run test:objective && npm run test:pace && npm run test:murmur && npm run test:ambience && npm run test:tell && npm run test:stage && npm run test:glb && npm run test:floor && npm run test:orator && npm run test:hud && npm run test:ledger && npm run test:strip && npm run parity && npm run build"
   },
   "devDependencies": {
     "playwright": "^1.62.1",

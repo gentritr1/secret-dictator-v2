@@ -156,12 +156,93 @@ export const ACCUSE = {
   bubble: 300,
   /** The objective line swaps. */
   objective: 380,
+  /**
+   * THE TRAY'S CENTRE BECOMES THE INTENT STRIP — and this is the last thing
+   * that ever arrives. The brief's own rule under the schedule is "nothing
+   * else appears, ever. If it is not here by 700 ms it is not coming", so the
+   * strip lands exactly ON the cap rather than near it.
+   *
+   * It is a CHANGE OF CONTENTS in an element that has been at the bottom of
+   * the screen all match, which is why it can arrive this fast without
+   * startling — a new panel at 700 ms would be a jump scare.
+   */
+  strip: 700,
+  /** …rising 44 px into place over 140 ms, eased out. Both from the brief. */
+  stripMs: 140,
+  stripRise: 44,
   /** How long the whole staging holds before the square is given back. */
   holdMs: 5200
 };
 
-/** The last thing the accusation puts on screen, in ms. The brief caps it. */
-export const ACCUSE_LAST_MS = ACCUSE.camera + ACCUSE.cameraMs;
+/**
+ * The last thing the accusation puts on screen, in ms. The brief caps it at 700
+ * and the strip now sits on the cap, so this is the strip.
+ *
+ * Written as a maximum over the schedule rather than as "the one I believe is
+ * last", for the reason test/stage.test.js gives: the failure mode is somebody
+ * adding a beat at 900 ms and every assertion still passing because it was
+ * written against `camera`.
+ */
+export const ACCUSE_LAST_MS = Math.max(
+  ACCUSE.camera + ACCUSE.cameraMs, ACCUSE.objective, ACCUSE.bubble, ACCUSE.strip
+);
+
+/* ------------------------------------------------------------ the oil line */
+
+/**
+ * THE OIL LINE: a 2px brass rule under the tray, burning down over ~12 s.
+ *
+ * "It does not flash, pulse, or change colour. The pressure is carried by sound
+ * instead: over the last three seconds the crowd murmur fades out, so the
+ * square goes quiet around you." So there is exactly one number that moves here
+ * — a width — and everything else about the rule is constant. The fade is
+ * `HUSH.floor` in src/play/audio.js and is the only other thing this moment
+ * does.
+ *
+ * AND THE LINE THAT IS DRAWN ONCE AND HELD EVERYWHERE: this is the only clock
+ * in the game, and it is not on a rules decision. Nominate, vote, draft, aim a
+ * power — all of them halt for ever, exactly as they always have. The floor is
+ * not a rules decision; running out of it is an ANSWER (`SILENCE, explicit:
+ * false`) and the record knows the difference between that and pressing the
+ * silence key.
+ */
+export const OIL = {
+  /** How long the beat lasts, at 1x, in ms. */
+  burnMs: 12000,
+  /** The murmur begins fading this long before the end. */
+  fadeMs: 3000,
+  /** The rule's height in px. Two, and it never changes. */
+  height: 2
+};
+
+/**
+ * How much of the oil line is left, as a fraction from 1 (full) to 0 (out).
+ *
+ * A pure function of ELAPSED time rather than of a deadline, because the beat
+ * only burns while it is genuinely yours: the page stops feeding it while a
+ * panel is open, while the ledger is pinned, and while the rules are waiting on
+ * you for something else. A deadline would keep running through all three and
+ * would put a clock on a rules decision by the back door.
+ *
+ * @param {number} burned  ms the beat has actually been the player's
+ * @param {boolean} waits  the "floor waits for you" setting
+ */
+export function oilAt(burned, waits) {
+  if (waits) return 1;
+  const left = 1 - (burned || 0) / OIL.burnMs;
+  return left < 0 ? 0 : left > 1 ? 1 : left;
+}
+
+/** Is the square about to go quiet around you? Never true when it waits. */
+export function oilFading(burned, waits) {
+  if (waits) return false;
+  return (burned || 0) >= OIL.burnMs - OIL.fadeMs;
+}
+
+/** Has the beat run out? Never, with "the floor waits for you" on. */
+export function oilSpent(burned, waits) {
+  return !waits && (burned || 0) >= OIL.burnMs;
+}
 
 /**
  * Who is naming you, out of the floor lines that are about to be spoken.
@@ -218,9 +299,16 @@ export function accusationPlan(now, reduced) {
     cameraMs: reduced ? 0 : ACCUSE.cameraMs,
     bubbleAt: t(ACCUSE.bubble),
     objectiveAt: t(ACCUSE.objective),
+    /* The strip rises into the tray. Reduced motion removes the RISE, not the
+     * arrival: the contents still change at 700 ms, they simply do not travel
+     * 44 px to get there. */
+    stripAt: t(ACCUSE.strip),
+    stripMs: reduced ? 0 : ACCUSE.stripMs,
     /* The last thing to arrive, absolute. Reduced motion can only make this
      * earlier, never later — asserted. */
-    lastAt: t(reduced ? Math.max(ACCUSE.objective, ACCUSE.camera) : ACCUSE_LAST_MS),
+    lastAt: t(reduced
+      ? Math.max(ACCUSE.objective, ACCUSE.camera, ACCUSE.strip)
+      : ACCUSE_LAST_MS),
     endsAt: t(ACCUSE.holdMs)
   };
 }

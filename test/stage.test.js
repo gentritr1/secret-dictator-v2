@@ -70,7 +70,10 @@ async function main() {
   var offsets = {
     hush: S.ACCUSE.hush, lantern: S.ACCUSE.lantern, rim: S.ACCUSE.rim,
     turn: S.ACCUSE.turn, camera: S.ACCUSE.camera + S.ACCUSE.cameraMs,
-    bubble: S.ACCUSE.bubble, objective: S.ACCUSE.objective
+    bubble: S.ACCUSE.bubble, objective: S.ACCUSE.objective,
+    /* D3: the tray's centre becomes the intent strip, and it lands ON the cap
+     * rather than near it — "if it is not here by 700 ms it is not coming". */
+    strip: S.ACCUSE.strip
   };
   var latest = 0;
   var latestName = null;
@@ -93,6 +96,9 @@ async function main() {
   check(S.ACCUSE.turn <= S.ACCUSE.camera, 'the camera moves before the body does');
   check(S.ACCUSE.camera < S.ACCUSE.bubble, 'the bubble arrives before the camera starts moving');
   check(S.ACCUSE.bubble < S.ACCUSE.objective, 'the line swaps before the bubble it is about');
+  check(S.ACCUSE.objective < S.ACCUSE.strip,
+    'the strip arrives before the line that tells you to answer on the floor');
+  check(S.ACCUSE.strip === 700, 'the strip does not land on the brief\'s 700 ms mark');
 
   /*
    * THE WARM BUDGET, expressed as a property of the constants rather than

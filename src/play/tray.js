@@ -43,6 +43,7 @@
  */
 
 import { seatKey, seatLabel, seatList, seatName } from './seat.js';
+import { oilAt, oilFading } from './stage.js';
 
 /**
  * Which decisions live in the tray, and which take the centre of the screen.
@@ -98,8 +99,36 @@ export const TRAY_IDS = [
   'empty:legislative_speaker', 'empty:legislative_deputy', 'empty:block_response',
   'empty:chaos', 'empty:power', 'empty:unknown',
   'dead',
-  'over'
+  'over',
+  /*
+   * THE INTENT STRIP — the tray's centre when the floor is waiting on you.
+   *
+   * One id per level rather than one per slot: what changes between the top
+   * level and a submenu is what the KEYS mean, and that is the thing a test
+   * needs to be able to name. Which slots are on offer is `cards`, and it comes
+   * from src/engine/intents.js, which has already had every one of them
+   * accepted by the schema.
+   */
+  'floor:strip', 'floor:targets', 'floor:counts'
 ];
+
+/**
+ * How much of a sentence fits on a card.
+ *
+ * "Cards show the sentence, truncated at 34 characters; the highlighted card's
+ * full sentence is printed verbatim on the tray's second line. You never speak
+ * something you have not read." Both halves of that are here: `truncate` is the
+ * card, `sentence` on the row is the second line, and they come from one string
+ * so the short one cannot say something the long one does not.
+ */
+export const CARD_CHARS = 34;
+
+/** The ellipsis is part of the 34, so a truncated card is never 35 wide. */
+export function truncate(text, max = CARD_CHARS) {
+  const s = String(text == null ? '' : text);
+  if (s.length <= max) return s;
+  return s.slice(0, max - 1).replace(/\s+$/, '') + '…';
+}
 
 /* The dim second line of an empty state. The wireframe's four dots: something
  * is there, and it is deliberately not a sentence. */
@@ -243,8 +272,122 @@ function make(tracks, id, kind, line, note, keys, act, waitingOn) {
     act: !!act,
     tracks: tracks,
     waitingOn: waitingOn || [],
+    /* The intent strip's cards, or null in every other state. */
+    cards: null,
+    oil: null,
     ledger: ledgerHint()
   };
+}
+
+/* ----------------------------------------------------------- the strip */
+
+/*
+ * What each slot's card says at the top level.
+ *
+ * The answer and the silence show the sentence itself, because pressing them
+ * speaks it. The four that need a target or a hand show a short label and a
+ * marker, because pressing them opens a submenu rather than a mouth — a card
+ * that showed a sentence and then asked a second question would be lying about
+ * what the key does. Wireframe 3A, exactly.
+ */
+const SLOT_CARD = {
+  answer: (view, slot) => truncate(slot.sentence || ''),
+  accuse: (view, slot) => 'Name ' + seatLabel(view, slot.target) + ' ▸',
+  claim: (view, slot) => 'My hand, ' + slot.government + ' ▸',
+  question: (view, slot) => 'Ask ' + seatLabel(view, slot.target) + ' ▸',
+  support: (view, slot) => 'Back ' + seatLabel(view, slot.target) + ' ▸',
+  silence: () => 'Say nothing ⌀'
+};
+
+/** The prompt above a submenu. Never "choose an option". */
+const LEVEL_LINE = {
+  accuse: 'name whom?',
+  question: 'ask whom?',
+  support: 'back whom?',
+  claim: 'what were you holding?'
+};
+
+/**
+ * The strip, as a tray row.
+ *
+ * A pure function of the slots src/engine/intents.js produced and a cursor, so
+ * every card on screen traces to an utterance the schema has already accepted
+ * and this file decides nothing about what may be said.
+ *
+ * @param {object} view   the player-safe projection, for names and numbers
+ * @param {object} strip  Intents.stripFor(), with `sentence` filled in
+ * @param {object} state  `{ level, slot, cursor, burned, waits }` — the page's
+ *                        own keyboard position and clock. No game state.
+ */
+export function stripRow(view, strip, state) {
+  const tracks = tracksFor(view);
+  const s = state || {};
+  const open = s.level && s.level !== 'top'
+    ? strip.slots.filter((x) => x.id === s.slot)[0] : null;
+
+  /* THE STABLE ORDER IS NOT DECIDED HERE. It arrives in `strip.slots` already
+   * in it — answer first, silence last, the middle contracted — and the only
+   * thing this does is number them 1..n in the order they came. */
+  let cards;
+  if (open) {
+    cards = (open.options || []).map((o, i) => ({
+      key: o.target === undefined || o.target === null
+        ? String(i + 1) : seatKey(o.target),
+      label: o.target === undefined || o.target === null
+        ? truncate(o.sentence || '') : seatLabel(view, o.target),
+      sentence: o.sentence || '',
+      basis: o.basis || null,
+      slot: open.id,
+      option: i,
+      target: o.target === undefined ? null : o.target
+    }));
+  } else {
+    cards = strip.slots.map((slot, i) => ({
+      key: String(i + 1),
+      label: (SLOT_CARD[slot.id] || (() => slot.id))(view, slot),
+      sentence: slot.sentence || '',
+      basis: slot.basis || null,
+      slot: slot.id,
+      option: null,
+      target: slot.target === undefined ? null : slot.target,
+      submenu: !!(slot.options && slot.options.length)
+    }));
+  }
+
+  const cursor = Math.max(0, Math.min(cards.length - 1, s.cursor || 0));
+  cards.forEach((c, i) => { c.at = i === cursor; });
+  const here = cards[cursor] || null;
+
+  /*
+   * THE SECOND LINE, and the promise it keeps: the highlighted card's full
+   * sentence, verbatim, before it is spoken. The basis is appended where there
+   * is one, because "the basis is auto-selected as the strongest the record
+   * supports, AND SHOWN" — a card that names a citizen without saying what you
+   * have on them is asking you to accuse on trust.
+   */
+  const note = here
+    ? '“' + here.sentence + '”' + (here.basis ? '  ·  basis: ' + here.basis : '')
+    : QUIET;
+
+  const row = make(tracks,
+    open ? (open.id === 'claim' ? 'floor:counts' : 'floor:targets') : 'floor:strip',
+    'floor',
+    open ? (LEVEL_LINE[open.id] || 'which?') : '',
+    note, [], true, []);
+  row.cards = cards;
+  row.cursor = cursor;
+  row.level = open ? open.id : 'top';
+  /*
+   * The oil line, as a number between 1 and 0 and two booleans. It is not a
+   * colour, a phase or a state name, because it never becomes one: "it does not
+   * flash, pulse, or change colour", and the only thing that moves is a width.
+   */
+  row.oil = {
+    left: oilAt(s.burned, s.waits),
+    waits: !!s.waits,
+    fading: oilFading(s.burned, s.waits)
+  };
+  return row;
 }
 
 /**

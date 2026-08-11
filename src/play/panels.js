@@ -34,7 +34,7 @@
  */
 
 import { objectiveFor } from './objective.js';
-import { trayFor, surfaceFor } from './tray.js';
+import { trayFor, stripRow, surfaceFor } from './tray.js';
 import { cardFor } from './card.js';
 import { ledgerFor, WIN_CONDITION } from './ledger.js';
 import { seatFromKey, seatKey, seatNumber } from './seat.js';
@@ -63,7 +63,7 @@ function esc(s) {
   ));
 }
 
-export function createPanels(doc, { onSubmit, onClose } = {}) {
+export function createPanels(doc, { onSubmit, onClose, onFloorSay, onFloorSilence } = {}) {
   const el = {
     card: doc.getElementById('card'),
     tray: doc.getElementById('tray'),
@@ -100,6 +100,19 @@ export function createPanels(doc, { onSubmit, onClose } = {}) {
   let armed = false;
   /* Whatever had focus when the panel opened, so closing can give it back. */
   let returnFocusTo = null;
+
+  /*
+   * THE INTENT STRIP.
+   *
+   * `strip` is what src/engine/intents.js offered, with its sentences filled
+   * in; `stripState` is the page's keyboard position inside it and nothing
+   * else. There is no arming step, unlike the four tray decisions: the strip is
+   * the square waiting on you with a clock running, so a gesture to make its
+   * keys live would be a gesture the oil line is burning through. It takes the
+   * keys the moment it appears and gives them back the moment it is answered.
+   */
+  let strip = null;
+  let stripState = { level: 'top', slot: null, cursor: 0, burned: 0, waits: false };
 
   /*
    * The ledger. Open and pinned are the same state — `L` opens the panel and
@@ -180,10 +193,20 @@ export function createPanels(doc, { onSubmit, onClose } = {}) {
    */
   function renderTray(view, presentation) {
     if (!el.tray) return null;
-    tray = trayFor(view, Object.assign({ armed: armed, ledgerSeen: ledgerSeen },
-      presentation || {}));
+    /*
+     * The strip outranks every other row while it is up, and it is the only
+     * thing that ever does: a floor beat is the square standing in front of you
+     * with a clock running, and a tray that went back to saying "walk to the
+     * podium" underneath it would be pointing at the wrong decision. What the
+     * rules owe you is still owed when the beat ends — the strip answers
+     * nothing and takes nothing away.
+     */
+    tray = strip
+      ? stripRow(view, strip, stripState)
+      : trayFor(view, Object.assign({ armed: armed, ledgerSeen: ledgerSeen },
+        presentation || {}));
     const sig = JSON.stringify([tray.id, tray.line, tray.note, tray.keys, tray.tracks,
-      tray.act, tray.ledger]);
+      tray.act, tray.ledger, tray.cards, tray.oil ? tray.oil.waits : null]);
     if (sig === lastTraySig) return tray;
     lastTraySig = sig;
 
@@ -203,17 +226,172 @@ export function createPanels(doc, { onSubmit, onClose } = {}) {
     const keys = tray.keys.map((k) =>
       `<span class="key"><b>${esc(k.key)}</b>${k.label ? ' ' + esc(k.label) : ''}</span>`).join('');
 
-    el.tray.className = tray.kind + (tray.act ? ' act' : '');
+    /* The strip's cards. One element each, the highlighted one carrying `at` —
+     * a class, not a colour written here, because the palette lives in the
+     * style sheet and warm on this row means "this is the one E speaks". */
+    const cards = tray.cards
+      ? tray.cards.map((c) =>
+        `<span class="card${c.at ? ' at' : ''}${c.submenu ? ' more' : ''}"` +
+        ` data-slot="${esc(c.slot)}" data-key="${esc(c.key)}">` +
+        `<b>${esc(c.key)}</b>${esc(c.label)}</span>`).join('')
+      : '';
+
+    el.tray.className = tray.kind + (tray.act ? ' act' : '') +
+      (tray.oil && tray.oil.waits ? ' waits' : '');
     el.tray.innerHTML =
       `<div class="tracks">${tracks}</div>` +
-      `<div class="row"><div class="l1">${esc(tray.line)}${keys ? ' ' + keys : ''}</div>` +
+      `<div class="row"><div class="l1">${esc(tray.line)}${keys ? ' ' + keys : ''}${cards}</div>` +
       `<div class="l2">${esc(tray.note)}</div></div>` +
       '<div class="hints">' +
         `<span class="hint ${tray.ledger.ready ? '' : 'off'}">` +
           `<b>${esc(tray.ledger.key)}</b> ${esc(tray.ledger.label)}</span>` +
         `<span class="hint"><b>${esc(tray.ledger.keysKey)}</b> ${esc(tray.ledger.keysLabel)}</span>` +
-      '</div>';
+      '</div>' +
+      /* The oil line: one 2px rule under the whole tray, and the only thing
+       * about it that ever changes is `--oil`, a width. It is written into the
+       * markup only while the strip is up so nothing else on the tray has to
+       * know it exists. */
+      (tray.oil ? '<div class="oil"><i style="width:' +
+        Math.round(tray.oil.left * 1000) / 10 + '%"></i></div>' : '');
+    if (tray.cards && el.tray.querySelectorAll) {
+      el.tray.querySelectorAll('span.card').forEach((node) => {
+        node.addEventListener('click', () => pickCard(node.dataset.key));
+      });
+    }
     return tray;
+  }
+
+  /* --------------------------------------------------------- the strip */
+
+  /**
+   * Put the strip in the tray's centre, or take it away.
+   *
+   * `slots` arrive already validated and already in the stable order; this only
+   * ever holds a cursor. Opening resets the cursor to slot 1, which is the
+   * answer whenever there is one — "two matches in, a player presses 1 before
+   * the sentence has finished rendering".
+   */
+  function openStrip(view, offered, presentation) {
+    strip = offered || null;
+    stripState = {
+      level: 'top', slot: null, cursor: 0,
+      burned: 0, waits: !!(presentation && presentation.floorWaits)
+    };
+    lastTraySig = null;
+    if (view) renderTray(view, presentation);
+    return !!strip;
+  }
+
+  function closeStrip(view, presentation) {
+    if (!strip) return false;
+    strip = null;
+    stripState = { level: 'top', slot: null, cursor: 0, burned: 0, waits: false };
+    lastTraySig = null;
+    if (view) renderTray(view, presentation);
+    return true;
+  }
+
+  /**
+   * The oil line, on its own, sixty times a second.
+   *
+   * Its own function for the same reason `renderTally` is one: the tray is
+   * signature-cached, and a number that changes every frame inside it would
+   * rewrite the whole row every frame. This writes one style property on one
+   * element and touches nothing else — so the rule burns down and no card,
+   * sentence or key is re-rendered while it does.
+   */
+  function renderOil(left, waits) {
+    if (!strip || !el.tray || !el.tray.querySelector) return null;
+    const bar = el.tray.querySelector('.oil > i');
+    if (!bar) return null;
+    const pct = waits ? 100 : Math.max(0, Math.min(1, left)) * 100;
+    bar.style.width = (Math.round(pct * 10) / 10) + '%';
+    return pct;
+  }
+
+  /** Which card a key names, at whatever level the strip is on. */
+  function cardIndexFor(key) {
+    if (!tray || !tray.cards) return -1;
+    for (let i = 0; i < tray.cards.length; i++) {
+      if (tray.cards[i].key === key) return i;
+    }
+    return -1;
+  }
+
+  function pickCard(key) {
+    const at = cardIndexFor(String(key));
+    if (at === -1) return false;
+    stripState.cursor = at;
+    return speakHighlighted();
+  }
+
+  /**
+   * Speak whatever is highlighted — or open its submenu.
+   *
+   * The one place a card turns into an utterance, so `E` and a number key and a
+   * mouse click cannot disagree about what pressing a card does.
+   */
+  function speakHighlighted() {
+    if (!strip || !tray || !tray.cards) return false;
+    const card = tray.cards[stripState.cursor];
+    if (!card) return false;
+    const slot = strip.slots.filter((s) => s.id === card.slot)[0];
+    if (!slot) return false;
+
+    if (stripState.level === 'top' && slot.options && slot.options.length) {
+      stripState.level = slot.id;
+      stripState.slot = slot.id;
+      stripState.cursor = 0;
+      lastTraySig = null;
+      return true;
+    }
+    const fields = card.option === null
+      ? slot.fields
+      : (slot.options[card.option] || {}).fields;
+    if (!fields) return false;
+    if (onFloorSay) onFloorSay(fields);
+    return true;
+  }
+
+  /**
+   * Keys while the strip is up. True means consumed.
+   *
+   * `1–9` pick · `← →` move the highlight · `E` speaks the highlighted card ·
+   * `Esc` steps back one level, and at the top level of the strip means
+   * silence. That last clause is the one place in this whole project where Esc
+   * answers something, and it is deliberate: on the floor, saying nothing IS an
+   * answer, and it is the card the strip always keeps in the last position.
+   */
+  function handleStripKey(e) {
+    if (!strip || !tray || !tray.cards) return false;
+    if (e.key === 'Escape') {
+      if (stripState.level !== 'top') {
+        stripState.level = 'top';
+        stripState.slot = null;
+        stripState.cursor = 0;
+        lastTraySig = null;
+        return true;
+      }
+      if (onFloorSilence) onFloorSilence();
+      return true;
+    }
+    if (e.key === 'ArrowRight' || e.key === 'ArrowLeft') {
+      const n = tray.cards.length;
+      if (!n) return true;
+      const d = e.key === 'ArrowRight' ? 1 : -1;
+      stripState.cursor = (stripState.cursor + d + n) % n;
+      lastTraySig = null;
+      return true;
+    }
+    if (/^[eE]$/.test(e.key) || e.key === 'Enter') return speakHighlighted() || true;
+    if (/^[0-9]$/.test(e.key)) {
+      /* A key that names no card on this level does nothing at all, exactly as
+       * a number that names nobody does on the nomination row. It is still that
+       * citizen's number; there is simply nothing to say to them here. */
+      pickCard(e.key);
+      return true;
+    }
+    return false;
   }
 
   /* ----------------------------------------------------------- the ledger */
@@ -946,6 +1124,30 @@ export function createPanels(doc, { onSubmit, onClose } = {}) {
     disarm,
     handleTrayKey,
     surfaceFor,
+    /* The intent strip. `stripState` is handed out as a copy — the page owns
+     * the clock and writes `burned` through `setOil`, and everything else about
+     * where the keyboard is belongs here. */
+    openStrip,
+    closeStrip,
+    handleStripKey,
+    renderOil,
+    get isStripOpen() { return !!strip; },
+    get strip() { return strip; },
+    get stripState() {
+      return {
+        level: stripState.level, slot: stripState.slot,
+        cursor: stripState.cursor, waits: stripState.waits
+      };
+    },
+    /** The oil line's own two numbers, written by the page's clock. */
+    setOil(burned, waits) {
+      stripState.burned = burned || 0;
+      if (waits !== undefined && !!waits !== stripState.waits) {
+        stripState.waits = !!waits;
+        lastTraySig = null;
+      }
+      return stripState.burned;
+    },
     /* For a scripted review: what a Tab press can reach right now. */
     get focusOrder() { return focusables(); },
     get isOpen() { return openKind !== null; },
@@ -967,6 +1169,8 @@ export function createPanels(doc, { onSubmit, onClose } = {}) {
       lastLedgerSig = null;
       lastTally = null;
       armed = false;
+      strip = null;
+      stripState = { level: 'top', slot: null, cursor: 0, burned: 0, waits: false };
     }
   };
 }

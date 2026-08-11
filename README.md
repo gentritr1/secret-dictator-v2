@@ -155,6 +155,7 @@ npm run test:floor                         # the claim schema: what may be said,
 npm run test:orator                        # the orator: bots speak, some lie, and the match is unchanged
 npm run test:hud                           # the tray is never blank, the card never grows, one number per citizen
 npm run test:ledger                        # every ledger row traces to a public event, and none of them judges
+npm run test:strip                         # the intent strip: the player's turn on the floor, and what silence costs
 npm run parity                             # driver.js vs the self-test's exact numbers
 npm run verify                             # all of the above, plus the production build
 npm run simulate                           # 500 games, default seed
@@ -319,9 +320,13 @@ handed over behind a Proxy that refuses writes and records reads, and the whole
 surface comes back as `id`, `known`, `peeked`, `sus`. **Nothing offered is
 refused:** zero schema rejections over fifty complete matches, with a census of
 which bases were ever constructed, so an unreachable branch is a measured
-finding rather than an assumption. **The human seat is not in the conversation:**
-zero beats taken and zero aimed at them, because the intent strip that gives
-them a way to answer is a later work item.
+finding rather than an assumption. **The human seat is in the conversation:**
+D2 kept it out of every target pool and out of the beat order, and said why —
+being accused with no way to answer is worse than not being accused. The intent
+strip is the way to answer, so that section is *inverted* rather than deleted:
+the seat now takes beats and is named, on the same ladder and through the same
+constructor as everybody else, and every reference on an accusation aimed at it
+is re-resolved against the public record from the outside.
 
 And it is where **D1's permutation claim is re-scoped rather than kept.** With
 minds informing choice, a seat's utterance stream is no longer independent of
@@ -333,6 +338,38 @@ record*, and — as a requirement rather than a deletion — that the argument
 citizen's own choice and is what there is to deduce; a presentation channel is
 the renderer telling you something nobody said, and that rule is untouched.
 `docs/step-10.md` is the long version.
+
+`npm run test:strip` is the gate on **your** turn. The strip's contents are a
+pure function of the public record plus the utterance that prompted you, and its
+one safety property is that a slot is offered only if the schema would accept
+the resulting utterance — so the suite does not re-derive the rules to check it.
+It **speaks every slot**, through the real constructor, into the real record:
+zero refusals over fifty matches played by three different players (one that
+cycles every intent, one that never says anything, one that always answers). The
+dry run that makes that possible (`Floor.attempt`, which runs `speak()` and
+unwinds it) is itself checked by serialising the whole record before and after
+every strip — thousands of times — and requiring it byte-identical, because the
+comment beside the rollback is the thing that could rot.
+
+Then the four claims the brief makes about the moment. **Stable order:** slot 1
+is always the answer, the last slot is always silence, and the middle contracts
+rather than reorders — asserted on every strip, not on a fixture. **You never
+speak something you have not read:** every card of every strip is rendered
+through the real tray row, checked against the 34-character truncation, and its
+full sentence matched character for character against the second line.
+**Silence costs, observably:** logged by name, an accuser bought a second beat,
+`basis: silence` made constructible (by constructing one, and refusing the near
+miss), and a question left owed — with an all-bot control that must pay none of
+it. **No rules decision has a clock:** ten minutes of presentation clock with
+"the floor waits for you" on changes nothing, and the page's own eligibility
+rule is tabulated so that the one situation where the oil line may burn is the
+one where nothing else is owed.
+
+`scripts/capture-strip.mjs` is the half a headless gate cannot reach: it plays
+real matches until a bot names *you*, and measures — in the page, off its own
+requestAnimationFrame loop — that the Gate 14 staging fired, that the strip was
+on screen inside the brief's 700 ms, and that the oil line burns at the slope it
+declares. `docs/step-15.md` is the long version.
 
 `npm run test:controller` is the gate on movement. It runs the same controller
 the browser runs, against a closed-form collision world instead of a mesh, and

@@ -89,6 +89,7 @@
 
 var SD = require('../src/engine/engine.js');
 var AI = require('../src/engine/ai.js');
+var Driver = require('../src/engine/driver.js');
 var Human = require('../src/engine/human-driver.js');
 var View = require('../src/engine/view.js');
 
@@ -285,6 +286,26 @@ var MUTANTS = [
         rec.tile = Object.assign({}, rec.tile, { travelMs: rec.tile.travelMs + 90 });
       }
     }
+  },
+  {
+    name: 'the oil line burns 8% faster when a Rebel holds the gavel',
+    channel: 'oil',
+    apply: function (rec, G, view) {
+      if (isRebelSeat(G, view.speaker)) {
+        rec.oil = Object.assign({}, rec.oil, {
+          curve: rec.oil.curve.map(function (row) { return [row[0] * 0.92, row[1], row[2]]; })
+        });
+      }
+    }
+  },
+  {
+    name: 'the strip rises 60 ms later when the accuser is the Dictator',
+    channel: 'oil',
+    apply: function (rec, G, view) {
+      if (view.speaker === dictatorSeat(G)) {
+        rec.oil = Object.assign({}, rec.oil, { stripAt: rec.oil.stripAt + 60 });
+      }
+    }
   }
 ];
 
@@ -410,6 +431,27 @@ async function main() {
         full: S.accusationPlan(0, false),
         reduced: S.accusationPlan(0, true),
         lantern: { lift: S.ACCUSE.lanternLift, pull: S.ACCUSE.lanternPull, rim: S.ACCUSE.rimColor }
+      },
+      /*
+       * THE OIL LINE — the one clock in the game, and therefore the one place a
+       * duration could be made to mean something. The whole curve is sampled
+       * rather than the constants read back, because a burn that ran 8% faster
+       * when the accuser was a Rebel would leave `burnMs` untouched and every
+       * frame of the rule in a different place.
+       */
+      oil: {
+        burnMs: S.OIL.burnMs,
+        fadeMs: S.OIL.fadeMs,
+        height: S.OIL.height,
+        stripAt: S.ACCUSE.strip,
+        stripMs: S.ACCUSE.stripMs,
+        curve: [0, 3000, 6000, 9000, 11999, 12000].map(function (t) {
+          return [S.oilAt(t, false), S.oilFading(t, false), S.oilSpent(t, false)];
+        }),
+        waiting: [0, 60000, 600000].map(function (t) {
+          return [S.oilAt(t, true), S.oilFading(t, true), S.oilSpent(t, true)];
+        }),
+        hush: { to: A.HUSH.floor.to, ms: A.HUSH.floor.ms, fadeMs: A.HUSH.floor.fadeMs }
       },
       /* STAGGER. Which seat's ballot lands when, and the count as it climbs. */
       ballots: S.ballotPlanFor(view),
@@ -654,6 +696,148 @@ async function main() {
     }
   }
 
+  /* ================================================================= */
+  /* THE INTENT STRIP, WHICH IS THE SHARPEST NEW SURFACE IN THE GAME    */
+  /* ================================================================= */
+
+  /*
+   * A strip that offered "name the Dictator" first would not be a tell, it
+   * would be the whole game handed over on a plate — and unlike every channel
+   * above it is built from a RECORD rather than from a view, so the argument
+   * "it is a pure function of a player-safe projection" does not cover it. It
+   * needs its own row.
+   *
+   * What it is not is the same shape as the sweep above. `channels()` compares
+   * one moment; a strip only exists at a beat the floor handed the player, and
+   * building one needs a floor record folded forward from the start of the
+   * match. So this plays real matches, and at every beat the strip is offered
+   * it rotates the hidden roles, rebuilds the strip, and requires it byte for
+   * byte — cards, targets, bases, sentences and order.
+   *
+   * The mutants are the honest half: two of them, each a complete solve, each
+   * reaching for `G` because that is the only place a role lives, and each one
+   * must be CAUGHT or this row is decoration.
+   */
+  var Floor = require('../src/engine/floor.js');
+  var Orator = require('../src/engine/orator.js');
+  var Intents = require('../src/engine/intents.js');
+
+  var STRIP_MUTANTS = [
+    {
+      name: 'control (no tell at all)',
+      control: true,
+      apply: function (slots) { return slots; }
+    },
+    {
+      name: 'the Dictator is offered first on the accuse submenu',
+      apply: function (slots, G) {
+        var d = dictatorSeat(G);
+        return slots.map(function (s) {
+          if (s.id !== 'accuse' || !s.options) return s;
+          var moved = s.options.slice().sort(function (a, b) {
+            return (b.target === d ? 1 : 0) - (a.target === d ? 1 : 0);
+          });
+          return Object.assign({}, s, { options: moved });
+        });
+      }
+    },
+    {
+      name: 'the support slot is dropped when the only candidate is a Rebel',
+      apply: function (slots, G) {
+        return slots.filter(function (s) {
+          return !(s.id === 'support' && isRebelSeat(G, s.target));
+        });
+      }
+    }
+  ];
+
+  var stripBeats = 0;
+  var stripRotations = 0;
+  var stripMismatches = 0;
+  var stripCaught = STRIP_MUTANTS.map(function () { return 0; });
+
+  for (var sg = 0; sg < Math.min(GAMES, 10); sg++) {
+    var sCount = 5 + (sg % 6);
+    var sHuman = sg % sCount;
+    var sSeed = 9000 + sg * 31;
+    var sG = SD.createGame({ names: NAMES.slice(0, sCount), seed: sSeed });
+    var sMinds = AI.create(sG);
+    var sRecord = Floor.createRecord();
+    var sMemory = Orator.createMemory();
+    var sCtx = {
+      draw: Orator.streamFor(sSeed), minds: sMinds, memory: sMemory,
+      humanSeat: sHuman, awaitHuman: true
+    };
+    var sDay = sG.day;
+    var sGuard = 0;
+
+    /* eslint-disable no-loop-func */
+    var runFloor = function () {
+      var ts = Floor.triggers(sRecord);
+      if (!ts.length) return;
+      var st = Orator.holdFloor(sRecord, ts[0], sCtx);
+      var spins = 0;
+      while (st.pending !== null && st.pending !== undefined && spins++ < 12) {
+        var prompt = Intents.promptFor(sRecord, sHuman);
+        var mine = sMemory.forSeat(sHuman);
+        var before = Intents.stripFor(sRecord, sHuman, { prompt: prompt, memory: mine });
+        stripBeats++;
+
+        var mutatedA = STRIP_MUTANTS.map(function (m) {
+          return JSON.stringify(m.apply(JSON.parse(JSON.stringify(before.slots)), sG));
+        });
+
+        var undoS = permuteHidden(sG, sHuman);
+        if (undoS) {
+          stripRotations++;
+          var after = Intents.stripFor(sRecord, sHuman, { prompt: prompt, memory: mine });
+          if (JSON.stringify(before) !== JSON.stringify(after)) {
+            stripMismatches++;
+            check(false, 'the INTENT STRIP moved with the hidden roles at seed ' + sSeed);
+          }
+          STRIP_MUTANTS.forEach(function (m, mi) {
+            var mb = JSON.stringify(m.apply(JSON.parse(JSON.stringify(after.slots)), sG));
+            if (mutatedA[mi] !== mb) stripCaught[mi]++;
+          });
+          undoS();
+        }
+
+        var last = before.slots[before.slots.length - 1];
+        if (last) { try { Floor.speak(sRecord, last.fields); } catch (e) { /* refused */ } }
+        st = Orator.resumeFloor(sRecord, sCtx, st, null);
+      }
+    };
+    /* eslint-enable no-loop-func */
+
+    Floor.observe(sRecord, sG);
+    while (sG.phase !== SD.PHASE.GAME_OVER && sGuard++ < 4000) {
+      var sEv = Driver.step(sG, sMinds);
+      Floor.observe(sRecord, sG);
+      sMemory.note(sEv, Orator.governmentFor(sRecord, sEv));
+      runFloor();
+      if (sG.day !== sDay) {
+        sDay = sG.day;
+        Floor.acknowledgeMorning(sRecord, sDay);
+        runFloor();
+      }
+    }
+  }
+
+  check(stripBeats > 60, 'only ' + stripBeats + ' strips were built; the row is barely swept');
+  check(stripRotations > 40, 'only ' + stripRotations + ' role rotations were possible ' +
+    'at a strip');
+  check(stripMismatches === 0, stripMismatches +
+    ' strips changed when the hidden roles were permuted');
+  STRIP_MUTANTS.forEach(function (m, mi) {
+    if (m.control) {
+      check(stripCaught[mi] === 0, 'the CONTROL strip mutant was "caught" ' +
+        stripCaught[mi] + ' times');
+      return;
+    }
+    check(stripCaught[mi] > 0, 'the injected strip tell "' + m.name +
+      '" was NEVER caught in ' + stripRotations + ' rotations');
+  });
+
   /* ------------------------------------------------------------ verdicts */
 
   check(viewMismatches === 0,
@@ -727,6 +911,12 @@ async function main() {
     'lands at ' + (S.accusationPlan(0, true).lastAt) + ' ms and can only be earlier');
   say('reads         ' + audited + ' audits of the WHOLE composed pipeline through a recording ' +
     'Proxy, every read inside ' + ALLOWED.length + ' allowed public paths');
+  say('strip         ' + stripBeats + ' intent strips built inside real matches, ' +
+    stripRotations + ' hidden-role rotations taken at a beat:');
+  say('              ' + stripMismatches + ' changed. Two injected solves — the Dictator ' +
+    'first on the accuse submenu,');
+  say('              and the support slot dropped for a Rebel — were caught ' +
+    stripCaught[1] + ' and ' + stripCaught[2] + ' times');
   MUTANTS.forEach(function (m, mi) {
     say('  ' + (m.control ? 'control ' : 'caught  ') +
       String(caught[mi]).padStart(6) + '  ' + m.name +
