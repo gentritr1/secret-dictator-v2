@@ -211,6 +211,24 @@ export const ENVIRONMENT = [
    * seat runs along Z, which is the axis the graybox bench ran along and the
    * axis `BENCH` in square.js still describes.
    */
+  /*
+   * The policy board, standing behind the dais where the whole square can read
+   * it. Five Reform slots above six Seize slots, in the same order the tray
+   * reads them, so the world and the HUD can never disagree about which row is
+   * which — the D3 retirement table calls that redundancy deliberate, and calls
+   * the tracks "the one number you must never squint at".
+   *
+   * Its eleven `SOCKET_reform_n` / `SOCKET_seize_n` empties are where enacted
+   * tiles will be seated. Nothing fills them yet: the slots read as recesses in
+   * the meantime, which is honest — an empty board is what an empty board looks
+   * like. The sockets are deliberately NOT claimed in `sockets` below, because
+   * the flat socket map allows one claimant per logical name and eleven names
+   * for one feature belong to whatever wires the tiles, not to this row.
+   */
+  { id: 'env-board-a', category: 'environment',
+    place: { x: 0, y: 0, z: 11.0, yaw: Math.PI },
+    requiredNodes: ['COL_board', 'SOCKET_reform_1', 'SOCKET_seize_1'],
+    fallback: 'capsule' },
   { id: 'env-bell-a', category: 'environment',
     place: { x: 5.5, y: 0, z: 5.5, yaw: 0 },
     requiredNodes: ['COL_bell'],
