@@ -1101,8 +1101,12 @@ function paintMurmurs() {
       if (c.murmurEl.textContent !== said.text) c.murmurEl.textContent = said.text;
       if (c.murmurEl.className !== cls) c.murmurEl.className = cls;
     } else if (c.murmurEl.className !== 'murmur hidden') {
+      /* The text stays. Clearing it here emptied the bubble on the same frame
+       * the class changed, so the fade-out had nothing left to fade — the words
+       * vanished and an empty chip shrank after them. It is replaced whenever
+       * this figure speaks again, and an invisible bubble reads nothing to
+       * anybody. */
       c.murmurEl.className = 'murmur hidden';
-      c.murmurEl.textContent = '';
     }
   }
 }

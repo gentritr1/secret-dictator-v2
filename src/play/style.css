@@ -156,8 +156,34 @@ html, body {
   padding: 2px 6px;
   text-align: center;
   white-space: normal;
+  /*
+   * Speech arrives and leaves; it does not blink.
+   *
+   * Until now a bubble was `display: none` one frame and fully present the
+   * next, which reads as a glitch rather than as somebody speaking — and
+   * `display` cannot be transitioned at all, so the fade has to be carried by
+   * opacity with the element left in the layout. It is absolutely positioned by
+   * CSS2DRenderer, so an invisible bubble costs nothing and pushes nothing.
+   *
+   * The rise is 4px and the fade 200ms in, 260ms out: a shade slower leaving
+   * than arriving, so a line that has just been read does not snatch itself
+   * away. Both are well inside the 4-6s life, and neither is a channel any
+   * hidden state can reach — every bubble fades identically.
+   */
+  opacity: 1;
+  transform: translateY(0);
+  transition: opacity 200ms ease-out, transform 200ms ease-out;
+  /* A bubble that overlaps a neighbour's nameplate should read as being in
+   * front of it, not tangled with it. */
+  z-index: 2;
+  box-shadow: 0 2px 10px rgba(8, 10, 16, 0.55);
 }
-.murmur.hidden { display: none; }
+.murmur.hidden {
+  opacity: 0;
+  transform: translateY(4px);
+  transition: opacity 260ms ease-in, transform 260ms ease-in;
+  pointer-events: none;
+}
 
 /*
  * The floor speaks louder than the square mutters.

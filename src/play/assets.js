@@ -384,6 +384,23 @@ function facadeRow() {
   for (const i of [-1, 0, 1]) add(i * BAY, WALL, Math.PI);
   /* East and west: enough to close the frame, not a full street. */
   for (const i of [-1, 1]) { add(WALL, i * BAY, -Math.PI / 2); add(-WALL, i * BAY, Math.PI / 2); }
+  /*
+   * The four corners, where the north wall and the side walls meet at a right
+   * angle and used to simply stop. A bay is one flat face; two of them turning
+   * a corner leave an open joint you can see straight through from any oblique
+   * angle. `env-corner-a` is a square block in the same four materials at the
+   * same 6 m eaves, so the roofline runs through the turn instead of ending.
+   */
+  for (const sx of [-1, 1]) {
+    for (const sz of [-1, 1]) {
+      rows.push({
+        id: 'env-corner-a', category: 'environment',
+        place: { x: sx * WALL, y: 0, z: sz * WALL, yaw: 0 },
+        requiredNodes: ['COL_corner'],
+        fallback: 'capsule'
+      });
+    }
+  }
   return rows;
 }
 
