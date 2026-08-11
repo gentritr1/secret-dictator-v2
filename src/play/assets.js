@@ -200,6 +200,27 @@ export const ENVIRONMENT = [
     place: { x: 8.2, y: 0, z: -1.2, yaw: -Math.PI / 5 },
     requiredNodes: ['COL_trunk'],
     fallback: 'capsule' },
+  /*
+   * The bell and the bench: the last two graybox pieces the player actually
+   * touches, and the ones they touch most. The bell is rung every morning of
+   * every match — it had been a grey post with a grey box on top since Step 4.
+   *
+   * Both REPLACE their procedural counterparts and therefore carry their own
+   * collision, and both keep `graybox` as the fallback because the procedural
+   * versions still exist to fall back to. The bench is turned a quarter so its
+   * seat runs along Z, which is the axis the graybox bench ran along and the
+   * axis `BENCH` in square.js still describes.
+   */
+  { id: 'env-bell-a', category: 'environment',
+    place: { x: 5.5, y: 0, z: 5.5, yaw: 0 },
+    requiredNodes: ['COL_bell'],
+    replaces: ['bell-post', 'bell'],
+    fallback: 'graybox' },
+  { id: 'env-bench-a', category: 'environment',
+    place: { x: -9, y: 0, z: 0, yaw: Math.PI / 2 },
+    requiredNodes: ['COL_bench'],
+    replaces: ['bench-seat', 'bench-leg-a', 'bench-leg-b'],
+    fallback: 'graybox' },
   /* Two placements of one lantern asset, flanking the dais where the dusk
    * reference puts them. Same GLB, distinct logical socket names — the flame
    * sockets are where the lighting director may hang real lights later; until
