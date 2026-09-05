@@ -12,6 +12,30 @@ Production asset rows remain at **review**, with the acceptance gaps below.
 
 The original single-pixel ground-floor finding below is superseded as an acceptance issue: the owner retires the absolute criterion and requires ground-masked p1/p5 no darker than baseline, plus blue-not-black hue checks on those percentile bands using the same script. Owner-reported trial ground luma was p1 1.08 → 1.22, p5 2.08 → 2.44, median 11.4 → 17.1, and share below luma 8 was 36.1% → 22.2%. The review message did not identify the percentile script path; these numbers are attributed to that review and are not claimed as outputs of the committed minimum-only script. Phase 5 must consolidate and freeze the shared percentile/hue measurement before retuning. Old minima remain reproducible historical data; they no longer indicate a failed acceptance criterion.
 
+Instrument, 2026-09-06: the percentile and hue reporting is now consolidated
+in `scripts/measure-rubble-ground-floor.mjs` (same mask, camera, seed, state and
+sampling as the minimum-only version; outputs unchanged file names plus p1, p5,
+p50, share below luma 4 and 8, the darkest-5%-band mean RGB and its blue-over-red
+flag). Its outputs for both builds are `owner-review/phase-1/` (16fa8af runtime,
+served from a detached worktree; 53ad9b3 is documentation only) and
+`owner-review/baseline/` (branch point f738316). Committed-script results, trial,
+ground mask only:
+
+| | Baseline | Phase 1 |
+| --- | --- | --- |
+| p1 luma | 1.076 | 1.217 |
+| p5 luma | 2.080 | 2.787 |
+| median luma | 11.44 | 17.22 |
+| share below luma 8 | 36.1% | 21.9% |
+| p5-band mean RGB | (0.0, 1.7, 6.9) | (1.0, 1.6, 6.1) |
+
+Both builds pass blue-over-red on the p5 band. Repeat-capture variation: a second
+phase-1 run of the same method gave p5 2.44 with p1 unchanged, so p5 differences
+under about 0.4 luma are inside the instrument's jitter and must not be reported
+as a shortfall. Caveat for phase 5: the darkest 5% of trial ground sits near
+luma 2 of 255 in both builds; it is blue by channel order but black to the eye,
+which is the gradient-and-albedo question phase 5 retunes against the sky hero.
+
 Taste decisions: keep the current smaller sett scale; defer the dusk gradient's grey-blue retune to phase 5. The corrected brief now requires a recorded warm budget for every phase-2 and phase-4 asset before production, with per-asset and combined-scene checks. The historical author-only and no-independent-content-review statements below describe the initial delivery, before this owner review.
 
 ## Executed and observed
