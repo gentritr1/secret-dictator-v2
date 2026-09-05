@@ -36,6 +36,20 @@ choice between them isolates *treatment*, not content.
 | design/concepts/mood-night-trial.png | soul_location | 02b209ac-5b5a-4da1-8efd-3d0543966e8e | B-style square, night trial, stage beam (hero) |
 | design/concepts/citizens-sculpt-reference.png | recraft_v4_1 | 373ecc9e-65c2-4730-adb2-0e8d8b2174b6 | carved-figurine citizen lineup, 3D sculpt target (hero) |
 
+### Direction v2 round (2026-09-05): the rubble-years square
+
+Generated on the owner's Higgsfield account with FLUX.2 pro as direction targets for the
+post-war art pass in `docs/briefs/RUBBLE-SQUARE-ART-PASS.md`. Reference only, never
+shipped. Caveats (a cap star on the soldier, placeholder poster symbols) are recorded in
+`design/concepts/rubble/README.md` and must not be reproduced.
+
+| file | model | job id | prompt theme |
+| --- | --- | --- | --- |
+| design/concepts/rubble/square-dusk-rubble.png | flux_2 | 2c80b136-49fa-4193-ace2-daca59166adf | 1946 market square at dusk, door-built tribunal platform, bombed church, brick stacks (base look) |
+| design/concepts/rubble/night-tribunal-searchlight.png | flux_2 | 77d7a916-71a0-4da6-95be-31ffaf20997b | night trial under one searchlight pool, rim-lit watchers, painted-flat skyline (hero) |
+| design/concepts/rubble/day-queue-notice-board.png | flux_2 | ddbcccae-bcd8-4950-b055-273474a2cf46 | overcast day, ration queue at the notice board, brick chain, half-collapsed tenement |
+| design/concepts/rubble/citizens-lineup-1946.png | flux_2 | 74d9f325-2640-4699-ae84-7c54aeca8e26 | carved-figurine citizen lineup, 1946 trades (hero for finish and proportion; six of eight figures) |
+
 ## Pipeline test artifacts
 
 | file | source | license | used for | status / known limits |
