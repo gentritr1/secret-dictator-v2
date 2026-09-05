@@ -105,3 +105,46 @@ Rules that fall out of the measurement:
 All references AI-generated 2026-08-08 on the owner's Higgsfield account as
 *direction targets for hand-made 3D work* — they are not shipped assets. Job
 IDs in `docs/ASSET_MANIFEST.md`.
+
+## Direction v2 addendum — rubble years (2026-09-05)
+
+The setting is a small German town in 1946. Pocked plaster, salvaged brick,
+soot-marked doors, cloth and matte iron replace the earlier timber-town
+vocabulary. Every lighting, silhouette, staging and handcrafted-surface
+principle above remains authoritative. The four references in
+`design/concepts/rubble/` govern finish and composition, with their README's
+content caveats. Their placeholder notices and uniform details are not assets.
+
+Measured by `scripts/capture-rubble-baseline.mjs` using
+`scripts/rubble-pixels.mjs`; full counts are in
+`design/reviews/baseline-v2/measurements.json`. Histogram colours below are
+centres of 16-value RGB bins, the same quantization convention as the original
+bible. They describe displayed reference pixels, not unlit material values.
+Role assignment is an art-direction interpretation; the counts are measured.
+
+| Family / role | Measured bin | Reference | Pixels in bin |
+| --- | --- | --- | ---: |
+| Soot / stone midtone | `#484848` | square-dusk-rubble | 23,261 |
+| Blue soot shadow | `#282838` | square-dusk-rubble | 30,521 |
+| Brick red | `#a85838` | square-dusk-rubble | 3,135 |
+| Worn plaster ochre | `#786858` | square-dusk-rubble | 17,517 |
+| Salvaged timber shadow | `#583828` | square-dusk-rubble | 10,044 |
+| Khaki cloth | `#786848` | citizens-lineup-1946 | 2,213 |
+| Headscarf muted plum | `#583848` | square-dusk-rubble | 169 |
+| Gas-lamp highlight | `#f8d898` | square-dusk-rubble | 857 |
+| Night blue | `#082848` | night-tribunal-searchlight | 87,374 |
+| Lifted night blue | `#283858` | night-tribunal-searchlight | 27,375 |
+
+Warm classifier remains HSL hue 15–70° inclusive, saturation >0.16,
+lightness >0.18. Whole-reference warm fractions are 15.902% dusk, 4.418%
+night, 18.579% day, and 11.463% lineup. These are not new budgets.
+Keep the runtime's day allowance 100%, dusk allowance 45%, and the bible's
+night ceiling 10%, aiming below 5% where possible. A reference's near-black
+pixels do not override the blue-shadow rule. Neither the lineup's neutral
+studio background nor its skin highlights are cloth-albedo targets.
+
+Use at most six shared painted 1024 albedo roles: plaster, brick,
+timber-and-soot, metal, cloth, emissive. Paint occlusion and wear into albedo;
+keep illumination runtime-controlled and vertex colour for tint only. No
+normal, roughness or metallic texture maps. The gameplay dimensions remain
+those of `BLENDER_PIPELINE.md` and the baseline collider/socket snapshot.

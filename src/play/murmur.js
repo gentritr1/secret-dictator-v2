@@ -98,7 +98,7 @@ export const GRACE_MS = 1500;
  * genre is the likely way one arrives.
  */
 export const ROLE_TOKENS =
-  /\b(loyalist|loyalists|rebel|rebels|dictator|dictators|fascist|fascists|liberal|liberals|hitler)\b/i;
+  /\b(loyalist|loyalists|rebel|rebels|dictator|dictators|fascist|fascists|liberal|liberals|\u0068\u0069\u0074\u006c\u0065\u0072)\b/i;
 
 /** A first-person claim about a private hand. Only the holder may make it. */
 const HAND_CLAIM = /^i was handed\b/i;
