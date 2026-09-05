@@ -1,0 +1,7 @@
+front.png              camera=front         mood=day        collider=false  calls=36 tris=1046
+three-quarter.png      camera=three-quarter mood=day        collider=false  calls=36 tris=1046
+side.png               camera=side          mood=day        collider=false  calls=36 tris=1046
+game-camera.png        camera=game          mood=day        collider=false  calls=36 tris=1046
+silhouette.png         camera=front         mood=silhouette collider=false  calls=16 tris=163
+collider-overlay.png   camera=three-quarter mood=day        collider=true  calls=36 tris=1046
+report: {"file":"environment/env-backdrop-a.glb","bounds":"80.000 × 26.000 × 80.000 m","ground":"0.0000 m","vis":"16 (163 tris)","col":"0 (0 tris)","sockets":"none","materials":"MAT_TimberSoot","doubleSided":"MAT_TimberSoot","unnamed":"none"}

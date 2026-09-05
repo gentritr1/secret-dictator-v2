@@ -1,0 +1,1 @@
+GPT Image 2 material-ID technical pass of this sky panorama. The whole panorama is exactly ONE material role, emissive backdrop. Replace the sky uniformly with one flat mustard-yellow ID colour, no shading, texture, text or symbols. Keep a wide rectangular image and no other regions. This is only an identification mask, never the rendered sky colour.

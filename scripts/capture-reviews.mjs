@@ -39,7 +39,7 @@ const browser = await chromium.launch();
 const page = await browser.newPage({ viewport: { width: 1440, height: 900 } });
 page.on('pageerror', (e) => { console.error('PAGE ERROR:', e.message); process.exitCode = 1; });
 
-await page.goto(`http://localhost:5173/asset-lab.html?asset=${category}/${id}.glb`);
+await page.goto(`${process.env.REVIEW_URL || "http://localhost:5173"}/asset-lab.html?asset=${category}/${id}.glb`);
 await page.waitForFunction(() => window.__lab && window.__lab.report && window.__lab.report.file);
 
 for (const shot of SHOTS) {

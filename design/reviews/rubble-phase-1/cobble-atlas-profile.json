@@ -1,0 +1,44 @@
+{
+  "image": "public/assets/textures/rubble/TEX_Plaster_Cobble.png",
+  "sha256": "7eaa832f350a36bca0053018a24fd7c7e7d489de4e54bc610195a9e251a0b67b",
+  "width": 1024,
+  "height": 1024,
+  "edgeMeanAbsoluteRGB255": {
+    "leftRight": 3.6087239583333335,
+    "topBottom": 6.8642578125
+  },
+  "spectral": {
+    "bands": 16,
+    "frequencyRange": [
+      3,
+      24
+    ],
+    "periodsPx": [
+      185.8953724010648,
+      224.67570101248117,
+      173.4384997746672,
+      171.22647077816063,
+      84.95242221379439,
+      169.52113430331406,
+      161.75756808408806,
+      169.90111698494306,
+      409.6,
+      168.2048466114859,
+      167.60894892544135,
+      168.96450837355644,
+      292.57142857142856,
+      168.41501095063816,
+      82.43893744885285,
+      172.90565998505443
+    ],
+    "slopePixelsPerImageHeight": -7.1534321839757435,
+    "relativeDrift": -0.04215063777831485,
+    "permutationP": 0.3395167195508909,
+    "permutations": 4096,
+    "pLimit": 0.01,
+    "relativeDriftLimit": 0.1
+  },
+  "seamless": true,
+  "noSpectralPeriodSlope": true,
+  "accepted": true
+}

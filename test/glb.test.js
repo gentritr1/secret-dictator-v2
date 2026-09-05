@@ -972,6 +972,118 @@ async function castLayer(reports) {
     `takes the same mapping, with no special case`);
 }
 
+function rubbleGroundLayer() {
+  const crypto = require('node:crypto');
+  const file = path.join(__dirname, '../public/assets/models/environment/env-ground-a.glb');
+  const glb = readGlb(file), j = glb.json;
+  check(glb.magic === 0x46546c67 && glb.version === 2 && glb.total === glb.buf.length, 'ground: valid GLB header');
+  check(j.scenes.length === 1 && j.scenes[0].nodes.length === 1, 'ground: one asset root');
+  const root = j.nodes[j.scenes[0].nodes[0]];
+  check(root.name === 'env-ground-a' && !root.translation && !root.rotation && !root.scale, 'ground: origin root');
+  for (const name of ['COL_ground', 'VIS_cobble_field', 'VIS_tram_scars']) {
+    check(j.nodes.some((n) => n.name === name), `ground: missing ${name}`);
+  }
+  check(!j.cameras?.length && !j.animations?.length && !j.skins?.length, 'ground: no review cameras, clips or skin');
+  check(!(j.extensionsUsed || []).includes('KHR_lights_punctual'), 'ground: no review lights');
+  for (const item of [...j.nodes, ...j.meshes, ...j.materials, ...(j.images || [])]) {
+    check(!!item.name && !/\.\d{3}$/.test(item.name), 'ground: named data without duplicate suffix');
+    check(!/^(Cube|Plane|Material|Image|Camera|Light)(\.|$)/i.test(item.name), 'ground: no default data names');
+  }
+  let triangles = 0;
+  for (const n of j.nodes) {
+    check(!n.translation && !n.rotation && !n.scale, `ground: baked transform ${n.name}`);
+    if (n.mesh === undefined) continue;
+    for (const p of j.meshes[n.mesh].primitives) {
+      check(p.mode === undefined || p.mode === 4, 'ground: triangle primitives');
+      check(p.attributes.NORMAL !== undefined, 'ground: normals');
+      triangles += j.accessors[p.indices].count / 3;
+      if (n.name.startsWith('VIS_')) {
+        check(p.attributes.TEXCOORD_0 !== undefined, `${n.name}: atlas UVs`);
+        const pos = accessor(glb,p.attributes.POSITION).data;
+        for (let i=1;i<pos.length;i+=3) check(pos[i] <= 0 && pos[i] >= -.073, `${n.name}: below the unchanged walk plane`);
+      }
+    }
+  }
+  const col = j.nodes.find((n) => n.name === 'COL_ground');
+  if (col) {
+    const p = j.meshes[col.mesh].primitives[0];
+    for (const [index,expected,label] of [
+      [p.attributes.POSITION,'4e46052ee429e85a75fc92d0135c085edf3339f6139c4e7dc597f768cade57e9','positions'],
+      [p.indices,'1b1a968502cfc78b7639b33f69b42dbe8ba819d956809f52e6bfd480d523e317','indices']
+    ]) {
+      const a=j.accessors[index], v=j.bufferViews[a.bufferView];
+      const start=(v.byteOffset||0)+(a.byteOffset||0);
+      const length=a.count*(a.type==='VEC3'?3:1)*(a.componentType===5126?4:2);
+      const hash=crypto.createHash('sha256').update(glb.bin.subarray(start,start+length)).digest('hex');
+      check(hash===expected, `ground: branch-point collider ${label} byte-identical`);
+    }
+  }
+  check(triangles <= 100, `ground: ${triangles} triangles exceeds painted slab budget`);
+  check(j.materials.length === 1, 'ground: one material role');
+  for (const m of j.materials) {
+    const p=m.pbrMetallicRoughness || {};
+    check(m.name==='MAT_Plaster' && !m.doubleSided && (!m.alphaMode || m.alphaMode==='OPAQUE'), 'ground: opaque single-sided mineral role');
+    check(p.metallicFactor===0 && p.roughnessFactor>=.8 && p.roughnessFactor<=.95, 'ground: matte finish');
+    check(p.baseColorTexture !== undefined, 'ground: albedo is painted');
+    check(!m.normalTexture && !m.occlusionTexture && !p.metallicRoughnessTexture, 'ground: albedo texture only');
+  }
+  check(j.images?.length===1 && j.textures?.length===1, 'ground: one embedded atlas');
+  for (const image of j.images || []) {
+    check(image.bufferView !== undefined && !image.uri, 'ground: embedded image');
+    const view=j.bufferViews[image.bufferView];
+    const png=glb.bin.subarray(view.byteOffset||0,(view.byteOffset||0)+view.byteLength);
+    check(png.subarray(0,8).equals(Buffer.from([137,80,78,71,13,10,26,10])), 'ground: lossless PNG');
+    check(png.readUInt32BE(16)===1024 && png.readUInt32BE(20)===1024, 'ground: 1024 atlas');
+  }
+  say(`ground        ${triangles} triangles; one 1024 albedo; branch-point collision bytes preserved`);
+}
+
+function rubbleBackdropLayer() {
+  const glb=readGlb(path.join(__dirname,'../public/assets/models/environment/env-backdrop-a.glb'));
+  const j=glb.json;
+  check(glb.magic===0x46546c67 && glb.version===2 && glb.total===glb.buf.length,'backdrop: valid GLB');
+  check(j.scenes.length===1 && j.scenes[0].nodes.length===1,'backdrop: one scene root');
+  check(j.nodes[j.scenes[0].nodes[0]].name==='env-backdrop-a','backdrop: named root');
+  check(j.nodes.length===17 && j.meshes.length===16,'backdrop: sixteen painted flats');
+  check(!j.cameras?.length && !j.skins?.length && !j.animations?.length,'backdrop: no camera, rig or clips');
+  check(!(j.extensionsUsed||[]).includes('KHR_lights_punctual'),'backdrop: no review light');
+  for(const item of [...j.nodes,...j.meshes,...j.materials,...(j.images||[])])check(!!item.name && !/\.\d{3}$/.test(item.name),'backdrop: canonical data names');
+  const counts={spire:0,tower:0,chimney:0,gable:0},rings={near:0,far:0};
+  let triangles=0;const low=[Infinity,Infinity,Infinity],high=[-Infinity,-Infinity,-Infinity];
+  for(const n of j.nodes){
+    check(!n.translation && !n.rotation && !n.scale && !n.matrix,`backdrop: identity ${n.name}`);
+    if(n.mesh===undefined)continue;
+    const match=/^VIS_backdrop_(near|far)_0[1-8]_(spire|tower|chimney|gable)$/.exec(n.name);
+    check(!!match,`backdrop: scenery-only named node ${n.name}`);
+    if(match){rings[match[1]]++;counts[match[2]]++;}
+    for(const p of j.meshes[n.mesh].primitives){
+      check((p.mode===undefined||p.mode===4) && p.attributes.NORMAL!==undefined && p.attributes.TEXCOORD_0!==undefined,'backdrop: triangles, normals and atlas UVs');
+      triangles+=j.accessors[p.indices].count/3;
+      const pos=accessor(glb,p.attributes.POSITION).data;
+      for(let i=0;i<pos.length;i+=3)for(let k=0;k<3;k++){low[k]=Math.min(low[k],pos[i+k]);high[k]=Math.max(high[k],pos[i+k]);}
+    }
+  }
+  check(JSON.stringify(counts)===JSON.stringify({spire:1,tower:1,chimney:6,gable:8}),'backdrop: exact motif counts');
+  check(rings.near===8 && rings.far===8,'backdrop: eight panels per ring');
+  [80,26,80].forEach((n,k)=>near(high[k]-low[k],n,.001,'backdrop: sheet dimensions'));
+  near(low[1],0,.001,'backdrop: scenery base');near(high[1],26,.001,'backdrop: spire height');
+  check(triangles<=500,'backdrop: triangle budget');
+  check(j.materials.length===1,'backdrop: one material role');
+  for(const m of j.materials){
+    const p=m.pbrMetallicRoughness||{};
+    check(m.name==='MAT_TimberSoot' && m.doubleSided && (!m.alphaMode||m.alphaMode==='OPAQUE'),'backdrop: opaque painted-flat double-side exception');
+    check(p.metallicFactor===0 && p.roughnessFactor>=.8 && p.roughnessFactor<=.95,'backdrop: matte surface');
+    check(p.baseColorTexture!==undefined && !m.normalTexture && !m.occlusionTexture && !p.metallicRoughnessTexture,'backdrop: painted albedo only');
+  }
+  check(j.images?.length===1 && j.textures?.length===1,'backdrop: one atlas');
+  for(const im of j.images||[]){
+    check(im.name==='TEX_TimberSoot_Backdrop' && im.bufferView!==undefined && !im.uri,'backdrop: named embedded atlas');
+    const v=j.bufferViews[im.bufferView],png=glb.bin.subarray(v.byteOffset||0,(v.byteOffset||0)+v.byteLength);
+    check(png.subarray(0,8).equals(Buffer.from([137,80,78,71,13,10,26,10])) && png.readUInt32BE(16)===1024 && png.readUInt32BE(20)===1024,'backdrop: 1024 PNG');
+  }
+  say(`backdrop      ${triangles} triangles; sixteen flats; one 1024 albedo; no gameplay geometry`);
+}
+
 /* ------------------------------------------------------------------ run */
 
 async function main() {
@@ -990,6 +1102,8 @@ async function main() {
    * them into seats. Skipped when a candidate GLB was passed on the command
    * line: that mode is "check this one export", not "check the game". */
   if (GLB === SHIPPING) {
+    rubbleGroundLayer();
+    rubbleBackdropLayer();
     say('');
     const reports = {};
     let allRead = true;

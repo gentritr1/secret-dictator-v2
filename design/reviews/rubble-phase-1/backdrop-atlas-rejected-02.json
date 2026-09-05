@@ -1,0 +1,44 @@
+{
+  "image": "/Users/gentlegen/.codex/generated_images/01a072a4-7015-7d12-bc34-63948b93f737/exec-ccc5bb84-b4ec-4b3e-b74e-1dc8ebd92505.png",
+  "sha256": "ea6d6f09c9b9e7c0dc3bd55622d270700d1eeaf014f155550f78dc83a954591f",
+  "width": 1254,
+  "height": 1254,
+  "edgeMeanAbsoluteRGB255": {
+    "leftRight": 4.502392344497608,
+    "topBottom": 5.627857522594365
+  },
+  "spectral": {
+    "bands": 16,
+    "frequencyRange": [
+      3,
+      24
+    ],
+    "periodsPx": [
+      173.5242318424488,
+      161.31461393129453,
+      166.04878475708574,
+      208.27320313384627,
+      246.1142293423668,
+      235.42808532356355,
+      202.51686324989078,
+      185.3343081407395,
+      160.34250828722452,
+      174.2069862612249,
+      147.27494706451026,
+      244.73151007461905,
+      178.84682630256972,
+      395.11264535416416,
+      175.99604149991148,
+      215.3755477575777
+    ],
+    "slopePixelsPerImageHeight": 18.339461342119225,
+    "relativeDrift": 0.10071615252752233,
+    "permutationP": 0.5591896509641201,
+    "permutations": 4096,
+    "pLimit": 0.01,
+    "relativeDriftLimit": 0.1
+  },
+  "seamless": true,
+  "noSpectralPeriodSlope": false,
+  "accepted": false
+}

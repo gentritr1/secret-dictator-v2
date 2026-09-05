@@ -1,0 +1,518 @@
+
+> secret-dictator@2.0.0 verify
+> npm run test:content && npm test && npm run test:controller && npm run test:human && npm run test:contract && npm run test:view && npm run test:interact && npm run test:objective && npm run test:pace && npm run test:murmur && npm run test:ambience && npm run test:tell && npm run test:stage && npm run test:glb && npm run test:floor && npm run test:orator && npm run test:hud && npm run test:ledger && npm run test:strip && npm run test:cast && npm run parity && npm run build
+
+
+> secret-dictator@2.0.0 test:content
+> node test/content.test.js
+
+Content grep: 151 paths, 97 text files including comments, 18 GLB metadata chunks, 26 rules, 0 findings.
+Image pixels and editable Blender internals require visual/source review; this grep does not certify them.
+
+> secret-dictator@2.0.0 test
+> node test/engine.test.js 50
+
+games             50 (5–10 players, cycled)
+assertions        28875
+avg steps/game    59.9
+wins              { loyalist: 29, rebel: 21 }
+ending            { reform: 21, seize: 7, purged: 8, deputy: 14 }
+chaos enactments  40 | blocks carried 2 | emergency votes 44
+
+OK — 28881 assertions passed.
+
+> secret-dictator@2.0.0 test:controller
+> node test/controller.test.js
+
+1  frame-rate independence
+   1/30 vs 1/120  end (1.8499, 0.0000, 6.0794)
+                  end (1.8499, 0.0000, 6.0794)
+                  position delta 0.0000 mm   speed 2.800000 vs 2.800000
+   1/45 vs 1/144  position delta 46.667 mm  (one substep of travel = 58.3 mm)
+   raw step() x240 vs advance(1/30) x120  delta 0.0000 mm
+2  acceleration and stopping
+   time to 95% of 3.5 m/s: 250.0 ms  (target 250 ms, resolution 16.7 ms)
+   time to 5% of walk speed: 145.8 ms  (target 150 ms)
+   stop distance: 0.1744 m  (v0*tau = 0.1752 m)
+3  turning
+   180 deg reversal: facing settled at 267 ms; largest per-substep velocity jump 1.2673 m/s
+4  wall slide
+   pos x 1.649900 (wall face 2, capsule radius 0.35)
+   velocity (0.000000, 0.000000, 2.474874)
+   along-wall speed after another 2 s: 2.474874 (was 2.474874)
+   corner: settled at (1.6499, 1.6499), wander over the next 2 s 0.0000 mm
+5  ramps
+   15 deg: 2 s of uphill covered dx 7.0000 m, dy 1.8756 m, slope reads 15.00 deg, grounded true
+   35 deg (standing on it): y 0.8445 -> -7.5222 (peak 0.8445), x 1.0956 -> -10.8533, grounded false, surface reads 35.00 deg
+   35 deg: slid 11.9488 m downhill in 2 s
+   35 deg (walked into from flat): stalls at x 0.8895, y 0.0000 (peak 0.000000)
+6  steps and low obstacles
+   slowest speed while climbing: 3.4472 m/s (walk speed 3.5)
+   3 x 0.17 m steps: ended at x 10.2079, y 0.5100, grounded true
+   0.40 m obstacle: ended at x 1.6499, y 0.0000 (face at x = 2)
+7  edges, falling and landing
+   walked off a 2 m ledge at t=0.383s, landed at t=0.817s, lowest y 0.000000
+   final y 0.000000, vertical speed 0.000000, grounded true
+   free fall from 5 m: 0.6833 s (sqrt(2h/g) = 0.6742 s)
+8  determinism
+   two identical runs hash the same snapshot: true
+   controller.js contains no Math.random, no rng() and no clock read
+
+OK — 50 checks passed.
+
+> secret-dictator@2.0.0 test:human
+> node test/human-driver.test.js
+
+replay        120 matches, every seat rotated through the human chair
+              4902 human decisions recorded and replayed byte-identically
+              decision kinds: {"acknowledge":3020,"nominate":194,"vote":1457,"speaker_discard":83,"power_target":22,"deputy_discard":113,"power_ack":13}
+control       120 matches forked at a real choice and diverged
+coverage      human purged in 5 matches; winners {"loyalist":51,"rebel":69}
+all-bot       24 matches: session log === Driver.playOut log, no human ever asked
+guards        illegal actions and idle submits throw; the morning gate takes no step
+block         a bot Deputy's Block stops on the human Speaker; both answers replay
+
+OK — 1055 checks passed.
+
+> secret-dictator@2.0.0 test:contract
+> node test/contract.test.js
+
+round trip    3228 advertised options across 2062 decisions in 60 complete matches — all accepted verbatim
+              kinds: {"acknowledge":1255,"nominate":85,"vote":608,"speaker_discard":46,"power_target":19,"deputy_discard":45,"power_ack":4}
+              options[0] submitted every time; no kind needed a special shape
+block         0 of 45 Deputy drafts could move the Block — random play rarely reaches five Seize with a human Deputy, so the
+              three answers are checked on a constructed position below instead
+no skipping   608 ballots asked for 608 elections the human was alive for (58 survived, 2 purged)
+deputy        all three answers verified by name: index 0 enacts, the Block moves,
+              the legacy { discard } / { block } aliases still replay, and the
+              Block is refused when the board has not unlocked it
+bots only     pass A: 200 advanceBots() calls, all refused at the opening gate
+              pass B: acknowledges answered, 1 of them — 1 bot actions ran, then
+              stalled on vote for 598 calls; state frozen, no decision invented
+observer      seed 777: 36 decisions observed one at a time, all 36 recorded
+              11 ballots for 11 elections, human alive at the end
+
+OK — 6139 checks passed.
+
+> secret-dictator@2.0.0 test:view
+> node test/view.test.js
+
+views         12760 projections audited across 24 complete matches, every seat, every step
+permutation   8724 role permutations left the view byte-identical (4036 seats had nothing to permute)
+sweep         8724 single-knowledge seats carried exactly their own role token
+peek          1349 seat-states held a private Peek result
+disclosure    180 seats across 5-10 players: known === SD.knownRoles exactly,
+              48 Rebel views named every mate and the Dictator
+rules         disclosure checked by name: Rebels, the Dictator at 5/6 vs 7+, Peek,
+              Foresight, both legislative hands, and the game-over reveal
+private card  rendered through the real panels.js: a Rebel's card names every ally by
+              their permanent number and marks the Dictator; a Loyalist's names nobody
+
+OK — 198201 checks passed.
+
+> secret-dictator@2.0.0 test:interact
+> node test/interact.test.js
+
+contract      a half-built interactable, a nameless one and a duplicate id are all refused
+range         2.4 m reach, measured on the floor plane; the prompt clears with the target
+facing        60 deg cone, verified north and east independently (a sign flip fails one)
+close range   inside 0.9 m the facing cone is dropped, so a small turn cannot flicker it
+liveness      canInteract() is re-checked at the key press, not trusted from the last frame
+overlap       nearest wins; turning between two neighbours hands the prompt over
+context       whatever the page passes reaches all three hooks and nothing else does
+purity        no DOM, no clock, no randomness — and no mention of podium, bell or bench
+
+OK — 31 checks passed.
+
+> secret-dictator@2.0.0 test:objective
+> node test/objective.test.js
+
+panel         the Emergency Vote screen rendered through the real panels.js: the power,
+              the question, a labelled title and all 4 targets as submittable values
+lines         2451 objective lines across 36 complete matches (5-10 players, the human seat rotated) plus three constructed beats
+coverage      18 of 18 reachable states mapped: acknowledge:chaos, acknowledge:morning, acknowledge:vote_result, block_response, bots:block_response, bots:legislative_deputy, bots:legislative_speaker, bots:nomination, bots:power, dead, deputy_discard, game_over, nominate, power_ack:foresight, power_target:emergency, power_target:peek, power_target:purge, speaker_discard, vote
+routing       every line names the bell or the podium, and agrees with the object
+              the interaction system would actually open the panel at
+beats         10 deliberation beats, each specific,
+              each pointing at no object while no object will answer
+sweep         no role, team or tile token in any line; no name outside the seats
+              the square has publicly been told about
+permutation   1814 hidden-role permutations left the line identical
+
+OK — 65719 checks passed.
+
+> secret-dictator@2.0.0 test:pace
+> node test/pace.test.js
+
+invariance    40 complete matches played twice: 28496 pace draws interleaved between every engine call,
+              at 0.5x, 1x, 2x, 4x — event log, action log, winner and step
+              count byte-identical every time
+probe         40/40 matches DIVERGED when the same clock drew one G.rng() per seam,
+              so the check above can see the failure it is aimed at
+control       40 matches forked at a real choice and diverged, so the
+              comparison is between things that CAN differ
+purity        pace.js imports nothing, names no game object and uses no Math.random;
+              no file under src/play/ draws from the engine stream
+numbers       every band respected over 200 draws each; a legislative draft
+              deliberates longer than a nomination, bookkeeping shorter; speed is
+              an exact divisor and 4x is within the 900 ms Gate 1 shipped
+rhythm        the same seed replays the same rhythm; a different seed does not
+
+OK — 30600 checks passed.
+
+> secret-dictator@2.0.0 test:murmur
+> node test/murmur.test.js
+
+premise       3499 lines generated with `minds` behind a Proxy that throws on
+              any access and the stand-in deep-frozen: chatter reads only players,
+              seize and rng, and mutates nothing. Dead and human seats never speak.
+invariance    40 matches played three times — plain, with a player-safe view
+              built at every seam, and with murmurs firing on every beat at 0.5-4x.
+              8552 murmur draws over 1050 chatter calls and 1050 public beats: driver log,
+              engine prose log, action log, winner and step count byte-identical.
+probe         40/40 matches DIVERGED when chatter was handed the real G
+              (1030 calls), so the check above can see the failure it is aimed at
+sweep         1390 generated murmurs across 40 matches: 0 role words, 0 names outside
+              the beat's public subjects, 0 citizens naming themselves, 0 dead
+              speakers, 0 human speakers, 0 template seams. 106 lines dropped
+              by the filter before they could reach a bubble.
+census        every distinct line each v1 pool can produce, run through the same
+              filter: nomination 5/5, voteOpen 5/5, seizeEnacted 5/5, reformEnacted 4/4, voteFailed 4/4, chaos 3/3, purge 2/4, danger 3/3
+excluded      purge: if that was the dictator we’d be done.  |  purge: that was a loyalist and you know it.
+cadence       426 of 1050 public beats murmured (41%) over 40 matches at the
+              shipping gates, 608 bubbles; longest quiet run 7 public beats
+manners       never more than 2 bubbles up under a beat every 2 s; 29 lifetimes, longest
+              6000 ms against a 4000-6000 ms band; a bubble dies with its citizen; the
+              human seat never has one; the same seed says the same words
+floor         359 utterances over 8 matches on the BROWSER path, 0 refused,
+              kinds {"ACCUSE":109,"SILENCE":57,"CLAIM_HAND":70,"SUPPORT":54,"QUESTION":69}
+              359 bubbles cued, 20% dropped to the 2-bubble cap; never more than 2 up at once,
+              never over the dead, never two on one citizen, no idle murmur on you
+strip         78 beats taken through the strip (7 of them silences) and 53 utterances aimed at the human seat
+sentences     37 text_ids, rendered first-person for the bubble and
+              third-person for the log: no role word, no hole, and no name outside
+              the speaker and the seat the utterance is aimed at
+purity        murmur.js imports nothing, names no engine module, reads no hidden field
+              and cannot see the event log; no file under src/play/ draws from the
+              engine stream; the 52 murmur lines in main.js touch
+              neither the event log nor the game object nor the bots' minds
+
+OK — 14889 checks passed.
+
+> secret-dictator@2.0.0 test:ambience
+> node test/ambience.test.js
+
+table         13 states, 6 of them night frames: warm budget <= 0.10, one dominant lantern-warm source each, 5 practicals under a 0.6 share of the beam, dark by day, no pure black
+weather       117 state x weather compositions: Seizes only, monotonic, prefix order, saturating at the lanterns that exist — and 0 of them touched the ambient, the sun, the beam, the fog or either colour of the sky
+flame         512-sample seeded table, reproducible and seed-sensitive, range 0.001..0.946, one-sided at every sample: a flicker can only ever take light away, so the warm budgets stay upper bounds
+sound         6 cues, every one reachable and every one with a voice; bed covers all 13 lighting states, silent by day
+coverage      12 of 12 reachable states, over 2661 states of 36 complete matches
+leak          400 whitelist audits (every read inside 18 allowed paths), 1934 hidden-role permutations left the light identical
+edges         512 gavels / 512 tallies / 128 Reform + 142 Seize stings, each matching a fact the rules confirm
+purity        neither module imports the engine, draws from its stream, uses Math.random or names eventLog
+
+OK — 31345 checks passed
+
+> secret-dictator@2.0.0 test:tell
+> node test/tell.test.js
+
+sweep         1769 moments over 24 complete matches, 1024 hidden-role permutations
+premise       0 of 1024 permutations changed the player-safe view itself (the record the channels are given)
+channels      0 of 1024 permutations changed any of: lantern states, light sequence, bed selection, cues, sting timing, pace, flame, framing, stagger, silence, curtain
+exercise      9 lighting states, up to 5 Seizes on a board, 1549 moments with a lantern out
+staging       1697 ballot reveals (12689 ballots planned, stagger 180 ms), 13 purges (800 ms of hard silence each), 174 tiles onto the board, 24 curtain calls — and 0 staged before game over
+accusation    last beat at 700 ms of a 700 ms cap; reduced motion lands at 700 ms and can only be earlier
+reads         300 audits of the WHOLE composed pipeline through a recording Proxy, every read inside 32 allowed public paths
+strip         424 intent strips built inside real matches, 335 hidden-role rotations taken at a beat:
+              0 changed. Two injected solves — the Dictator first on the accuse submenu,
+              and the support slot dropped for a Rebel — were caught 217 and 267 times
+  control      0  control (no tell at all)  (must be 0)
+  caught     809  the lanterns go out from the other side when the Dictator sits odd  [lantern states]
+  caught      81  the west lantern dims a touch while a Rebel holds the floor  [lantern states]
+  caught     335  the bed drops 40 Hz when the nominee is a Rebel  [bed selection]
+  caught      29  the sting holds 200 ms longer for a Seize enacted by the Dictator  [sting timing]
+  caught      53  the trial is lit as a power play when the Speaker is the Dictator  [light sequence]
+  caught     101  the gavel is swallowed when a Loyalist is nominated  [cues]
+  caught     964  the flicker is salted with the Dictator's seat  [flame]
+  caught     228  the bots deliberate 15% longer over a fellow conspirator  [pace]
+  caught     596  the camera pushes 20% further when the accuser is a Rebel  [framing]
+  caught     982  the ballots land Rebels first  [stagger]
+  caught     335  the purge silence runs 120 ms longer when a Loyalist is taken  [silence]
+  caught     294  the reveal warms up early — one curtain step while the Dictator is Speaker  [curtain]
+  caught     294  the tile takes 90 ms longer to reach the board while the Dictator holds the gavel  [framing]
+  caught     596  the oil line burns 8% faster when a Rebel holds the gavel  [oil]
+  caught     294  the strip rises 60 ms later when the accuser is the Dictator  [oil]
+
+OK — 1180 checks passed
+
+> secret-dictator@2.0.0 test:stage
+> node test/stage.test.js
+
+accusation    bed cuts at 0, last beat at 700 ms (strip) of a 700 ms cap; reduced motion lands at 700 ms; lantern-units 3.55 of 5, rim hue 218 degrees
+ballots       180 ms apart, seat order, count monotone over 112 samples; a seat that did not vote gets no slot
+tile          slot = the board's own count, travel 520 ms ease-out + 110 ms settle, clamped and monotone
+purge         800 ms of hard silence, one gavel at 800 ms, cone 0.11 against the trial's 0.34; reduced motion snaps the beam and leaves the silence alone
+sweep         2237 moments over 30 matches: 2147 ballot reveals, 20 purges, 30 curtain calls, 0 staged before game over
+purity        no engine import, no import at all, no unseeded randomness, no draw from the seeded stream, and its own salt
+
+OK — 4659 checks passed
+
+> secret-dictator@2.0.0 test:glb
+> node test/glb.test.js
+
+
+env-dais-a and the cast — the GLB contract
+
+  file          87.6 KiB · Khronos glTF Blender I/O v5.2.39 · glTF 2.0
+  materials     SlateStone, TimberOchre, TimberShadow — all single-sided, metallic 0
+  bounds        6 × 1.27 × 3.4 m, ground contact 0, 1212 tris
+  COL_dais      closed, outward, volume 4.488 m³, walkable 20.400001 m²
+  COL_lectern   closed, outward, volume 0.99225 m³, walkable 0.945 m²
+  SOCKET_podium asset-local (0, 0.22, 0.35)
+  socket        world (0, 0.22, 8.65) — behind the lectern (z 7.75..8.45), facing the crowd at -Z
+  refusals      renamed collider, renamed socket, no scene, 404 — all ok:false, one warning
+  step onto     y 0.22 at z 9.571296, 3.5 m/s of 3.5, grounded — the 0.22 m step survived
+  control       without the GLB colliders the same walk ends at y 0, so the proof is measuring the asset
+  lectern       the same walk down the middle stops at z 7.3999 (desk face 7.75), never climbed
+  reach         standing mark to socket 2.25 m, inside the 3.0 m radius
+  ground        28 triangles; one 1024 albedo; branch-point collision bytes preserved
+
+  base      0.860528 × 1.725 × 0.527726 m, ground 0, 1392 tris, 2 material, label 1.95
+  stout     1.101515 × 1.565 × 0.806548 m, ground 0, 1308 tris, 2 material, label 1.8
+  tall      0.696725 × 2.067 × 0.5092 m, ground 0, 1256 tris, 2 material, label 2.297
+  hunched   0.860528 × 1.481 × 0.679492 m, ground 0, 1476 tris, 2 material, label 1.62
+  merge         4 variants, one draw call each, 5432 tris total — ten of them cost 10 calls instead of 80
+  refusals      renamed socket, no VIS_ meshes, no scene, 404 — all ok:false, one warning each; one bad file costs one variant
+  mapping       seat n -> variant n mod 4, total over 60 seats, stable, every variant used, no randomness of any kind; the human's own seat takes the same mapping, with no special case
+
+OK — 1541 checks passed
+
+> secret-dictator@2.0.0 test:floor
+> node test/floor.test.js
+
+
+fold          50 matches: 693 governments, 169 powers, 30 purges — every one cross-checked against the driver's
+              own event stream, a different representation built by different code
+allowlist     4392 utterances over 50 complete matches and 1459 floors: no field outside the schema,
+              no forbidden key at any depth, no role token as a value anywhere
+              kinds {"ACCUSE":1466,"CLAIM_HAND":321,"QUESTION":861,"SILENCE":857,"SUPPORT":887}
+mutation      five faults injected into a real utterance; all five reported:
+                a role field -> injected: field not in the schema: role
+                a suspicion number -> injected: field not in the schema: suspicion
+                free text -> injected: field not in the schema: text
+                a team token nested in refs -> injected.refs.team: forbidden field "team"
+                prose in text_id -> injected: text_id is not an id
+permutation   24 matches folded twice (977 role rotations, 2010 utterances): stream, ledger, flags
+              and public record all byte-identical; the control run diverged, so the
+              comparison can see a hidden role when there is one
+validity      4000 fuzzed claims: 478 accepted and independently re-derived as valid, 3522 refused {"V3":621,"V1":919,"V0":721,"V2":876,"V5":385}
+              (each candidate meets a fresh record, so V4 and V6 — repeat claims and a
+              spent beat — are covered by the named rejections above, not by the sweep)
+              V1-V6 each refused by name, plus the schema allowlist at construction
+contradiction each of C1-C6 fired on its fixture and stayed silent on its near miss;
+              no flag carries a verdict, a liar or a confidence:
+                C1  passed two Reform having drawn one -> self · u-0
+                C2  received two Reform, a Seize is on the board -> record · u-0
+                C3  passed one of each, received two Seize -> pair · u-0,u-1
+                C4  3 claims of three Reform, deck holds 6 -> deck · u-0,u-1,u-2
+                C5  amended, but naming the wrong utterance -> self · u-1,u-2
+                C5  a foreign record with two unamended claims -> self · u-0,u-1
+                C6  the Speaker says they passed two Seize, then blames the Deputy -> self · u-0,u-1
+                C6  the Deputy says they held a choice, then blames the Speaker -> self · u-0,u-1
+replay        12 human-seated matches recorded and replayed: 974 utterances and every
+              ledger entry byte-identical; a differently-played fork diverged
+invariance    50 matches played twice, floor off and floor on: identical
+              event logs, winners and step counts, with 4392 utterances over 1459 floors spoken on the "on" side
+probe         50/50 matches DIVERGED when the speech layer was handed the game's own
+              seeded stream, so the invariance above can see the failure it is aimed at
+obligation    silence does not discharge a QUESTION: 3 silences over 2 floors left it
+              owed and carried, made basis: silence constructible, and an actual
+              answer then discharged it and stopped the carry
+scheduling    1459 floors over 50 matches {"T3":328,"T4":139,"T1":643,"T2":327,"T5":22}: six beats per floor,
+              one floor per phase transition, 472 second beats and every one of them obliged by a QUESTION
+              never during a vote, drafting, at two alive, or after game over
+flags         permanent evidence: one C3 led the morning, stopped leading once its
+              own party spoke to it, and is still queryable by id, still on both
+              ledger entries and still carrying its rule, class, seats and refs
+seam          the recorder facade built a byte-identical record and ledger to the functional API
+module        floor.js draws no randomness, keeps no clock, loads only engine.js, and
+              names no role, team, peek record, hand, deck or seed anywhere in its text
+
+OK — 17300 checks passed.
+
+> secret-dictator@2.0.0 test:orator
+> node test/orator.test.js
+
+
+minds         1744 beats spoken with every mind behind a recording Proxy: 0 writes,
+              and the whole read surface is ["id","known","peeked","sus"]
+invariance    50 matches played twice, floor off and floor on: identical event
+              logs, winners and step counts, with 4646 utterances over 1459 floors on the "on" side
+probe         50/50 matches DIVERGED when SELECTION was handed the game's own seeded
+              stream, so the invariance above can see the failure it is aimed at
+schema        0 refusals over 50 matches; kinds {"SUPPORT":790,"ACCUSE":1767,"CLAIM_HAND":624,"QUESTION":876,"SILENCE":589}
+              accuse ["vote_pattern","contradiction","claim_consistency","enactment","gut"],
+              support ["corroborate","partner","vote_pattern"], question ["accusation","hand","vote","silence"], silence ["question","floor_open","accusation"]
+determinism   24 seeds played twice: identical utterance records, ledgers and
+              flags; different seeds and a different selection salt both diverged
+awaitHuman    38 beats handed to the seat instead of spoken for it, the floor left open each time
+human         50 matches with a seat declared human: 4646 utterances, 687 spoken by them (80 silences)
+              and 403 aimed at them, of which 204 accusations on {"enactment":82,"contradiction":36,"claim_consistency":32,"vote_pattern":37,"gut":17}
+honesty       50 matches with a mindless (therefore truthful) orator: 629 claims,
+              0 of them false, and C1-C5 stayed silent on every one — evidence that fires
+              on the innocent is worse than no evidence
+caught lie    seed 1000, 7 citizens, day 3: Chen (seat 2) was passed {reform 1, seize 1}
+              as Deputy of g-2 and claimed {reform 0, seize 2} — "no choice". The
+              Speaker's own account (u-22) disagrees and C3:u-22:u-16:g-2 flags the
+              pair [2,3] without saying which of them lied (D2 addressed the same lie
+              as C3:u-18:u-17:g-2; the ordinals moved when seat 0 joined the floor)
+lying         704 private hand rows, each held only by the seat that held it;
+              595 claims matched the hand their speaker actually had, 29 did not,
+              and 23 of those were named by a contradiction rule
+permutation   RE-SCOPED for D2, in four parts:
+              7a  16 matches, 647 rotations, no speech: the public
+                  fold is byte-identical — the whitelist window still holds
+              7b  no utterance field carries a role token, and the instrument catches
+                  three injected faults on a REAL orator utterance
+              7c  16 matches: ledger, flags and audit render byte-identically
+                  for every legal rotation, GIVEN the same utterance record
+              7d  and the part D1 asserted that is now FALSE BY DESIGN: 16/16
+                  matches argued DIFFERENTLY when the roles were dealt differently.
+                  Choice correlates with role. That is the deduction game, and it is
+                  a different thing from a presentation channel leaking one
+module        orator.js draws no randomness of its own, keeps no clock, loads only
+              engine.js and floor.js, and reads a mind through four accessors
+
+OK — 4815 checks passed.
+
+> secret-dictator@2.0.0 test:hud
+> node test/hud.test.js
+
+block         the constructed Block row: offered, armed, answered with 1, and stepped
+              back out of with Esc — the decision still pending afterwards
+grammar       13 citizen-naming decisions driven through four input paths
+              (tray offer, panel hint, panel keys, tray keys) — one number each
+numbers       permanent across 12 matches, retired on death, never reused, never
+              positional (a filtered option list renumbers nobody)
+objective     unchanged — five positioning declarations pinned, and 466 lines over four
+              fixed matches hash to the value the pre-gate module produced
+sweep         13628 tray states over 50 complete matches (5-10 players, the human seat
+              rotated), four presentations each: offered, armed, beat, announcement
+never blank   0 empty rows; 6213 states offered keys and every state that
+              offered none said who the square was waiting for instead
+card          232 x 96 in every state; 82 states held tiles and added the fourth line
+ledger        opened over 681 of them and swept with the rest
+role colour   swept the tray, the objective, the prompt, the panel and the ledger
+              in 13628 states:
+              nowhere but the private card, the game-over reveal excepted
+permutation   327 hidden-role permutations left the tray and the card
+              byte-identical
+routed        deck, discard, the log and the chaos track below 2/3 appear on no
+              permanent surface — they are the ledger's, and only the ledger's
+coverage      31 distinct tray rows: announce, armed:block_response, armed:nominate, armed:power_target, armed:vote, beat:acknowledge:chaos, beat:acknowledge:morning, beat:acknowledge:vote_result, beat:deputy_discard, beat:nominate, beat:power_ack:foresight, beat:power_target, beat:speaker_discard, beat:vote, card:acknowledge:chaos, card:acknowledge:morning, card:acknowledge:vote_result, card:deputy_discard, card:power_ack:foresight, card:speaker_discard, dead, empty:block_response, empty:legislative_deputy, empty:legislative_speaker, empty:nomination, empty:power, over, own:block_response, own:nominate, own:power_target, own:vote
+
+OK — 133973 checks passed.
+
+> secret-dictator@2.0.0 test:ledger
+> node test/ledger.test.js
+
+read-only     200 renders, 200 jumps and 10 filter toggles over a live session:
+              event log, utterance record and pending decision byte-identical
+sweep         4344 rows over 24 complete matches (5-10 citizens, the viewing seat
+              rotated), every trigger convened — 12 of them produced flags
+trace         every row resolved to an utterance, a government, a power, a flag,
+              a roster entry or the board — 0 orphans
+flags         29 flagged entries: rule named, every ref shown, 13 C3 pairs
+              on both entries; 0 verdicts, 0 scores, 0 percentages
+dead          17 purged citizens kept their entry and their number
+keys          180 jumps by permanent number, dead included, 0 misses
+permutation   16 role rotations left the RENDERED markup byte-identical
+role colour   the r-* channel appears nowhere in the panel; the role words appear
+              only in the block that is about you and names nobody
+coverage      12 distinct groups: accused, asked, backed, ballots, challenged, claims, owed, powers, seats, silences, supported, unclaimed
+
+OK — 2095 checks passed.
+
+> secret-dictator@2.0.0 test:strip
+> node test/strip.test.js 50
+
+
+fuzz          1109 strips over 50 matches, three players (cycling, always silent, always answering):
+              1109 beats spoken, 0 refused by the schema, 0 records mutated by a dry run
+              slots {"accuse":1077,"claim":657,"question":933,"support":971,"silence":1109,"answer":683}
+              sizes {"2":27,"3":163,"4":213,"5":201,"6":505}, prompted by {"null":426,"ACCUSE":77,"QUESTION":596,"SUPPORT":10}
+order         slot 1 is always the answer, the last is always silence, the middle contracts:
+              0 reorderings in 1109 strips
+silence       20 matches played entirely in silence: 825 silences over 445 floors,
+              all 825 logged by name; 19 free follow-up beats bought for the accusers;
+              basis: silence constructible in 781 of them and refused 648 times against a floor
+              they were not quiet on; 141 questions still owed (1 bots actually chose that basis)
+control       552 all-bot floors over the same 20 seeds: 0 follow-ups granted;
+              all 6 floors that bought an accuser a second beat had a silence to justify it,
+              and all 12 that handed the player a right of reply had an accusation aimed at them
+replay        12 matches recorded as a flat action list and replayed with no strip at all:
+              0 diverged; a differently played fork of the same seed did diverge
+oil line      12000 ms, 2px, fading over the last 3000 ms; 1 of 10 page states may burn it —
+              the one where nothing else is owed. 2401 samples of ten minutes with "the floor waits
+              for you" on: 0 expiries, 0 fades, 0 shortenings, and the record byte-identical
+read first    16065 cards rendered, longest 34 of 34 characters, 0 that would have
+              spoken something not printed in full first
+module        intents.js draws no randomness, keeps no clock, loads only engine.js, floor.js and
+              orator.js, and names no role, team, reveal or knowledge table
+
+OK — 63876 checks passed.
+
+> secret-dictator@2.0.0 test:cast
+> node test/cast.test.js
+
+distinct     tables of 5..10: no two seats share a silhouette and a coat
+arithmetic   28 seats twice identical, cycles at 10, wraps negative, never NaN
+no tell      the colour is a function of the seat index and the table alone
+palette      10 distinct, none lantern-warm, closest 8.0 degrees clear of the band
+body part    chosen by triangle count in both orders, name-independent, null-safe on empty and geometry-less parts
+
+OK — 116 checks passed
+
+> secret-dictator@2.0.0 parity
+> node scripts/driver-parity.js
+
+games             50 (5–10 players, cycled)
+avg steps/game    59.9
+wins              { loyalist: 29, rebel: 21 }
+ending            { reform: 21, seize: 7, purged: 8, deputy: 14 }
+chaos enactments  40 | blocks carried 2 | emergency votes 44
+
+PARITY OK — driver.js reproduces the self-test baseline exactly.
+
+> secret-dictator@2.0.0 build
+> vite build
+
+vite v8.2.1 building client environment for production...
+[2K
+transforming...✓ 109 modules transformed.
+rendering chunks...
+computing gzip size...
+dist/walk.html                                 1.73 kB │ gzip:   0.83 kB
+dist/asset-lab.html                            1.83 kB │ gzip:   0.85 kB
+dist/index.html                                3.04 kB │ gzip:   1.03 kB
+dist/play.html                                 5.23 kB │ gzip:   2.25 kB
+dist/assets/lab-UlfETRgR.css                   1.56 kB │ gzip:   0.69 kB
+dist/assets/walk-CjITSpME.css                  1.99 kB │ gzip:   0.92 kB
+dist/assets/playground-BAwWpcKZ.css            2.43 kB │ gzip:   1.04 kB
+dist/assets/play-DI2cTPSv.css                 15.17 kB │ gzip:   3.66 kB
+dist/assets/BufferGeometryUtils-DhxV7JNn.js    4.78 kB │ gzip:   1.42 kB
+dist/assets/lab-3-ttYtGG.js                    9.52 kB │ gzip:   4.08 kB
+dist/assets/walk-C_70Qo1m.js                  11.88 kB │ gzip:   5.17 kB
+dist/assets/playground-3nEIO6SP.js            29.94 kB │ gzip:   8.27 kB
+dist/assets/GLTFLoader-2gWYTL0w.js            43.31 kB │ gzip:  12.89 kB
+dist/assets/camera-BwCSBO1X.js                53.79 kB │ gzip:  18.19 kB
+dist/assets/CSS2DRenderer-BCld0-UU.js         76.85 kB │ gzip:  23.87 kB
+dist/assets/play-DH64hvbi.js                 140.51 kB │ gzip:  48.92 kB
+dist/assets/three.module-C-gNyGOl.js         570.63 kB │ gzip: 144.15 kB
+
+✓ built in 371ms
+[plugin builtin:vite-reporter]
+(!) Some chunks are larger than 500 kB after minification. Consider:
+- Using dynamic import() to code-split the application
+- Use build.rolldownOptions.output.codeSplitting to improve chunking: https://rolldown.rs/reference/OutputOptions.codeSplitting
+- Adjust chunk size limit for this warning via build.chunkSizeWarningLimit.

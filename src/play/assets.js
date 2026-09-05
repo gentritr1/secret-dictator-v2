@@ -57,6 +57,29 @@ import * as THREE from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 
+/** The sky is a texture resource; its fallback is the existing state gradient. */
+export const SKY_PANORAMA = {
+  id: 'env-sky-dusk',
+  url: '/assets/textures/rubble/TEX_Emissive_DuskPanorama.png',
+  requiredNodes: [], sockets: {}, fallback: 'gradient', scenery: true
+};
+let skyPanoramaPromise = null;
+export function loadSkyPanorama() {
+  if (!skyPanoramaPromise) {
+    skyPanoramaPromise = new THREE.TextureLoader().loadAsync(SKY_PANORAMA.url)
+      .then((texture) => {
+        texture.colorSpace = THREE.SRGBColorSpace;
+        texture.wrapS = THREE.RepeatWrapping;
+        texture.wrapT = THREE.ClampToEdgeWrapping;
+        return texture;
+      }).catch(() => {
+        console.warn('[assets] env-sky-dusk unavailable; the state gradient remains.');
+        return null;
+      });
+  }
+  return skyPanoramaPromise;
+}
+
 /**
  * The dais-and-lectern cluster: the first production asset, and the whole of
  * the Gate 2 runtime contract in one object literal.
@@ -145,11 +168,12 @@ export const ENVIRONMENT = [
    */
   { id: 'env-ground-a', category: 'environment',
     place: { x: 0, y: 0, z: 0, yaw: 0 },
-    requiredNodes: ['COL_ground'],
+    requiredNodes: ['COL_ground', 'VIS_cobble_field', 'VIS_tram_scars'],
+    sockets: {},
     replaces: ['ground'],
     fallback: 'graybox' },
   /*
-   * The painted skyline. Two rings of rooftop flats at 26 m and 38 m, standing
+   * The painted skyline. Two rings of rooftop flats at 26 m and 40 m, standing
    * outside everything the player can reach — scenery, no collider, no socket.
    *
    * The style bible asks for "backdrop, not skybox realism": distant roofs read
@@ -160,7 +184,17 @@ export const ENVIRONMENT = [
    */
   { id: 'env-backdrop-a', category: 'environment',
     place: { x: 0, y: 0, z: 0, yaw: 0 },
-    requiredNodes: [],
+    requiredNodes: [
+      'VIS_backdrop_near_01_gable', 'VIS_backdrop_near_02_chimney',
+      'VIS_backdrop_near_03_spire', 'VIS_backdrop_near_04_gable',
+      'VIS_backdrop_near_05_chimney', 'VIS_backdrop_near_06_tower',
+      'VIS_backdrop_near_07_gable', 'VIS_backdrop_near_08_chimney',
+      'VIS_backdrop_far_01_gable', 'VIS_backdrop_far_02_chimney',
+      'VIS_backdrop_far_03_gable', 'VIS_backdrop_far_04_gable',
+      'VIS_backdrop_far_05_chimney', 'VIS_backdrop_far_06_gable',
+      'VIS_backdrop_far_07_chimney', 'VIS_backdrop_far_08_gable'
+    ],
+    sockets: {},
     scenery: true,          // stands beyond reach: no collider, and none wanted
     fallback: 'omit' },
   /*

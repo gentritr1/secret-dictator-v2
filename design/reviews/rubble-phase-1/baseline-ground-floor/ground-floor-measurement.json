@@ -1,0 +1,296 @@
+{
+  "url": "http://127.0.0.1:5183",
+  "instrumentation": "Browser route appends temporary review access; production files are unchanged.",
+  "errors": [],
+  "environment": {
+    "ok": true,
+    "reason": null,
+    "detail": null,
+    "id": "env-dais-a",
+    "url": "/assets/models/environment/env-dais-a.glb",
+    "place": {
+      "x": 0,
+      "y": 0,
+      "z": 9,
+      "yaw": 3.141592653589793
+    },
+    "replaces": [
+      "dais",
+      "lectern",
+      "ground",
+      "bell-post",
+      "bell",
+      "bench-seat",
+      "bench-leg-a",
+      "bench-leg-b"
+    ],
+    "sockets": {
+      "podium": {
+        "asset": "env-dais-a",
+        "x": 4.286263724021099e-17,
+        "y": 0.2199999988079071,
+        "z": 8.650000005960464,
+        "yaw": 3.141592653589793,
+        "node": "SOCKET_podium"
+      },
+      "lanternSouthWest": {
+        "asset": "env-lantern-a",
+        "x": -9.4,
+        "y": 2.2100000381469727,
+        "z": 2,
+        "yaw": 0,
+        "node": "SOCKET_flame"
+      },
+      "lanternSouthEast": {
+        "asset": "env-lantern-a",
+        "x": 9.4,
+        "y": 2.2100000381469727,
+        "z": 2,
+        "yaw": 0,
+        "node": "SOCKET_flame"
+      },
+      "lanternGate": {
+        "asset": "env-lantern-a",
+        "x": 0,
+        "y": 2.2100000381469727,
+        "z": -6,
+        "yaw": 3.141592653589793,
+        "node": "SOCKET_flame"
+      },
+      "boardReform1": {
+        "asset": "env-board-a",
+        "x": 0.7099999785423279,
+        "y": 1.99399995803833,
+        "z": 10.924999997019768,
+        "yaw": 3.141592653589793,
+        "node": "SOCKET_reform_1"
+      },
+      "boardReform2": {
+        "asset": "env-board-a",
+        "x": 0.35499998927116394,
+        "y": 1.99399995803833,
+        "z": 10.924999997019768,
+        "yaw": 3.141592653589793,
+        "node": "SOCKET_reform_2"
+      },
+      "boardReform3": {
+        "asset": "env-board-a",
+        "x": 9.184851358578336e-18,
+        "y": 1.99399995803833,
+        "z": 10.924999997019768,
+        "yaw": 3.141592653589793,
+        "node": "SOCKET_reform_3"
+      },
+      "boardReform4": {
+        "asset": "env-board-a",
+        "x": -0.35499998927116394,
+        "y": 1.99399995803833,
+        "z": 10.924999997019768,
+        "yaw": 3.141592653589793,
+        "node": "SOCKET_reform_4"
+      },
+      "boardReform5": {
+        "asset": "env-board-a",
+        "x": -0.7099999785423279,
+        "y": 1.99399995803833,
+        "z": 10.924999997019768,
+        "yaw": 3.141592653589793,
+        "node": "SOCKET_reform_5"
+      },
+      "boardSeize1": {
+        "asset": "env-board-a",
+        "x": 0.887499988079071,
+        "y": 1.3559999465942383,
+        "z": 10.924999997019768,
+        "yaw": 3.141592653589793,
+        "node": "SOCKET_seize_1"
+      },
+      "boardSeize2": {
+        "asset": "env-board-a",
+        "x": 0.5325000286102295,
+        "y": 1.3559999465942383,
+        "z": 10.924999997019768,
+        "yaw": 3.141592653589793,
+        "node": "SOCKET_seize_2"
+      },
+      "boardSeize3": {
+        "asset": "env-board-a",
+        "x": 0.17749999463558197,
+        "y": 1.3559999465942383,
+        "z": 10.924999997019768,
+        "yaw": 3.141592653589793,
+        "node": "SOCKET_seize_3"
+      },
+      "boardSeize4": {
+        "asset": "env-board-a",
+        "x": -0.17749999463558197,
+        "y": 1.3559999465942383,
+        "z": 10.924999997019768,
+        "yaw": 3.141592653589793,
+        "node": "SOCKET_seize_4"
+      },
+      "boardSeize5": {
+        "asset": "env-board-a",
+        "x": -0.5325000286102295,
+        "y": 1.3559999465942383,
+        "z": 10.924999997019768,
+        "yaw": 3.141592653589793,
+        "node": "SOCKET_seize_5"
+      },
+      "boardSeize6": {
+        "asset": "env-board-a",
+        "x": -0.887499988079071,
+        "y": 1.3559999465942383,
+        "z": 10.924999997019768,
+        "yaw": 3.141592653589793,
+        "node": "SOCKET_seize_6"
+      },
+      "lanternWest": {
+        "asset": "env-lantern-a",
+        "x": -4.2,
+        "y": 2.2100000381469727,
+        "z": 8.2,
+        "yaw": 0,
+        "node": "SOCKET_flame"
+      },
+      "lanternEast": {
+        "asset": "env-lantern-a",
+        "x": 4.2,
+        "y": 2.2100000381469727,
+        "z": 8.2,
+        "yaw": 0,
+        "node": "SOCKET_flame"
+      }
+    },
+    "nodes": [
+      "Scene",
+      "env-dais-a",
+      "COL_dais",
+      "COL_lectern",
+      "SOCKET_podium",
+      "VIS_dais_base",
+      "VIS_dais_plank_1",
+      "VIS_dais_plank_2",
+      "VIS_dais_plank_3",
+      "VIS_dais_plank_4",
+      "VIS_dais_plank_5",
+      "VIS_dais_plank_6",
+      "VIS_dais_plank_7",
+      "VIS_lectern_body",
+      "VIS_lectern_desk",
+      "VIS_lectern_foot"
+    ],
+    "stats": {
+      "visMeshes": 11,
+      "colMeshes": 2,
+      "sockets": 1,
+      "triangles": 1188,
+      "materials": [
+        "SlateStone",
+        "TimberOchre",
+        "TimberShadow"
+      ],
+      "strays": 0
+    },
+    "podiumAnchor": {
+      "x": 4.286263724021099e-17,
+      "y": 0.2199999988079071,
+      "z": 8.650000005960464
+    },
+    "rows": [
+      "env-dais-a",
+      "env-ground-a",
+      "env-backdrop-a",
+      "env-lantern-a",
+      "env-lantern-a",
+      "env-lantern-a",
+      "env-well-a",
+      "env-tree-a",
+      "env-board-a",
+      "env-bell-a",
+      "env-bench-a",
+      "env-lantern-a",
+      "env-lantern-a",
+      "env-facade-a",
+      "env-facade-a",
+      "env-facade-a",
+      "env-facade-a",
+      "env-facade-a",
+      "env-facade-a",
+      "env-facade-a",
+      "env-corner-a",
+      "env-corner-a",
+      "env-corner-a",
+      "env-corner-a",
+      "env-barrel-a",
+      "env-barrel-a",
+      "env-crate-a",
+      "env-crate-a",
+      "env-crate-a",
+      "env-barrel-a",
+      "env-barrel-a",
+      "env-crate-a"
+    ],
+    "loaded": [
+      "env-dais-a",
+      "env-ground-a",
+      "env-backdrop-a",
+      "env-lantern-a",
+      "env-lantern-a",
+      "env-lantern-a",
+      "env-well-a",
+      "env-tree-a",
+      "env-board-a",
+      "env-bell-a",
+      "env-bench-a",
+      "env-lantern-a",
+      "env-lantern-a",
+      "env-facade-a",
+      "env-facade-a",
+      "env-facade-a",
+      "env-facade-a",
+      "env-facade-a",
+      "env-facade-a",
+      "env-facade-a",
+      "env-corner-a",
+      "env-corner-a",
+      "env-corner-a",
+      "env-corner-a",
+      "env-barrel-a",
+      "env-barrel-a",
+      "env-crate-a",
+      "env-crate-a",
+      "env-crate-a",
+      "env-barrel-a",
+      "env-barrel-a",
+      "env-crate-a"
+    ],
+    "fallbacks": []
+  },
+  "textureState": [],
+  "groundFloor": {
+    "method": "Actual ground VIS ID render, eroded one pixel, sampled against unchanged 1280x720 screenshot; all other meshes occlude.",
+    "pixels": 257223,
+    "darkest": {
+      "rgb": [
+        0,
+        1,
+        4
+      ],
+      "luma": 1.004,
+      "x": 806,
+      "y": 371
+    },
+    "channelMinima": [
+      0,
+      1,
+      4
+    ],
+    "recordedFloor": [
+      1,
+      11,
+      20
+    ],
+    "passesComponentFloor": false
+  }
+}

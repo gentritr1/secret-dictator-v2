@@ -42,7 +42,7 @@ import { createCameraRig } from '../walk/camera.js';
 import { createBvhWorld } from '../walk/bvh-world.js';
 import { buildSquare, seatPosition, SPAWN, DAIS, BELL, BENCH } from './square.js';
 import { ENVIRONMENT, loadEnvironment, CHR_CITIZENS, loadCast, loadTiles, variantForSeat,
-  clothForSeat, bodyPartOf } from './assets.js';
+  clothForSeat, bodyPartOf, loadSkyPanorama } from './assets.js';
 import { createInteractions } from './interact.js';
 import { createPanels } from './panels.js';
 import { objectFor } from './objective.js';
@@ -3099,6 +3099,7 @@ fillHumanChoices();
  * it.
  */
 function buildGround(env) {
+  loadSkyPanorama().then((texture) => lighting.attachSkyPanorama(texture));
   const built = buildSquare(env.replaces.length ? { omit: env.replaces } : undefined);
   scene.add(built.group);
 

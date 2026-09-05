@@ -879,6 +879,8 @@ export function createLightingDirector(scene, options = {}) {
    *     cannot blink out when the camera pitches up.
    */
   const skyUniforms = {
+    uPanorama: { value: null },
+    uHasPanorama: { value: 0 },
     uHorizon: { value: new THREE.Color() },
     uZenith: { value: new THREE.Color() },
     /* Where the two colours meet, as a fraction of the way up the dome, and
@@ -902,6 +904,8 @@ export function createLightingDirector(scene, options = {}) {
         }
       `,
       fragmentShader: `
+        uniform sampler2D uPanorama;
+        uniform float uHasPanorama;
         uniform vec3 uHorizon;
         uniform vec3 uZenith;
         uniform float uCurve;
@@ -912,6 +916,13 @@ export function createLightingDirector(scene, options = {}) {
            * visible under a distant rooftop do not read as a hard seam. */
           float h = clamp(abs(vDir.y), 0.0, 1.0);
           vec3 c = mix(uHorizon, uZenith, pow(h, 1.0 / uCurve));
+          if (uHasPanorama > 0.5) {
+            float u = atan(vDir.z, vDir.x) / 6.28318530718 + 0.5;
+            float v = asin(h) / 1.57079632679;
+            vec3 paint = texture2D(uPanorama, vec2(u, v)).rgb;
+            float luma = dot(paint, vec3(0.2126, 0.7152, 0.0722));
+            c *= clamp(0.8 + 2.0 * luma, 0.8, 1.2);
+          }
           gl_FragColor = vec4(c, 1.0);
           #include <colorspace_fragment>
         }
@@ -1142,6 +1153,7 @@ export function createLightingDirector(scene, options = {}) {
       const painted = list.map((m) => {
         const flat = new THREE.MeshBasicMaterial({
           color: 0x000000,
+          map: m?.map || null,
           side: m && m.side !== undefined ? m.side : THREE.DoubleSide,
           /* Unfogged and untone-mapped, so the flats sit in exactly the colour
            * regime the dome behind them does. Fog would be a SECOND depth cue
@@ -1150,7 +1162,7 @@ export function createLightingDirector(scene, options = {}) {
           fog: false,
           toneMapped: false
         });
-        backdrop.push({ material: flat, shade });
+        backdrop.push({ material: flat, shade, tint: m?.map ? m.color.clone() : new THREE.Color(1, 1, 1) });
         return flat;
       });
       s.node.material = Array.isArray(s.node.material) ? painted : painted[0];
@@ -1168,7 +1180,7 @@ export function createLightingDirector(scene, options = {}) {
      * stand well above the amber band. */
     backdropRef.copy(live.horizon).lerp(live.background, BACKDROP_SAMPLE);
     for (const flat of backdrop) {
-      flat.material.color.copy(backdropRef).multiplyScalar(flat.shade);
+      flat.material.color.copy(backdropRef).multiplyScalar(flat.shade).multiply(flat.tint);
     }
   }
 
@@ -1757,6 +1769,10 @@ export function createLightingDirector(scene, options = {}) {
     update,
     measure,
     attachLanterns,
+    attachSkyPanorama(texture) {
+      skyUniforms.uPanorama.value = texture;
+      skyUniforms.uHasPanorama.value = texture ? 1 : 0;
+    },
     attachBackdrop,
     setWeather,
     steadyFlame,

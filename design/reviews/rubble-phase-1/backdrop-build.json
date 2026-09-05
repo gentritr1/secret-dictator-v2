@@ -1,0 +1,127 @@
+{
+  "parts": [
+    {
+      "name": "VIS_backdrop_near_01_gable",
+      "ring": "near",
+      "radius": 26,
+      "motif": "gable",
+      "triangles": 8
+    },
+    {
+      "name": "VIS_backdrop_near_02_chimney",
+      "ring": "near",
+      "radius": 26,
+      "motif": "chimney",
+      "triangles": 12
+    },
+    {
+      "name": "VIS_backdrop_near_03_spire",
+      "ring": "near",
+      "radius": 26,
+      "motif": "spire",
+      "triangles": 14
+    },
+    {
+      "name": "VIS_backdrop_near_04_gable",
+      "ring": "near",
+      "radius": 26,
+      "motif": "gable",
+      "triangles": 8
+    },
+    {
+      "name": "VIS_backdrop_near_05_chimney",
+      "ring": "near",
+      "radius": 26,
+      "motif": "chimney",
+      "triangles": 12
+    },
+    {
+      "name": "VIS_backdrop_near_06_tower",
+      "ring": "near",
+      "radius": 26,
+      "motif": "tower",
+      "triangles": 13
+    },
+    {
+      "name": "VIS_backdrop_near_07_gable",
+      "ring": "near",
+      "radius": 26,
+      "motif": "gable",
+      "triangles": 8
+    },
+    {
+      "name": "VIS_backdrop_near_08_chimney",
+      "ring": "near",
+      "radius": 26,
+      "motif": "chimney",
+      "triangles": 12
+    },
+    {
+      "name": "VIS_backdrop_far_01_gable",
+      "ring": "far",
+      "radius": 40,
+      "motif": "gable",
+      "triangles": 8
+    },
+    {
+      "name": "VIS_backdrop_far_02_chimney",
+      "ring": "far",
+      "radius": 40,
+      "motif": "chimney",
+      "triangles": 12
+    },
+    {
+      "name": "VIS_backdrop_far_03_gable",
+      "ring": "far",
+      "radius": 40,
+      "motif": "gable",
+      "triangles": 8
+    },
+    {
+      "name": "VIS_backdrop_far_04_gable",
+      "ring": "far",
+      "radius": 40,
+      "motif": "gable",
+      "triangles": 8
+    },
+    {
+      "name": "VIS_backdrop_far_05_chimney",
+      "ring": "far",
+      "radius": 40,
+      "motif": "chimney",
+      "triangles": 12
+    },
+    {
+      "name": "VIS_backdrop_far_06_gable",
+      "ring": "far",
+      "radius": 40,
+      "motif": "gable",
+      "triangles": 8
+    },
+    {
+      "name": "VIS_backdrop_far_07_chimney",
+      "ring": "far",
+      "radius": 40,
+      "motif": "chimney",
+      "triangles": 12
+    },
+    {
+      "name": "VIS_backdrop_far_08_gable",
+      "ring": "far",
+      "radius": 40,
+      "motif": "gable",
+      "triangles": 8
+    }
+  ],
+  "counts": {
+    "spire": 1,
+    "tower": 1,
+    "chimney": 6,
+    "gable": 8
+  },
+  "triangles": 163,
+  "atlas": [
+    1024,
+    1024
+  ]
+}

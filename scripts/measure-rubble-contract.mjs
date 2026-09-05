@@ -25,11 +25,13 @@ while (!session.over && guard++ < 4000) {
 }
 if (!session.over) throw new Error('Fingerprint did not terminate');
 const replayBytes = JSON.stringify({ steps: session.steps, winner: G.winner, events: session.events, actions: session.actions }) + '\n';
-const report = { method: 'GLTFLoader world vertex bounds and every socket; controller tuning; complete deterministic replay. This is not a walk.html visual acceptance.',
+const report = { method: 'GLTFLoader world vertex bounds and every socket; controller tuning; complete deterministic replay. Image decoding omitted; this is not a walk.html visual acceptance.',
   tuning: defaultTuning(), placements: [], replaySha256: createHash('sha256').update(replayBytes).digest('hex') };
 for (const spec of A.ENVIRONMENT) {
   const bytes = readFileSync(source + '/public' + A.assetUrl(spec));
-  const gltf = await new Promise((ok, fail) => new GLTFLoader().parse(bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength), '', ok, fail));
+  // Geometry audit only: browser captures validate actual image decoding and shading.
+  const loader = new GLTFLoader().register(() => ({ name: 'geometryAudit', loadTexture: () => Promise.resolve(null) }));
+  const gltf = await new Promise((ok, fail) => loader.parse(bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength), '', ok, fail));
   const built = A.buildEnvironment(gltf.scene, spec);
   if (!built.ok) throw new Error(spec.id + ': ' + built.reason);
   const colliders = built.colliderParts.map((g) => {

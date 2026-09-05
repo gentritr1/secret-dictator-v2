@@ -1,0 +1,1 @@
+{"method":"Actual ground VIS ID render, eroded one pixel, sampled against unchanged 1280x720 screenshot; all other meshes occlude.","pixels":257223,"darkest":{"rgb":[0,1,4],"luma":1.004,"x":806,"y":371},"channelMinima":[0,1,4],"recordedFloor":[1,11,20],"passesComponentFloor":false}

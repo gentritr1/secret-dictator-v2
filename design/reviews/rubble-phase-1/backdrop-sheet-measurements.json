@@ -1,0 +1,53 @@
+{
+  "image": "design/references/env-backdrop-a/sheet.png",
+  "sha256": "247ac8ab7e40a63b09dfbda1bc0d3532497d7359faf0299198e8aa6855928105",
+  "size": [
+    1536,
+    1024
+  ],
+  "panelWidthPx": 512,
+  "pixelsPerMetre": 5,
+  "baselineY": 720,
+  "views": {
+    "front": {
+      "boundsPx": [
+        55,
+        590,
+        456,
+        720
+      ],
+      "widthPx": 401,
+      "heightPx": 130,
+      "expectedWidthPx": 400,
+      "expectedHeightPx": 130,
+      "passes": true
+    },
+    "side": {
+      "boundsPx": [
+        567,
+        590,
+        968,
+        720
+      ],
+      "widthPx": 401,
+      "heightPx": 130,
+      "expectedWidthPx": 400,
+      "expectedHeightPx": 130,
+      "passes": true
+    },
+    "top": {
+      "boundsPx": [
+        1080,
+        300,
+        1479,
+        699
+      ],
+      "widthPx": 399,
+      "heightPx": 399,
+      "expectedDiameterPx": 400,
+      "passes": true
+    }
+  },
+  "acceptedLayout": true,
+  "limits": "Bounding boxes validate layout only. Occluded motif counts are checked separately against the authored GLB; this script does not certify semantic sheet accuracy."
+}

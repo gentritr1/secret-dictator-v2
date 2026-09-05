@@ -1,0 +1,44 @@
+{
+  "image": "public/assets/textures/rubble/TEX_TimberSoot_Backdrop.png",
+  "sha256": "9584c19c2cf65dd1ca7bf836e20e100f94d2282c9ae92581631cf0621f4e4ac5",
+  "width": 1024,
+  "height": 1024,
+  "edgeMeanAbsoluteRGB255": {
+    "leftRight": 2.7018229166666665,
+    "topBottom": 3.1409505208333335
+  },
+  "spectral": {
+    "bands": 16,
+    "frequencyRange": [
+      3,
+      24
+    ],
+    "periodsPx": [
+      290.30420969575783,
+      324.1111180587584,
+      409.6,
+      190.3195905283379,
+      197.89777952037855,
+      195.26299672118057,
+      409.6,
+      385.2759697764351,
+      178.86638181208386,
+      263.64767893387125,
+      292.57142857142856,
+      271.22427746025454,
+      232.715147854964,
+      208.40749229633343,
+      179.81620961092054,
+      359.79180982991016
+    ],
+    "slopePixelsPerImageHeight": -50.17447452264199,
+    "relativeDrift": -0.1876130312043147,
+    "permutationP": 0.47937515255064683,
+    "permutations": 4096,
+    "pLimit": 0.01,
+    "relativeDriftLimit": 0.1
+  },
+  "seamless": true,
+  "noSpectralPeriodSlope": false,
+  "accepted": false
+}

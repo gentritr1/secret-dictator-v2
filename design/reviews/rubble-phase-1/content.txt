@@ -1,0 +1,6 @@
+
+> secret-dictator@2.0.0 test:content
+> node test/content.test.js
+
+Content grep: 192 paths, 121 text files including comments, 18 GLB metadata chunks, 26 rules, 0 findings.
+Image pixels and editable Blender internals require visual/source review; this grep does not certify them.
