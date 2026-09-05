@@ -7,6 +7,6 @@ There is no pending request to rearrange sheets or add a rig.
 
 The ground texture, Blender source and exported GLB are integrated for review.
 See `design/reviews/rubble-phase-1/README.md` for observed measurements, visual
-limits and remaining acceptance gaps. The historical night ground-floor gap is
-reported explicitly; phase-1 functional gates are not a claim of full-pass
-visual acceptance. Rejected files remain reference-only and are never shipped.
+limits and remaining acceptance gaps. The owner approved phase 1 on 2026-09-06 and retired the absolute night
+ground-floor criterion; the report addendum and corrected brief record the
+replacement percentile/hue rule. Phase approval is not full-pass acceptance. Rejected files remain reference-only and are never shipped.

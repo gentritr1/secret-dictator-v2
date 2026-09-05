@@ -6,6 +6,14 @@ before continuing. The owner's dirty env-corner-a.blend on main was not touched.
 This is a phase-1 delivery, not completion of the full six-phase art pass.
 Production asset rows remain at **review**, with the acceptance gaps below.
 
+## Owner review addendum — 2026-09-06
+
+**Approved as a phase delivery.** The owner reports independent verification on a fresh detached worktree at 16fa8af: verify exit 0, byte-identical fingerprint, matching draw/triangle counts, all three runtime lighting states, tile/wrap/lab/eye-height review, and visual inspection of every generated image with no prohibited marks. These are owner-reported observations, not new executions by Codex in this documentation update. The owner still marks walk.html remeasurement unverified.
+
+The original single-pixel ground-floor finding below is superseded as an acceptance issue: the owner retires the absolute criterion and requires ground-masked p1/p5 no darker than baseline, plus blue-not-black hue checks on those percentile bands using the same script. Owner-reported trial ground luma was p1 1.08 → 1.22, p5 2.08 → 2.44, median 11.4 → 17.1, and share below luma 8 was 36.1% → 22.2%. The review message did not identify the percentile script path; these numbers are attributed to that review and are not claimed as outputs of the committed minimum-only script. Phase 5 must consolidate and freeze the shared percentile/hue measurement before retuning. Old minima remain reproducible historical data; they no longer indicate a failed acceptance criterion.
+
+Taste decisions: keep the current smaller sett scale; defer the dusk gradient's grey-blue retune to phase 5. The corrected brief now requires a recorded warm budget for every phase-2 and phase-4 asset before production, with per-asset and combined-scene checks. The historical author-only and no-independent-content-review statements below describe the initial delivery, before this owner review.
+
 ## Executed and observed
 
 - Generated a top-down cobble texture, game-height hero and material-ID; retained
@@ -126,7 +134,7 @@ visibly flat, as required by the theatre direction.
 
 ## Open acceptance gaps
 
-1. **Night ground floor fails.** `scripts/measure-rubble-ground-floor.mjs`
+1. **Retired criterion — superseded by the owner review above.** `scripts/measure-rubble-ground-floor.mjs`
    measured the untouched branch-point ground at `(0,1,4)` (257,223 visible
    ground pixels); `scripts/review-rubble-phase-1.mjs` measured phase 1 at
    `(0,1,2)` (264,931 pixels), versus the historical `(1,11,20)` requirement.
