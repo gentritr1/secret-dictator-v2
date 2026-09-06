@@ -1,0 +1,17 @@
+TAP version 13
+# Content grep: 452 paths, 288 text files including comments, 24 GLB metadata chunks, 26 rules, 0 findings.
+# Image pixels and editable Blender internals require visual/source review; this grep does not certify them.
+# Subtest: /private/tmp/rubble-square-art/test/content.test.js
+ok 1 - /private/tmp/rubble-square-art/test/content.test.js
+  ---
+  duration_ms: 250.9495
+  ...
+1..1
+# tests 1
+# suites 0
+# pass 1
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 254.896917

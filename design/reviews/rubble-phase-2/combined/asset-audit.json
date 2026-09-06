@@ -1,0 +1,153 @@
+{
+  "method": "SHA-256 of GLB and source bytes; embedded image bufferViews compared by image name. Approved facade hashes compared with the pre-kit checkpoint.",
+  "assets": {
+    "env-facade-a": {
+      "hashes": {
+        "public/assets/models/environment/env-facade-a.glb": "213c4a4c46bdb9ba4660e3cf5f402f1fe44efd3690eff4bf30669e546b100085",
+        "art/blender/environment/env-facade-a/env-facade-a.blend": "45188539e8888c15d9c63a60b1dab9d9ba39bbf2220e46008e16681cea40b3f5"
+      },
+      "embeddedImages": {
+        "TEX_Brick": "b704aa1cb0079d0b6bb34f4df2c242aed86cf52a9dbb80c45a7ede1a2ccf2058",
+        "TEX_TimberSoot_Backdrop": "9c6e67b4216173efa1fd86f4873aeb76c761adb1e1eda07c6035280fc4ef7d8c",
+        "TEX_Plaster_Facade": "9e5204180eff5edf24abb9bafdbd9b49f48a776e70e38bfccad32cf92eb3a9f2"
+      },
+      "nodes": [
+        "COL_wall",
+        "SOCKET_lamp",
+        "VIS_brick",
+        "VIS_joinery",
+        "VIS_plaster",
+        "env-facade-a"
+      ]
+    },
+    "env-facade-b": {
+      "hashes": {
+        "public/assets/models/environment/env-facade-b.glb": "5e75d1913e651da0ffb07d0f9b7f61de991ed8d84004af5a4f9ced23c92f37d0",
+        "art/blender/environment/env-facade-b/env-facade-b.blend": "2d7e995a2f420b35929c1df244b834b8403f001cf78d75b071a55b4e1dabac49"
+      },
+      "embeddedImages": {
+        "TEX_Brick": "b704aa1cb0079d0b6bb34f4df2c242aed86cf52a9dbb80c45a7ede1a2ccf2058",
+        "TEX_TimberSoot_Backdrop": "9c6e67b4216173efa1fd86f4873aeb76c761adb1e1eda07c6035280fc4ef7d8c",
+        "TEX_Plaster_Facade": "9e5204180eff5edf24abb9bafdbd9b49f48a776e70e38bfccad32cf92eb3a9f2"
+      },
+      "nodes": [
+        "COL_wall",
+        "SOCKET_lamp",
+        "VIS_brick",
+        "VIS_joinery",
+        "VIS_plaster",
+        "env-facade-b"
+      ]
+    },
+    "env-facade-c": {
+      "hashes": {
+        "public/assets/models/environment/env-facade-c.glb": "d19006ff78dc5b0128547f44fc709500fec05761c907f5969f885461cbbfcdad",
+        "art/blender/environment/env-facade-c/env-facade-c.blend": "99a081ae42d1a0f200dec92fdfaf732b362877d85542fba4af79580bd55768dd"
+      },
+      "embeddedImages": {
+        "TEX_Brick": "b704aa1cb0079d0b6bb34f4df2c242aed86cf52a9dbb80c45a7ede1a2ccf2058",
+        "TEX_TimberSoot_Backdrop": "9c6e67b4216173efa1fd86f4873aeb76c761adb1e1eda07c6035280fc4ef7d8c",
+        "TEX_Plaster_Facade": "9e5204180eff5edf24abb9bafdbd9b49f48a776e70e38bfccad32cf92eb3a9f2"
+      },
+      "nodes": [
+        "COL_wall",
+        "SOCKET_lamp",
+        "VIS_brick",
+        "VIS_joinery",
+        "VIS_plaster",
+        "env-facade-c"
+      ]
+    },
+    "env-rubble-small": {
+      "hashes": {
+        "public/assets/models/environment/env-rubble-small.glb": "8501329bcd4b8113a04565a0266242d6f69a05429cf9d1f383af5129352e042d",
+        "art/blender/environment/env-rubble-small/env-rubble-small.blend": "09ea0bcddb7b17bfadb2dbf2d77dbd066eee5d269b4cdc9776f7edc3208c9242"
+      },
+      "embeddedImages": {
+        "TEX_Plaster_Facade": "9e5204180eff5edf24abb9bafdbd9b49f48a776e70e38bfccad32cf92eb3a9f2",
+        "TEX_Brick": "b704aa1cb0079d0b6bb34f4df2c242aed86cf52a9dbb80c45a7ede1a2ccf2058",
+        "TEX_TimberSoot_Backdrop": "9c6e67b4216173efa1fd86f4873aeb76c761adb1e1eda07c6035280fc4ef7d8c"
+      },
+      "nodes": [
+        "COL_crate",
+        "VIS_brick",
+        "VIS_plaster",
+        "VIS_timbersoot",
+        "env-rubble-small"
+      ]
+    },
+    "env-rubble-large": {
+      "hashes": {
+        "public/assets/models/environment/env-rubble-large.glb": "14ac37d63cdbaed38160e2a8bcc066f3b52d2b6b39395717e116672c2475b3df",
+        "art/blender/environment/env-rubble-large/env-rubble-large.blend": "f05d67bbd4e7f922c55c69021e06f6c76a3ce851ff965c464f591b88ce795fb8"
+      },
+      "embeddedImages": {
+        "TEX_Plaster_Facade": "9e5204180eff5edf24abb9bafdbd9b49f48a776e70e38bfccad32cf92eb3a9f2",
+        "TEX_Brick": "b704aa1cb0079d0b6bb34f4df2c242aed86cf52a9dbb80c45a7ede1a2ccf2058",
+        "TEX_TimberSoot_Backdrop": "9c6e67b4216173efa1fd86f4873aeb76c761adb1e1eda07c6035280fc4ef7d8c"
+      },
+      "nodes": [
+        "COL_barrel",
+        "VIS_brick",
+        "VIS_plaster",
+        "VIS_timbersoot",
+        "env-rubble-large"
+      ]
+    },
+    "env-brick-stack": {
+      "hashes": {
+        "public/assets/models/environment/env-brick-stack.glb": "8072a3bfef37b262c6f0a9119a20470d03418a4b7917fb0b63e736afd2a4add5",
+        "art/blender/environment/env-brick-stack/env-brick-stack.blend": "003c7747479641f635da833622c79424f10997b5a1c6ac6d0a3cd2ba820f0e0d"
+      },
+      "embeddedImages": {
+        "TEX_Brick": "b704aa1cb0079d0b6bb34f4df2c242aed86cf52a9dbb80c45a7ede1a2ccf2058"
+      },
+      "nodes": [
+        "COL_crate",
+        "VIS_brick",
+        "env-brick-stack"
+      ]
+    },
+    "env-rubble-cart": {
+      "hashes": {
+        "public/assets/models/environment/env-rubble-cart.glb": "5055efed984a9ce42e799a2dbce34c4624de229d73e864277671469446948acb",
+        "art/blender/environment/env-rubble-cart/env-rubble-cart.blend": "19f8d2a451d3463ab8eced5ddb269e7ee64f105c0e4d64319eac59d850102912"
+      },
+      "embeddedImages": {
+        "TEX_Brick": "b704aa1cb0079d0b6bb34f4df2c242aed86cf52a9dbb80c45a7ede1a2ccf2058",
+        "TEX_Metal": "bd5067252dc0d23f6336244f8b7f832567d2a4c1f234caaddfbe2c08b7d9cfcc",
+        "TEX_TimberSoot_Backdrop": "9c6e67b4216173efa1fd86f4873aeb76c761adb1e1eda07c6035280fc4ef7d8c"
+      },
+      "nodes": [
+        "COL_crate",
+        "VIS_brick",
+        "VIS_metal",
+        "VIS_timbersoot",
+        "env-rubble-cart"
+      ]
+    },
+    "env-well-a": {
+      "hashes": {
+        "public/assets/models/environment/env-well-a.glb": "8034f28c6e957483dd6113dd59499f3f690358bf2351cbc07edcaca7e836bc78",
+        "art/blender/environment/env-well-a/env-well-a.blend": "bc8dfc56771e760f48f3c970561bdbfe6d774444db288d8fe8f54fe3a77fa6e5"
+      },
+      "embeddedImages": {
+        "TEX_Plaster_Facade": "9e5204180eff5edf24abb9bafdbd9b49f48a776e70e38bfccad32cf92eb3a9f2",
+        "TEX_Metal": "bd5067252dc0d23f6336244f8b7f832567d2a4c1f234caaddfbe2c08b7d9cfcc"
+      },
+      "nodes": [
+        "COL_well",
+        "VIS_metal",
+        "VIS_plaster",
+        "env-well-a"
+      ]
+    }
+  },
+  "images": {
+    "TEX_Brick": "b704aa1cb0079d0b6bb34f4df2c242aed86cf52a9dbb80c45a7ede1a2ccf2058",
+    "TEX_TimberSoot_Backdrop": "9c6e67b4216173efa1fd86f4873aeb76c761adb1e1eda07c6035280fc4ef7d8c",
+    "TEX_Plaster_Facade": "9e5204180eff5edf24abb9bafdbd9b49f48a776e70e38bfccad32cf92eb3a9f2",
+    "TEX_Metal": "bd5067252dc0d23f6336244f8b7f832567d2a4c1f234caaddfbe2c08b7d9cfcc"
+  },
+  "approvedFacadesUnchanged": true
+}

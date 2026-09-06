@@ -1,0 +1,122 @@
+{
+  "asset": "env-facade-b",
+  "errors": [],
+  "warnings": [
+    "[.WebGL-0x1340048b400]GL Driver Message (OpenGL, Performance, GL_CLOSE_PATH_NV, High): GPU stall due to ReadPixels",
+    "[.WebGL-0x1340048b400]GL Driver Message (OpenGL, Performance, GL_CLOSE_PATH_NV, High): GPU stall due to ReadPixels",
+    "[.WebGL-0x1340048b400]GL Driver Message (OpenGL, Performance, GL_CLOSE_PATH_NV, High): GPU stall due to ReadPixels",
+    "[.WebGL-0x1340048b400]GL Driver Message (OpenGL, Performance, GL_CLOSE_PATH_NV, High): GPU stall due to ReadPixels (this message will no longer repeat)",
+    "[assets] env-facade-b not loaded (load-failed: Failed to fetch) — /assets/models/environment/env-facade-b.glb · the square falls back to procedural graybox and the match is playable.",
+    "[assets] env-facade-b not loaded (load-failed: Failed to fetch) — /assets/models/environment/env-facade-b.glb · the square falls back to procedural graybox and the match is playable."
+  ],
+  "decoded": [
+    {
+      "position": [
+        -4.5,
+        0,
+        13.6
+      ],
+      "maps": [
+        {
+          "node": "VIS_brick",
+          "material": "MAT_Brick",
+          "width": 1024,
+          "height": 1024,
+          "tint": true
+        },
+        {
+          "node": "VIS_joinery",
+          "material": "MAT_TimberSoot",
+          "width": 1024,
+          "height": 1024,
+          "tint": true
+        },
+        {
+          "node": "VIS_plaster",
+          "material": "MAT_Plaster",
+          "width": 1024,
+          "height": 1024,
+          "tint": true
+        }
+      ]
+    },
+    {
+      "position": [
+        13.6,
+        0,
+        4.5
+      ],
+      "maps": [
+        {
+          "node": "VIS_brick",
+          "material": "MAT_Brick",
+          "width": 1024,
+          "height": 1024,
+          "tint": true
+        },
+        {
+          "node": "VIS_joinery",
+          "material": "MAT_TimberSoot",
+          "width": 1024,
+          "height": 1024,
+          "tint": true
+        },
+        {
+          "node": "VIS_plaster",
+          "material": "MAT_Plaster",
+          "width": 1024,
+          "height": 1024,
+          "tint": true
+        }
+      ]
+    }
+  ],
+  "refusals": [
+    {
+      "removed": "COL_wall",
+      "ok": false,
+      "reason": "missing-nodes"
+    },
+    {
+      "removed": "SOCKET_lamp",
+      "ok": false,
+      "reason": "missing-nodes"
+    },
+    {
+      "removed": "VIS_plaster",
+      "ok": false,
+      "reason": "missing-nodes"
+    },
+    {
+      "removed": "VIS_brick",
+      "ok": false,
+      "reason": "missing-nodes"
+    },
+    {
+      "removed": "VIS_joinery",
+      "ok": false,
+      "reason": "missing-nodes"
+    }
+  ],
+  "linear": {
+    "tone": "linear",
+    "reducedMotion": true
+  },
+  "fallback": {
+    "count": 2,
+    "complete": true
+  },
+  "heroCamera": {
+    "position": [
+      4,
+      1.7,
+      12
+    ],
+    "target": [
+      0,
+      3.2,
+      0
+    ],
+    "fov": 45
+  }
+}

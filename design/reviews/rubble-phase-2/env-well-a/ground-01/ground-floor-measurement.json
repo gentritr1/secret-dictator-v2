@@ -1,0 +1,35 @@
+{
+  "url": "http://127.0.0.1:5184",
+  "instrumentation": "Browser route appends temporary review access; production files are unchanged.",
+  "errors": [],
+  "ground": {
+    "method": "Ground VIS ID render with all other meshes occluding, eroded one pixel, sampled against the unmodified 1280x720 trial screenshot at the podium mark facing (0,9), seed 1000 / 7 players, HUD hidden.",
+    "pixels": 264931,
+    "p1": 1.2166,
+    "p5": 2.7152000000000003,
+    "p50": 17.2166,
+    "pctBelowLuma4": 7.604244123941706,
+    "pctBelowLuma8": 21.886075997146428,
+    "p5BandMeanRgb": [
+      0.9581760531481202,
+      1.604710856107504,
+      6.110523931752982
+    ],
+    "p5BandBlueOverRed": true,
+    "darkest": {
+      "rgb": [
+        0,
+        1,
+        2
+      ],
+      "luma": 0.8595999999999999,
+      "x": 569,
+      "y": 708
+    },
+    "channelMinima": [
+      0,
+      1,
+      1
+    ]
+  }
+}

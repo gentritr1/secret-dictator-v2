@@ -1,0 +1,57 @@
+{
+  "asset": "env-well-a",
+  "method": "Native blue-dark object-edge bounds against authored guide. No resampling or relayout. Internal part counts inspected separately.",
+  "pixelsPerMetre": 240,
+  "tolerancePixels": 2,
+  "views": [
+    {
+      "view": "front",
+      "template": [
+        57,
+        239,
+        454,
+        850
+      ],
+      "generated": [
+        57,
+        239,
+        454,
+        850
+      ],
+      "maxError": 0
+    },
+    {
+      "view": "side",
+      "template": [
+        561,
+        239,
+        974,
+        850
+      ],
+      "generated": [
+        561,
+        239,
+        974,
+        850
+      ],
+      "maxError": 0
+    },
+    {
+      "view": "top",
+      "template": [
+        1081,
+        333,
+        1478,
+        746
+      ],
+      "generated": [
+        1081,
+        333,
+        1478,
+        746
+      ],
+      "maxError": 0
+    }
+  ],
+  "passes": true
+}

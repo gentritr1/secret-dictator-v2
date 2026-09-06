@@ -1,0 +1,7 @@
+{
+  "status": "success",
+  "result": {
+    "executed": true,
+    "result": "{\"source\": \"/private/tmp/rubble-square-art/art/blender/environment/env-rubble-large/env-rubble-large.blend\", \"units\": \"METRIC\", \"scale\": 1.0, \"collections\": [], \"objects\": [{\"name\": \"COL_barrel\", \"type\": \"MESH\", \"location\": [0.0, 0.0, 0.0], \"dimensions\": [0.7200000286102295, 0.7200000286102295, 0.8999999761581421], \"scale\": [1.0, 1.0, 1.0], \"parent\": \"env-barrel-a\"}, {\"name\": \"env-barrel-a\", \"type\": \"EMPTY\", \"location\": [0.0, 0.0, 0.0], \"dimensions\": [0.0, 0.0, 0.0], \"scale\": [1.0, 1.0, 1.0], \"parent\": null}, {\"name\": \"VIS_hoop_hi\", \"type\": \"MESH\", \"location\": [0.0, 0.0, 0.0], \"dimensions\": [0.6372079253196716, 0.6700000166893005, 0.0549999475479126], \"scale\": [1.0, 1.0, 1.0], \"parent\": \"env-barrel-a\"}, {\"name\": \"VIS_hoop_lo\", \"type\": \"MESH\", \"location\": [0.0, 0.0, 0.0], \"dimensions\": [0.6372079253196716, 0.6700000166893005, 0.05500000715255737], \"scale\": [1.0, 1.0, 1.0], \"parent\": \"env-barrel-a\"}, {\"name\": \"VIS_lid\", \"type\": \"MESH\", \"location\": [0.0, 0.0, 0.0], \"dimensions\": [0.5706339478492737, 0.5971037149429321, 0.039999961853027344], \"scale\": [1.0, 1.0, 1.0], \"parent\": \"env-barrel-a\"}, {\"name\": \"VIS_staves\", \"type\": \"MESH\", \"location\": [0.0, 0.0, 0.0], \"dimensions\": [0.6086761951446533, 0.6356555223464966, 0.8600000143051147], \"scale\": [1.0, 1.0, 1.0], \"parent\": \"env-barrel-a\"}]}\n"
+  }
+}

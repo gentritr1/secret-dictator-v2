@@ -1,0 +1,53 @@
+<!doctype html>
+<html lang="en"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>First facade · Rubble Square review</title>
+<style>
+body{margin:0;background:#18232d;color:#e0e3df;font:16px/1.6 system-ui,sans-serif}main{max-width:1440px;margin:auto;padding:32px}h1,h2{font-weight:550;line-height:1.2}h1{font-size:32px}h2{margin-top:48px}p{max-width:85ch}a{color:#bccfda}figure{margin:0;background:#243440;padding:12px}figcaption{padding:8px 0}.grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:20px}img{display:block;width:100%;height:auto}.state{margin:24px 0}.small{font-size:14px;color:#b8c4cd}table{border-collapse:collapse}td,th{padding:10px 18px;text-align:left;border-bottom:1px solid #52616a}@media(max-width:800px){.grid{grid-template-columns:1fr}main{padding:16px}}
+</style>
+<main>
+<p class="small">ART / RUBBLE SQUARE / FIRST PHASE-2 ASSET · candidate, owner visual review pending</p>
+<h1>Ochre plaster frontage</h1>
+<p>Seven placements, zero positive trial-warm allowance. Six unlit windows, five door boards, six brick exposures and one blank notice. Collision and lamp socket preserved.</p>
+<p><a href="README.md">Evidence, scripts, measurements and open gaps</a> · <a href="comparison.json">Machine-readable comparison and artifact hashes</a> · <a href="/asset-lab.html?asset=environment/env-facade-a.glb">Open the live asset lab</a> · <a href="/play.html">Open the square</a></p>
+<h2>Hero beside actual model</h2>
+<p>The model is an actual asset-lab render at eye height. The full fixed camera set follows below. Five shared details: steep gable, six two-pane windows, five-board door, six brick exposures, blank notice. The hero’s street curb is context; the collider is unchanged.</p>
+<div class="grid"><figure><img src="/design/references/env-facade-a/hero.png"><figcaption>Generated hero reference</figcaption></figure><figure><img src="hero-model.png"><figcaption>Actual GLB in the browser · supplemental 1.7 m camera · 45° field of view</figcaption></figure></div>
+<h2>Grey candidate beside ochre revision</h2>
+<p>Only the plaster image changed. Owner approved at ae6a31a. The full-asset trial pair retains one positive scene pixel at one instant, below the recorded 0.001 pp resolution. The plaster-only diagnostic is zero at all three.</p>
+<div class="grid"><figure><img src="cold-candidate/hero-model.png"><figcaption>Retained grey candidate</figcaption></figure><figure><img src="hero-model.png"><figcaption>Ochre revision · same camera</figcaption></figure>
+<figure class="state"><img src="/assets/textures/rubble/TEX_Plaster_Facade.png"><figcaption>Current 1024 plaster atlas</figcaption></figure>
+<h2>All four direction frames</h2>
+<p class="small">Original direction references, with the caveats recorded in the concept README. No marks or portraits from these frames were copied into the asset.</p>
+<div class="grid">
+<figure><img src="/design/concepts/rubble/square-dusk-rubble.png"><figcaption>Dusk · plaster, exposed brick, theatre staging</figcaption></figure>
+<figure><img src="/design/concepts/rubble/night-tribunal-searchlight.png"><figcaption>Trial · blue architecture, attention on the platform</figcaption></figure>
+<figure><img src="/design/concepts/rubble/day-queue-notice-board.png"><figcaption>Day · quiet materials and damage as daily context</figcaption></figure>
+<figure><img src="/design/concepts/rubble/citizens-lineup-1946.png"><figcaption>Figurine finish · proportion and paint only</figcaption></figure>
+</div>
+<h2>Reference contract</h2>
+<p>Original generated files, displayed by the browser without modifying their pixels. Native sheet measurement and rejected attempts are linked in the packet.</p>
+<figure><img src="/design/references/env-facade-a/sheet.png"><figcaption>Accepted native sheet · three equal panels · 80 px/m</figcaption></figure>
+<figure><img src="/design/references/env-facade-a/material-id.png"><figcaption>Plaster / brick / timber-and-soot assignment</figcaption></figure>
+<h2>Six fixed asset-lab captures</h2>
+<div class="grid">
+<figure><img src="/design/reviews/env-facade-a/front.png"><figcaption>Front and scale</figcaption></figure>
+<figure><img src="/design/reviews/env-facade-a/three-quarter.png"><figcaption>Three-quarter</figcaption></figure>
+<figure><img src="/design/reviews/env-facade-a/side.png"><figcaption>Side</figcaption></figure>
+<figure><img src="/design/reviews/env-facade-a/game-camera.png"><figcaption>Fixed game camera · intentionally close, roof outside frame</figcaption></figure>
+<figure><img src="/design/reviews/env-facade-a/silhouette.png"><figcaption>Facade silhouette · not the later citizen identification test</figcaption></figure>
+<figure><img src="/design/reviews/env-facade-a/collider-overlay.png"><figcaption>Original collision volume inside the taller visual gable</figcaption></figure>
+</div>
+<h2>Actual square · standard measurement camera</h2>
+<table><tr><th>State</th><th>Warm HUD</th><th>Warm scene</th><th>Calls</th><th>Triangles</th></tr><tr><td>Day</td><td>5.895%</td><td>5.297%</td><td>381</td><td>74389</td></tr><tr><td>Dusk</td><td>19.446%</td><td>20.893%</td><td>381</td><td>74389</td></tr><tr><td>Trial</td><td>9.673%</td><td>9.166%</td><td>389</td><td>77677</td></tr></table>
+<p class="small">Source: scripts/capture-rubble-baseline.mjs and unchanged rubble-pixels classifier. Full-asset trial pairs: scene 0, 0, +1 pixel; HUD −3, −3, −2 pixels. Ochre-versus-grey pairs: zero trial pixels throughout. The historical strict failure is closed by the owner ruling.</p>
+<div class="grid">
+<figure><img src="before/day-no-hud.png"><figcaption>Day before</figcaption></figure><figure><img src="after/day-no-hud.png"><figcaption>Day candidate</figcaption></figure>
+<figure><img src="before/dusk-no-hud.png"><figcaption>Dusk before</figcaption></figure><figure><img src="after/dusk-no-hud.png"><figcaption>Dusk candidate</figcaption></figure>
+<figure><img src="before/trial-no-hud.png"><figcaption>Trial before</figcaption></figure><figure><img src="after/trial-no-hud.png"><figcaption>Trial candidate</figcaption></figure>
+</div>
+<h2>Supplemental eye-height views</h2>
+<figure class="state"><img src="eye-height-day.png"><figcaption>Day</figcaption></figure>
+<figure class="state"><img src="eye-height-dusk.png"><figcaption>Dusk · existing gradient retained until phase 5</figcaption></figure>
+<figure class="state"><img src="eye-height-trial.png"><figcaption>Trial · near-black visibility remains a phase-5 target</figcaption></figure>
+<p>Open: remaining phase-2 assets, later furniture and citizens, lighting retune, human pasted-on test and the final evidence packet. Green tests do not close those visual reviews.</p>
+</main></html>

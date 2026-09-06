@@ -1,0 +1,40 @@
+{
+  "asset": "env-rubble-large",
+  "previous": "env-barrel-a",
+  "placements": [
+    {
+      "x": -11.4,
+      "y": 0,
+      "z": 5.2,
+      "yaw": 0.4
+    },
+    {
+      "x": -10.8,
+      "y": 0,
+      "z": 6.1,
+      "yaw": 1.9
+    },
+    {
+      "x": 10.4,
+      "y": 0,
+      "z": 10.2,
+      "yaw": 0
+    },
+    {
+      "x": -2.6,
+      "y": 0,
+      "z": -9.4,
+      "yaw": 0.8
+    }
+  ],
+  "visualBounds": [
+    1.1,
+    0.89,
+    1.0
+  ],
+  "parts": "twelve pieces: six brick fragments, four low slumped plaster chunks and two timber splinters; one angled timber end reaches0.89m, masonry body stays below0.65m",
+  "collider": "COL_barrel",
+  "triangleLimit": 3000,
+  "warmAllowancePp": 0,
+  "pairResolutionPp": 0.001
+}

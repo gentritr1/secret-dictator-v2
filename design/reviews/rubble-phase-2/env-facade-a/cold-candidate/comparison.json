@@ -1,0 +1,244 @@
+{
+  "asset": "env-facade-a",
+  "placements": 7,
+  "colliderSocketPlacementsEqual": 32,
+  "replayByteIdentical": true,
+  "browserFingerprintByteIdentical": true,
+  "replaySha256": "9313643a2934c2c74eeb64eb79eeeaaf75ab2e31744502b0bb6307e1f2c459a7",
+  "sampling": "One 1280x720 frame =921600 spatial pixel samples per HUD/state condition. Renderer counters include shadow passes, not FPS. No timed rate is inferred.",
+  "states": {
+    "day": {
+      "warmCeiling": 100,
+      "warmHudBefore": 6.1357421875,
+      "warmHudAfter": 5.8349609375,
+      "rawHudDeltaPp": -0.30078125,
+      "warmSceneBefore": 5.570638020833334,
+      "warmSceneAfter": 5.235460069444445,
+      "rawSceneDeltaPp": -0.3351779513888893,
+      "callsBranchPoint": 473,
+      "callsBefore": 475,
+      "callsAfter": 381,
+      "callsRatio": 0.8054968287526427,
+      "trianglesBranchPoint": 68875,
+      "trianglesBefore": 53865,
+      "trianglesAfter": 74389,
+      "trianglesRatio": 1.0800580762250453
+    },
+    "dusk": {
+      "warmCeiling": 45,
+      "warmHudBefore": 18.1767578125,
+      "warmHudAfter": 5.237196180555555,
+      "rawHudDeltaPp": -12.939561631944445,
+      "warmSceneBefore": 18.961263020833332,
+      "warmSceneAfter": 5.120659722222222,
+      "rawSceneDeltaPp": -13.84060329861111,
+      "callsBranchPoint": 473,
+      "callsBefore": 475,
+      "callsAfter": 381,
+      "callsRatio": 0.8054968287526427,
+      "trianglesBranchPoint": 68875,
+      "trianglesBefore": 53865,
+      "trianglesAfter": 74389,
+      "trianglesRatio": 1.0800580762250453
+    },
+    "trial": {
+      "warmCeiling": 10,
+      "warmHudBefore": 9.715494791666666,
+      "warmHudAfter": 9.738823784722223,
+      "rawHudDeltaPp": 0.023328993055557135,
+      "warmSceneBefore": 9.220594618055555,
+      "warmSceneAfter": 9.185655381944445,
+      "rawSceneDeltaPp": -0.034939236111110716,
+      "callsBranchPoint": 481,
+      "callsBefore": 483,
+      "callsAfter": 389,
+      "callsRatio": 0.8087318087318087,
+      "trianglesBranchPoint": 72163,
+      "trianglesBefore": 57153,
+      "trianglesAfter": 77677,
+      "trianglesRatio": 1.0764103487937031
+    }
+  },
+  "incrementalWarm": {
+    "allowancePp": 0,
+    "script": "scripts/measure-facade-warm-pair.mjs",
+    "trialPairs": [
+      {
+        "index": 2,
+        "deltaPp": {
+          "hud": -0.00032552083333392545,
+          "scene": 0
+        },
+        "afterHud": 9.701714409722221,
+        "afterScene": 9.107313368055555,
+        "camera": {
+          "position": [
+            4.286263797015736e-16,
+            1.8,
+            2.8975403252247505
+          ],
+          "quaternion": [
+            -5.1846788721105265e-18,
+            0.9964039197479476,
+            0.08473032934507906,
+            6.097030886975218e-17
+          ],
+          "fov": 60
+        }
+      },
+      {
+        "index": 3,
+        "deltaPp": {
+          "hud": -0.00032552083333392545,
+          "scene": 0
+        },
+        "afterHud": 9.648111979166666,
+        "afterScene": 9.0537109375,
+        "camera": {
+          "position": [
+            4.286263797015736e-16,
+            1.8,
+            2.8975403252247505
+          ],
+          "quaternion": [
+            -5.1846788721105265e-18,
+            0.9964039197479476,
+            0.08473032934507906,
+            6.097030886975218e-17
+          ],
+          "fov": 60
+        }
+      },
+      {
+        "index": 4,
+        "deltaPp": {
+          "hud": -0.00032552083333392545,
+          "scene": 0
+        },
+        "afterHud": 9.846788194444445,
+        "afterScene": 9.252387152777777,
+        "camera": {
+          "position": [
+            4.286263797015736e-16,
+            1.8,
+            2.8997968718019376
+          ],
+          "quaternion": [
+            -5.1911277977854096e-18,
+            0.996399487312571,
+            0.08478243735140877,
+            6.100835547872429e-17
+          ],
+          "fov": 60
+        }
+      }
+    ],
+    "passes": true,
+    "caveat": "Raw independent screenshots include animation/framing jitter. The raw HUD delta is retained above; zero allowance is resolved by paired renders at the same frozen instant with all seven old/new placements. Absolute ceilings use the separate unmodified capture instrument as well."
+  },
+  "ground": {
+    "script": "scripts/measure-rubble-ground-floor.mjs",
+    "branchPoint": {
+      "method": "Ground VIS ID render with all other meshes occluding, eroded one pixel, sampled against the unmodified 1280x720 trial screenshot at the podium mark facing (0,9), seed 1000 / 7 players, HUD hidden.",
+      "pixels": 257223,
+      "p1": 1.0762,
+      "p5": 2.0802,
+      "p50": 11.438400000000001,
+      "pctBelowLuma4": 10.508002783576895,
+      "pctBelowLuma8": 36.106024733402535,
+      "p5BandMeanRgb": [
+        0.006920146178368712,
+        1.6697768447243604,
+        6.932664645050929
+      ],
+      "p5BandBlueOverRed": true,
+      "darkest": {
+        "rgb": [
+          0,
+          1,
+          4
+        ],
+        "luma": 1.004,
+        "x": 806,
+        "y": 371
+      },
+      "channelMinima": [
+        0,
+        1,
+        4
+      ]
+    },
+    "before": {
+      "method": "Ground VIS ID render with all other meshes occluding, eroded one pixel, sampled against the unmodified 1280x720 trial screenshot at the podium mark facing (0,9), seed 1000 / 7 players, HUD hidden.",
+      "pixels": 264931,
+      "p1": 1.2166,
+      "p5": 2.5094,
+      "p50": 17.156399999999998,
+      "pctBelowLuma4": 7.632553381823946,
+      "pctBelowLuma8": 21.974023424967257,
+      "p5BandMeanRgb": [
+        0.9494941869243545,
+        1.6016155820625095,
+        6.110070964819569
+      ],
+      "p5BandBlueOverRed": true,
+      "darkest": {
+        "rgb": [
+          0,
+          1,
+          2
+        ],
+        "luma": 0.8595999999999999,
+        "x": 569,
+        "y": 708
+      },
+      "channelMinima": [
+        0,
+        1,
+        1
+      ]
+    },
+    "after": {
+      "method": "Ground VIS ID render with all other meshes occluding, eroded one pixel, sampled against the unmodified 1280x720 trial screenshot at the podium mark facing (0,9), seed 1000 / 7 players, HUD hidden.",
+      "pixels": 264931,
+      "p1": 1.2166,
+      "p5": 2.7152000000000003,
+      "p50": 17.220599999999997,
+      "pctBelowLuma4": 7.599714642680547,
+      "pctBelowLuma8": 21.885698540374662,
+      "p5BandMeanRgb": [
+        0.959081987014948,
+        1.604937339574211,
+        6.109089536463838
+      ],
+      "p5BandBlueOverRed": true,
+      "darkest": {
+        "rgb": [
+          0,
+          1,
+          2
+        ],
+        "luma": 0.8595999999999999,
+        "x": 569,
+        "y": 708
+      },
+      "channelMinima": [
+        0,
+        1,
+        1
+      ]
+    },
+    "p5JitterLuma": 0.35,
+    "visualAdequacyApproved": false
+  },
+  "walkInstrumentEqual": true,
+  "artifactSha256": {
+    "art/blender/environment/env-facade-a/env-facade-a.blend": "485a9c36f6b380a5561f6f8e2edca5bb028775a40aaa041864cae9592a29e2fd",
+    "public/assets/models/environment/env-facade-a.glb": "497f1be483b8a3bed057e779e50db580b355f4f9bb596fd468fcccc4e5d9372c",
+    "public/assets/textures/rubble/TEX_Plaster_Facade.png": "353d5117aca711087c88ae93ed32c8c274a985351c02cfaccf6834d91bc42ae8",
+    "public/assets/textures/rubble/TEX_Brick.png": "b704aa1cb0079d0b6bb34f4df2c242aed86cf52a9dbb80c45a7ede1a2ccf2058",
+    "public/assets/textures/rubble/TEX_TimberSoot_Backdrop.png": "9c6e67b4216173efa1fd86f4873aeb76c761adb1e1eda07c6035280fc4ef7d8c",
+    "src/play/assets.js": "ff0c1ad5caecb6f4cf005e5d549de6d8b09f0870570025c6bcc1804f5e9a31ff",
+    "test/glb.test.js": "6e22e4e92df40c03067f1aa3339bbf29bced95b063093fb7418cbad3a3c71748"
+  }
+}

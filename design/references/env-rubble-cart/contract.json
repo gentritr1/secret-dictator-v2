@@ -1,0 +1,27 @@
+{
+  "asset": "env-rubble-cart",
+  "previous": "env-crate-a",
+  "placements": [
+    {
+      "x": 2.9,
+      "y": 0,
+      "z": -9.8,
+      "yaw": -0.3
+    }
+  ],
+  "visualBounds": [
+    0.8,
+    0.82,
+    1.2
+  ],
+  "parts": "one bed, four side panels, four wheels, two axles, four corner uprights, four brick loads; two rails exactly 1.2 m long and four sleepers",
+  "collider": "COL_crate",
+  "triangleLimit": 3000,
+  "warmAllowancePp": 0,
+  "pairResolutionPp": 0.001,
+  "materialRoles": [
+    "Brick",
+    "TimberSoot",
+    "Metal"
+  ]
+}

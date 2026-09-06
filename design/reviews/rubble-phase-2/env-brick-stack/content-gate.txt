@@ -1,0 +1,2 @@
+Content grep: 403 paths, 256 text files including comments, 23 GLB metadata chunks, 26 rules, 0 findings.
+Image pixels and editable Blender internals require visual/source review; this grep does not certify them.

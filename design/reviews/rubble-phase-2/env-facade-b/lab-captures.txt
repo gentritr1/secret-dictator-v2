@@ -1,0 +1,7 @@
+front.png              camera=front         mood=day        collider=false  calls=18 tris=4804
+three-quarter.png      camera=three-quarter mood=day        collider=false  calls=18 tris=4804
+side.png               camera=side          mood=day        collider=false  calls=18 tris=4804
+game-camera.png        camera=game          mood=day        collider=false  calls=18 tris=4804
+silhouette.png         camera=front         mood=silhouette collider=false  calls=3 tris=1590
+collider-overlay.png   camera=three-quarter mood=day        collider=true  calls=19 tris=4804
+report: {"file":"environment/env-facade-b.glb","bounds":"4.500 × 6.400 × 1.500 m","ground":"0.0000 m","vis":"3 (1590 tris)","col":"1 (12 tris)","sockets":"SOCKET_lamp","materials":"MAT_Brick, MAT_TimberSoot, MAT_Plaster","doubleSided":"none","unnamed":"none"}

@@ -1,0 +1,35 @@
+{
+  "asset": "env-brick-stack",
+  "previous": "env-crate-a",
+  "placements": [
+    {
+      "x": 11.2,
+      "y": 0,
+      "z": 9.8,
+      "yaw": -0.5
+    },
+    {
+      "x": 11.9,
+      "y": 0,
+      "z": 10.5,
+      "yaw": 0.3
+    }
+  ],
+  "visualBounds": [
+    0.675,
+    0.62,
+    0.675
+  ],
+  "parts": "32 whole salvaged bricks: four courses of eight, each course two lengths by four widths; no extras",
+  "collider": "COL_crate",
+  "triangleLimit": 3000,
+  "warmAllowancePp": 0,
+  "pairResolutionPp": 0.001,
+  "materialRoles": [
+    "Brick"
+  ],
+  "reviewCameraOffset": [
+    -1.8,
+    -2.7
+  ]
+}

@@ -1084,6 +1084,135 @@ function rubbleBackdropLayer() {
   say(`backdrop      ${triangles} triangles; sixteen flats; one 1024 albedo; no gameplay geometry`);
 }
 
+function rubbleFacadeLayer(id = 'env-facade-a', height = 7.8) {
+  const crypto = require('node:crypto');
+  const glb = readGlb(path.join(__dirname, '../public/assets/models/environment', id + '.glb'));
+  const j = glb.json;
+  check(glb.magic === 0x46546c67 && glb.version === 2 && glb.total === glb.buf.length, 'facade: valid GLB');
+  check(j.scenes.length === 1 && j.scenes[0].nodes.length === 1, 'facade: one scene root');
+  const expected = ['COL_wall', 'SOCKET_lamp', 'VIS_brick', 'VIS_joinery', 'VIS_plaster', id];
+  check(JSON.stringify(j.nodes.map(n => n.name).sort()) === JSON.stringify(expected), 'facade: exact named hierarchy');
+  check(j.nodes[j.scenes[0].nodes[0]].name === id, 'facade: named root');
+  check(!j.cameras?.length && !j.skins?.length && !j.animations?.length, 'facade: no camera, rig or clips');
+  check(!(j.extensionsUsed || []).includes('KHR_lights_punctual'), 'facade: no review lights');
+  for (const item of [...j.nodes, ...j.meshes, ...j.materials, ...(j.images || [])]) {
+    check(!!item.name && !/\.\d{3}$/.test(item.name), 'facade: named data without duplicate suffix');
+    check(!/^(Cube|Plane|Material|Image|Camera|Light)(\.|$)/i.test(item.name), 'facade: no default names');
+  }
+  const low = [Infinity, Infinity, Infinity], high = [-Infinity, -Infinity, -Infinity];
+  let triangles = 0, visiblePrimitives = 0;
+  for (const n of j.nodes) {
+    check(!n.rotation && !n.scale && !n.matrix, `facade: baked rotation/scale ${n.name}`);
+    if (n.name !== 'SOCKET_lamp') check(!n.translation, `facade: baked location ${n.name}`);
+    if (n.mesh === undefined) continue;
+    for (const p of j.meshes[n.mesh].primitives) {
+      check((p.mode === undefined || p.mode === 4) && p.attributes.NORMAL !== undefined, 'facade: triangles and normals');
+      triangles += j.accessors[p.indices].count / 3;
+      if (!n.name.startsWith('VIS_')) continue;
+      visiblePrimitives++;
+      check(p.attributes.TEXCOORD_0 !== undefined && p.attributes.COLOR_0 !== undefined, 'facade: painted UVs and tint only vertex colour');
+      const pos = accessor(glb, p.attributes.POSITION).data;
+      for (let i = 0; i < pos.length; i += 3) for (let k = 0; k < 3; k++) {
+        low[k] = Math.min(low[k], pos[i+k]); high[k] = Math.max(high[k], pos[i+k]);
+      }
+    }
+  }
+  [4.5, height, 1.5].forEach((value, axis) => near(high[axis]-low[axis], value, .001, 'facade: reference envelope'));
+  near(low[1], 0, .0001, 'facade: foot contact');
+  check(triangles <= 5000 && visiblePrimitives === 3, 'facade: triangle and repeated draw budget');
+  const col = j.nodes.find(n => n.name === 'COL_wall');
+  if (col) {
+    const p = j.meshes[col.mesh].primitives[0];
+    for (const [index, expectedHash, label] of [
+      [p.attributes.POSITION, '425db2a6c5597f56cd8c551af3359e5c09d020da77e822047a385c211c1872d1', 'positions'],
+      [p.indices, '1b1a968502cfc78b7639b33f69b42dbe8ba819d956809f52e6bfd480d523e317', 'indices']
+    ]) {
+      const a = j.accessors[index], view = j.bufferViews[a.bufferView];
+      const start = (view.byteOffset || 0) + (a.byteOffset || 0);
+      const length = a.count * (a.type === 'VEC3' ? 3 : 1) * ({5126:4,5123:2,5125:4}[a.componentType]);
+      const hash = crypto.createHash('sha256').update(glb.bin.subarray(start, start+length)).digest('hex');
+      check(hash === expectedHash, `facade: branch-point collider ${label} byte-identical`);
+    }
+  }
+  const lamp = j.nodes.find(n => n.name === 'SOCKET_lamp');
+  [1.4500000476837158, 2.5999999046325684, .3199999928474426].forEach((v, k) =>
+    near(lamp?.translation?.[k] ?? NaN, v, .0000001, 'facade: unchanged lamp socket'));
+  check(j.materials.length === 3, 'facade: three material roles');
+  check(JSON.stringify(j.materials.map(m => m.name).sort()) === JSON.stringify(['MAT_Brick','MAT_Plaster','MAT_TimberSoot']), 'facade: material vocabulary');
+  for (const m of j.materials) {
+    const p = m.pbrMetallicRoughness || {};
+    check(!m.doubleSided && (!m.alphaMode || m.alphaMode === 'OPAQUE'), 'facade: opaque single-sided');
+    check(p.metallicFactor === 0 && p.roughnessFactor >= .8 && p.roughnessFactor <= .95, 'facade: matte');
+    check(p.baseColorTexture !== undefined && !m.normalTexture && !m.occlusionTexture && !p.metallicRoughnessTexture, 'facade: albedo only');
+    check(!m.emissiveTexture && (m.emissiveFactor || [0,0,0]).every(v => v === 0), 'facade: zero emissive allocation');
+  }
+  check(j.images?.length === 3 && j.textures?.length === 3, 'facade: three atlases');
+  for (const im of j.images || []) {
+    check(im.bufferView !== undefined && !im.uri && im.name.startsWith('TEX_'), 'facade: named embedded image');
+    const view = j.bufferViews[im.bufferView];
+    const png = glb.bin.subarray(view.byteOffset || 0, (view.byteOffset || 0)+view.byteLength);
+    check(png.subarray(0,8).equals(Buffer.from([137,80,78,71,13,10,26,10])) && png.readUInt32BE(16) === 1024 && png.readUInt32BE(20) === 1024, 'facade: 1024 PNG');
+  }
+  say(`facade        ${triangles} triangles; three painted roles; collider bytes and lamp socket preserved`);
+}
+
+function rubblePropLayer(id, dimensions, collider, positionHash, indexHash, roles = ['brick', 'plaster', 'timbersoot']) {
+  const crypto = require('node:crypto');
+  const glb = readGlb(path.join(__dirname, '../public/assets/models/environment', id + '.glb'));
+  const j = glb.json;
+  check(glb.magic === 0x46546c67 && glb.version === 2 && glb.total === glb.buf.length, 'prop: valid GLB');
+  check(j.scenes.length === 1 && j.scenes[0].nodes.length === 1, 'prop: one root');
+  check(j.nodes[j.scenes[0].nodes[0]].name === id, 'prop: named asset root');
+  check(!j.skins?.length && !j.animations?.length && !j.cameras?.length, 'prop: no rig, clips or camera');
+  check(!(j.extensionsUsed || []).includes('KHR_lights_punctual'), 'prop: no review light');
+  const expected = [id, collider, ...roles.map(role => 'VIS_' + role)].sort();
+  check(JSON.stringify(j.nodes.map(n => n.name).sort()) === JSON.stringify(expected), 'prop: exact hierarchy');
+  let triangles = 0, primitives = 0;
+  const low = [Infinity, Infinity, Infinity], high = [-Infinity, -Infinity, -Infinity];
+  for (const item of [...j.nodes, ...j.meshes, ...j.materials, ...j.images]) {
+    check(!!item.name && !/\.\d{3}$/.test(item.name), 'prop: canonical names');
+  }
+  for (const n of j.nodes) {
+    check(!n.translation && !n.rotation && !n.scale && !n.matrix, 'prop: baked mesh coordinates');
+    if (n.mesh === undefined) continue;
+    for (const p of j.meshes[n.mesh].primitives) {
+      triangles += j.accessors[p.indices].count / 3;
+      check(p.mode === undefined || p.mode === 4, 'prop: triangles');
+      if (!n.name.startsWith('VIS_')) continue;
+      primitives++;
+      check(p.attributes.NORMAL !== undefined && p.attributes.TEXCOORD_0 !== undefined && p.attributes.COLOR_0 !== undefined, 'prop: normals, atlas UV and tint');
+      const v = accessor(glb, p.attributes.POSITION).data;
+      for (let i=0;i<v.length;i+=3) for (let k=0;k<3;k++) { low[k]=Math.min(low[k],v[i+k]); high[k]=Math.max(high[k],v[i+k]); }
+    }
+  }
+  dimensions.forEach((v,k) => near(high[k]-low[k],v,.001,'prop: sheet dimensions'));
+  near(low[1],0,.0001,'prop: ground contact');
+  check(triangles <= 3000 && primitives === roles.length,'prop: triangle and declared-role draw budget');
+  const col=j.nodes.find(n=>n.name===collider);
+  if(col) {
+    const p=j.meshes[col.mesh].primitives[0];
+    for (const [index, hash] of [[p.attributes.POSITION,positionHash],[p.indices,indexHash]]) {
+      const a=j.accessors[index],v=j.bufferViews[a.bufferView],start=(v.byteOffset||0)+(a.byteOffset||0);
+      const length=a.count*(a.type==='VEC3'?3:1)*({5126:4,5123:2,5125:4}[a.componentType]);
+      check(crypto.createHash('sha256').update(glb.bin.subarray(start,start+length)).digest('hex')===hash,'prop: original collider bytes');
+    }
+  }
+  check(j.materials.length===roles.length && j.images.length===roles.length && j.textures.length===roles.length,'prop: declared shared painted roles');
+  for (const m of j.materials) {
+    const p=m.pbrMetallicRoughness||{};
+    check(!m.doubleSided && (!m.alphaMode||m.alphaMode==='OPAQUE'),'prop: opaque single-sided');
+    check(p.metallicFactor===0 && p.roughnessFactor>=.8 && p.roughnessFactor<=.95,'prop: matte');
+    check(p.baseColorTexture && !m.normalTexture && !m.occlusionTexture && !p.metallicRoughnessTexture,'prop: albedo only');
+    check(!m.emissiveTexture && (m.emissiveFactor||[0,0,0]).every(v=>v===0),'prop: no emissive');
+  }
+  for (const im of j.images) {
+    check(im.bufferView!==undefined && !im.uri && im.name.startsWith('TEX_'),'prop: named embedded image');
+    const v=j.bufferViews[im.bufferView],b=glb.bin.subarray(v.byteOffset||0,(v.byteOffset||0)+v.byteLength);
+    check(b.readUInt32BE(16)===1024 && b.readUInt32BE(20)===1024,'prop: 1024 atlas');
+  }
+  say(`${id} ${triangles} triangles; ${roles.length} painted roles; unchanged collider bytes`);
+}
+
 /* ------------------------------------------------------------------ run */
 
 async function main() {
@@ -1104,6 +1233,14 @@ async function main() {
   if (GLB === SHIPPING) {
     rubbleGroundLayer();
     rubbleBackdropLayer();
+    rubbleFacadeLayer();
+    rubbleFacadeLayer('env-facade-b', 6.4);
+    rubbleFacadeLayer('env-facade-c', 7.2);
+    rubblePropLayer('env-rubble-small', [.675,.62,.675], 'COL_crate', 'e2a5670464f37dae437d78ab9929ccb58f20bf050fea22705b0333b80e73e9fe', '1b1a968502cfc78b7639b33f69b42dbe8ba819d956809f52e6bfd480d523e317');
+    rubblePropLayer('env-rubble-large', [1.1,.89,1.0], 'COL_barrel', '359118e39041e8e2b1250f505a1cb2392a39d5c89bab437941e7050b6e38c833', '2af9d67fcd7188706f07499b66e345079b4cde3c5cf388fb22198388ef924cc7');
+    rubblePropLayer('env-brick-stack', [.675,.62,.675], 'COL_crate', 'e2a5670464f37dae437d78ab9929ccb58f20bf050fea22705b0333b80e73e9fe', '1b1a968502cfc78b7639b33f69b42dbe8ba819d956809f52e6bfd480d523e317', ['brick']);
+    rubblePropLayer('env-rubble-cart', [.8,.82,1.2], 'COL_crate', 'e2a5670464f37dae437d78ab9929ccb58f20bf050fea22705b0333b80e73e9fe', '1b1a968502cfc78b7639b33f69b42dbe8ba819d956809f52e6bfd480d523e317', ['brick','timbersoot','metal']);
+    rubblePropLayer('env-well-a', [1.649999976158142,2.5408389568328857,1.7176417112350464], 'COL_well', '387c9302d899825c7de357d2d1fed71f6e0b2bd22e5e9c31307732dfb30a9747', '2af9d67fcd7188706f07499b66e345079b4cde3c5cf388fb22198388ef924cc7', ['plaster','metal']);
     say('');
     const reports = {};
     let allRead = true;

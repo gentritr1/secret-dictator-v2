@@ -1,0 +1,134 @@
+{
+  "states": {
+    "day": {
+      "warmCeiling": 100,
+      "warmHudBefore": 6.1357421875,
+      "warmHudAfter": 5.895182291666667,
+      "rawHudDeltaPp": -0.24055989583333304,
+      "warmSceneBefore": 5.570638020833334,
+      "warmSceneAfter": 5.296657986111112,
+      "rawSceneDeltaPp": -0.2739800347222223,
+      "callsBranchPoint": 473,
+      "callsBefore": 475,
+      "callsAfter": 381,
+      "callsRatio": 0.8054968287526427,
+      "trianglesBranchPoint": 68875,
+      "trianglesBefore": 53865,
+      "trianglesAfter": 74389,
+      "trianglesRatio": 1.0800580762250453
+    },
+    "dusk": {
+      "warmCeiling": 45,
+      "warmHudBefore": 18.1767578125,
+      "warmHudAfter": 19.44574652777778,
+      "rawHudDeltaPp": 1.2689887152777786,
+      "warmSceneBefore": 18.961263020833332,
+      "warmSceneAfter": 20.89312065972222,
+      "rawSceneDeltaPp": 1.9318576388888893,
+      "callsBranchPoint": 473,
+      "callsBefore": 475,
+      "callsAfter": 381,
+      "callsRatio": 0.8054968287526427,
+      "trianglesBranchPoint": 68875,
+      "trianglesBefore": 53865,
+      "trianglesAfter": 74389,
+      "trianglesRatio": 1.0800580762250453
+    },
+    "trial": {
+      "warmCeiling": 10,
+      "warmHudBefore": 9.715494791666666,
+      "warmHudAfter": 9.67263454861111,
+      "rawHudDeltaPp": -0.04286024305555536,
+      "warmSceneBefore": 9.220594618055555,
+      "warmSceneAfter": 9.166341145833332,
+      "rawSceneDeltaPp": -0.05425347222222321,
+      "callsBranchPoint": 481,
+      "callsBefore": 483,
+      "callsAfter": 389,
+      "callsRatio": 0.8087318087318087,
+      "trianglesBranchPoint": 72163,
+      "trianglesBefore": 57153,
+      "trianglesAfter": 77677,
+      "trianglesRatio": 1.0764103487937031
+    }
+  },
+  "incrementalWarm": {
+    "allowancePp": 0,
+    "script": "scripts/measure-facade-warm-pair.mjs",
+    "trialPairs": [
+      {
+        "index": 2,
+        "deltaPp": {
+          "hud": -0.0003255208333321491,
+          "scene": 0
+        },
+        "afterHud": 9.846028645833334,
+        "afterScene": 9.251627604166666,
+        "camera": {
+          "position": [
+            4.286263797015736e-16,
+            1.8,
+            2.899788594012896
+          ],
+          "quaternion": [
+            -5.1911037579248976e-18,
+            0.9963995038353122,
+            0.08478224316885985,
+            6.100821369460767e-17
+          ],
+          "fov": 60
+        }
+      },
+      {
+        "index": 3,
+        "deltaPp": {
+          "hud": -0.0003255208333321491,
+          "scene": 0
+        },
+        "afterHud": 9.593858506944445,
+        "afterScene": 8.999457465277779,
+        "camera": {
+          "position": [
+            4.286263797015736e-16,
+            1.8,
+            2.8975403252247505
+          ],
+          "quaternion": [
+            -5.1846788721105265e-18,
+            0.9964039197479476,
+            0.08473032934507906,
+            6.097030886975218e-17
+          ],
+          "fov": 60
+        }
+      },
+      {
+        "index": 4,
+        "deltaPp": {
+          "hud": -0.00021701388888928363,
+          "scene": 0.00010850694444286546
+        },
+        "afterHud": 9.80078125,
+        "afterScene": 9.206380208333332,
+        "camera": {
+          "position": [
+            4.286263797015736e-16,
+            1.8,
+            2.899797378267575
+          ],
+          "quaternion": [
+            -5.191129268800791e-18,
+            0.9963994863015333,
+            0.08478244923355568,
+            6.100836415458006e-17
+          ],
+          "fov": 60
+        }
+      }
+    ],
+    "passes": true,
+    "caveat": "Raw independent screenshots include animation/framing jitter. The raw HUD delta is retained above; zero allowance is resolved by paired renders at the same frozen instant with all seven old/new placements. Absolute ceilings use the separate unmodified capture instrument as well."
+  },
+  "replayByteIdentical": true,
+  "walkInstrumentEqual": true
+}

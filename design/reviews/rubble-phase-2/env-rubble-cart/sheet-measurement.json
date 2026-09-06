@@ -1,0 +1,57 @@
+{
+  "asset": "env-rubble-cart",
+  "method": "Native blue-dark object-edge bounds against authored guide. No resampling or relayout. Internal part counts inspected separately.",
+  "pixelsPerMetre": 360,
+  "tolerancePixels": 2,
+  "views": [
+    {
+      "view": "front",
+      "template": [
+        111,
+        554,
+        400,
+        850
+      ],
+      "generated": [
+        111,
+        553,
+        400,
+        849
+      ],
+      "maxError": 1
+    },
+    {
+      "view": "side",
+      "template": [
+        551,
+        554,
+        984,
+        850
+      ],
+      "generated": [
+        551,
+        553,
+        984,
+        849
+      ],
+      "maxError": 1
+    },
+    {
+      "view": "top",
+      "template": [
+        1135,
+        323,
+        1424,
+        756
+      ],
+      "generated": [
+        1135,
+        323,
+        1424,
+        755
+      ],
+      "maxError": 1
+    }
+  ],
+  "passes": true
+}

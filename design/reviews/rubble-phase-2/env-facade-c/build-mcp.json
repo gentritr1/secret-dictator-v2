@@ -1,0 +1,7 @@
+{
+  "status": "success",
+  "result": {
+    "executed": true,
+    "result": "Info: Saved as \"env-facade-c.blend\"\n{\"asset\": \"env-facade-c\", \"parts\": {\"roofSlopes\": 2, \"windows\": 4, \"mullions\": 4, \"panes\": 8, \"displayBoards\": 6, \"displayBraces\": 2, \"displayFrameRails\": 4, \"doorBoards\": 5, \"doorFramePieces\": 3, \"blankFascia\": 1, \"brickExposures\": 4}, \"collisionSocketEqual\": true, \"objects\": [{\"name\": \"VIS_plaster\", \"triangles\": 162, \"vertices\": 324}, {\"name\": \"VIS_brick\", \"triangles\": 44, \"vertices\": 52}, {\"name\": \"VIS_joinery\", \"triangles\": 2222, \"vertices\": 1120}]}\n"
+  }
+}

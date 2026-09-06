@@ -1,0 +1,21 @@
+{
+  "method": "SHA-256 of each embedded image bufferView, compared by image name.",
+  "byteIdentical": true,
+  "images": {
+    "env-facade-a": {
+      "TEX_Brick": "b704aa1cb0079d0b6bb34f4df2c242aed86cf52a9dbb80c45a7ede1a2ccf2058",
+      "TEX_TimberSoot_Backdrop": "9c6e67b4216173efa1fd86f4873aeb76c761adb1e1eda07c6035280fc4ef7d8c",
+      "TEX_Plaster_Facade": "9e5204180eff5edf24abb9bafdbd9b49f48a776e70e38bfccad32cf92eb3a9f2"
+    },
+    "env-facade-b": {
+      "TEX_Brick": "b704aa1cb0079d0b6bb34f4df2c242aed86cf52a9dbb80c45a7ede1a2ccf2058",
+      "TEX_TimberSoot_Backdrop": "9c6e67b4216173efa1fd86f4873aeb76c761adb1e1eda07c6035280fc4ef7d8c",
+      "TEX_Plaster_Facade": "9e5204180eff5edf24abb9bafdbd9b49f48a776e70e38bfccad32cf92eb3a9f2"
+    },
+    "env-facade-c": {
+      "TEX_Brick": "b704aa1cb0079d0b6bb34f4df2c242aed86cf52a9dbb80c45a7ede1a2ccf2058",
+      "TEX_TimberSoot_Backdrop": "9c6e67b4216173efa1fd86f4873aeb76c761adb1e1eda07c6035280fc4ef7d8c",
+      "TEX_Plaster_Facade": "9e5204180eff5edf24abb9bafdbd9b49f48a776e70e38bfccad32cf92eb3a9f2"
+    }
+  }
+}

@@ -1,0 +1,22 @@
+{
+  "asset": "env-rubble-small",
+  "previous": "env-crate-a",
+  "placements": [
+    {
+      "x": -11.6,
+      "y": 0,
+      "z": 4.1,
+      "yaw": 0.2
+    }
+  ],
+  "visualBounds": [
+    0.675,
+    0.62,
+    0.675
+  ],
+  "parts": "six masonry pieces: three brick fragments, two large plaster chunks and one timber splinter; no loose scatter",
+  "collider": "COL_crate",
+  "triangleLimit": 3000,
+  "warmAllowancePp": 0,
+  "pairResolutionPp": 0.001
+}

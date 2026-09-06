@@ -1,0 +1,7 @@
+front.png              camera=front         mood=day        collider=false  calls=13 tris=4272
+three-quarter.png      camera=three-quarter mood=day        collider=false  calls=13 tris=4272
+side.png               camera=side          mood=day        collider=false  calls=13 tris=4272
+game-camera.png        camera=game          mood=day        collider=false  calls=13 tris=4272
+silhouette.png         camera=front         mood=silhouette collider=false  calls=1 tris=1408
+collider-overlay.png   camera=three-quarter mood=day        collider=true  calls=14 tris=4272
+report: {"file":"environment/env-brick-stack.glb","bounds":"0.675 × 0.620 × 0.675 m","ground":"0.0000 m","vis":"1 (1408 tris)","col":"1 (12 tris)","sockets":"none","materials":"MAT_Brick","doubleSided":"none","unnamed":"none"}

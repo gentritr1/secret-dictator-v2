@@ -1,0 +1,339 @@
+{
+  "method": "Same frozen scene, lights, camera and animation instant. Toggle all seven facades between the explicitly recorded diagnostic reference GLB and candidate; redraw shadows. Same rubble-pixels classifier, 1280x720, seed1000/7, podium camera. Three independent trial instants retained. Supplemental isolation measurement, not a replacement for full-scene captures.",
+  "allowancePp": 0,
+  "errors": [],
+  "pairs": [
+    {
+      "state": "day",
+      "index": 0,
+      "count": {
+        "current": 7,
+        "previous": 7,
+        "camera": {
+          "position": [
+            4.286263797015736e-16,
+            1.8,
+            2.8999833085386477
+          ],
+          "quaternion": [
+            -5.191670958145226e-18,
+            0.9963991139955501,
+            0.08478682461846712,
+            6.101155888465275e-17
+          ],
+          "fov": 60
+        }
+      },
+      "before": {
+        "hud": {
+          "warm": 53770,
+          "warmPct": 5.834418402777778,
+          "total": 921600,
+          "stats": {
+            "calls": 381,
+            "triangles": 74389
+          }
+        },
+        "scene": {
+          "warm": 48245,
+          "warmPct": 5.234917534722222,
+          "total": 921600,
+          "stats": {
+            "calls": 381,
+            "triangles": 74389
+          }
+        }
+      },
+      "after": {
+        "hud": {
+          "warm": 54325,
+          "warmPct": 5.894639756944445,
+          "total": 921600,
+          "stats": {
+            "calls": 381,
+            "triangles": 74389
+          }
+        },
+        "scene": {
+          "warm": 48809,
+          "warmPct": 5.296115451388888,
+          "total": 921600,
+          "stats": {
+            "calls": 381,
+            "triangles": 74389
+          }
+        }
+      },
+      "deltaPp": {
+        "hud": 0.06022135416666696,
+        "scene": 0.061197916666666075
+      }
+    },
+    {
+      "state": "dusk",
+      "index": 1,
+      "count": {
+        "current": 7,
+        "previous": 7,
+        "camera": {
+          "position": [
+            4.286263797015736e-16,
+            1.8,
+            2.5227683874924516
+          ],
+          "quaternion": [
+            -4.48895826556064e-18,
+            0.9968826864299806,
+            0.07889809564333629,
+            5.671828627237737e-17
+          ],
+          "fov": 60
+        }
+      },
+      "before": {
+        "hud": {
+          "warm": 41483,
+          "warmPct": 4.501193576388888,
+          "total": 921600,
+          "stats": {
+            "calls": 382,
+            "triangles": 74497
+          }
+        },
+        "scene": {
+          "warm": 37864,
+          "warmPct": 4.108506944444444,
+          "total": 921600,
+          "stats": {
+            "calls": 382,
+            "triangles": 74497
+          }
+        }
+      },
+      "after": {
+        "hud": {
+          "warm": 178194,
+          "warmPct": 19.335286458333336,
+          "total": 921600,
+          "stats": {
+            "calls": 382,
+            "triangles": 74497
+          }
+        },
+        "scene": {
+          "warm": 186238,
+          "warmPct": 20.208116319444443,
+          "total": 921600,
+          "stats": {
+            "calls": 382,
+            "triangles": 74497
+          }
+        }
+      },
+      "deltaPp": {
+        "hud": 14.834092881944446,
+        "scene": 16.099609375
+      }
+    },
+    {
+      "state": "trial",
+      "index": 2,
+      "count": {
+        "current": 7,
+        "previous": 7,
+        "camera": {
+          "position": [
+            4.286263797015736e-16,
+            1.8,
+            2.8975403252247505
+          ],
+          "quaternion": [
+            -5.1846788721105265e-18,
+            0.9964039197479476,
+            0.08473032934507906,
+            6.097030886975218e-17
+          ],
+          "fov": 60
+        }
+      },
+      "before": {
+        "hud": {
+          "warm": 89524,
+          "warmPct": 9.713975694444445,
+          "total": 921600,
+          "stats": {
+            "calls": 389,
+            "triangles": 77677
+          }
+        },
+        "scene": {
+          "warm": 84046,
+          "warmPct": 9.119574652777777,
+          "total": 921600,
+          "stats": {
+            "calls": 389,
+            "triangles": 77677
+          }
+        }
+      },
+      "after": {
+        "hud": {
+          "warm": 89524,
+          "warmPct": 9.713975694444445,
+          "total": 921600,
+          "stats": {
+            "calls": 389,
+            "triangles": 77677
+          }
+        },
+        "scene": {
+          "warm": 84046,
+          "warmPct": 9.119574652777777,
+          "total": 921600,
+          "stats": {
+            "calls": 389,
+            "triangles": 77677
+          }
+        }
+      },
+      "deltaPp": {
+        "hud": 0,
+        "scene": 0
+      }
+    },
+    {
+      "state": "trial",
+      "index": 3,
+      "count": {
+        "current": 7,
+        "previous": 7,
+        "camera": {
+          "position": [
+            4.286263797015736e-16,
+            1.8,
+            2.8997431472426705
+          ],
+          "quaternion": [
+            -5.1909718627965545e-18,
+            0.9963995944876542,
+            0.08478117777454013,
+            6.10074357877174e-17
+          ],
+          "fov": 60
+        }
+      },
+      "before": {
+        "hud": {
+          "warm": 90556,
+          "warmPct": 9.82595486111111,
+          "total": 921600,
+          "stats": {
+            "calls": 389,
+            "triangles": 77677
+          }
+        },
+        "scene": {
+          "warm": 85078,
+          "warmPct": 9.231553819444445,
+          "total": 921600,
+          "stats": {
+            "calls": 389,
+            "triangles": 77677
+          }
+        }
+      },
+      "after": {
+        "hud": {
+          "warm": 90556,
+          "warmPct": 9.82595486111111,
+          "total": 921600,
+          "stats": {
+            "calls": 389,
+            "triangles": 77677
+          }
+        },
+        "scene": {
+          "warm": 85078,
+          "warmPct": 9.231553819444445,
+          "total": 921600,
+          "stats": {
+            "calls": 389,
+            "triangles": 77677
+          }
+        }
+      },
+      "deltaPp": {
+        "hud": 0,
+        "scene": 0
+      }
+    },
+    {
+      "state": "trial",
+      "index": 4,
+      "count": {
+        "current": 7,
+        "previous": 7,
+        "camera": {
+          "position": [
+            4.286263797015736e-16,
+            1.8,
+            2.8975403252247505
+          ],
+          "quaternion": [
+            -5.1846788721105265e-18,
+            0.9964039197479476,
+            0.08473032934507906,
+            6.097030886975218e-17
+          ],
+          "fov": 60
+        }
+      },
+      "before": {
+        "hud": {
+          "warm": 88434,
+          "warmPct": 9.595703125,
+          "total": 921600,
+          "stats": {
+            "calls": 389,
+            "triangles": 77677
+          }
+        },
+        "scene": {
+          "warm": 82956,
+          "warmPct": 9.001302083333334,
+          "total": 921600,
+          "stats": {
+            "calls": 389,
+            "triangles": 77677
+          }
+        }
+      },
+      "after": {
+        "hud": {
+          "warm": 88434,
+          "warmPct": 9.595703125,
+          "total": 921600,
+          "stats": {
+            "calls": 389,
+            "triangles": 77677
+          }
+        },
+        "scene": {
+          "warm": 82956,
+          "warmPct": 9.001302083333334,
+          "total": 921600,
+          "stats": {
+            "calls": 389,
+            "triangles": 77677
+          }
+        }
+      },
+      "deltaPp": {
+        "hud": 0,
+        "scene": 0
+      }
+    }
+  ],
+  "reference": "design/reviews/rubble-phase-2/env-facade-a/cold-candidate/env-facade-a.glb",
+  "passesZeroAllowance": true
+}

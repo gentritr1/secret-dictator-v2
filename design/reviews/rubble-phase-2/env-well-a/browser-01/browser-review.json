@@ -1,0 +1,78 @@
+{
+  "asset": "env-well-a",
+  "localCameraOffset": [
+    1.8,
+    2.7
+  ],
+  "errors": [],
+  "warnings": [
+    "[.WebGL-0x12400509c00]GL Driver Message (OpenGL, Performance, GL_CLOSE_PATH_NV, High): GPU stall due to ReadPixels",
+    "[.WebGL-0x12400509c00]GL Driver Message (OpenGL, Performance, GL_CLOSE_PATH_NV, High): GPU stall due to ReadPixels",
+    "[.WebGL-0x12400509c00]GL Driver Message (OpenGL, Performance, GL_CLOSE_PATH_NV, High): GPU stall due to ReadPixels",
+    "[.WebGL-0x12400509c00]GL Driver Message (OpenGL, Performance, GL_CLOSE_PATH_NV, High): GPU stall due to ReadPixels (this message will no longer repeat)",
+    "[assets] env-well-a not loaded (load-failed: Failed to fetch) — /assets/models/environment/env-well-a.glb · the square falls back to procedural graybox and the match is playable."
+  ],
+  "decoded": [
+    {
+      "position": [
+        -7.6,
+        0,
+        1.4
+      ],
+      "maps": [
+        {
+          "node": "VIS_metal",
+          "material": "MAT_Metal",
+          "width": 1024,
+          "height": 1024,
+          "tint": true
+        },
+        {
+          "node": "VIS_plaster",
+          "material": "MAT_Plaster",
+          "width": 1024,
+          "height": 1024,
+          "tint": true
+        }
+      ]
+    }
+  ],
+  "refusals": [
+    {
+      "removed": "COL_well",
+      "ok": false,
+      "reason": "missing-nodes"
+    },
+    {
+      "removed": "VIS_plaster",
+      "ok": false,
+      "reason": "missing-nodes"
+    },
+    {
+      "removed": "VIS_metal",
+      "ok": false,
+      "reason": "missing-nodes"
+    }
+  ],
+  "linear": {
+    "tone": "linear",
+    "reducedMotion": true
+  },
+  "fallback": {
+    "count": 1,
+    "complete": true
+  },
+  "heroCamera": {
+    "position": [
+      2.2,
+      1.7,
+      4.8
+    ],
+    "target": [
+      0,
+      1.2704194784164429,
+      0
+    ],
+    "fov": 45
+  }
+}

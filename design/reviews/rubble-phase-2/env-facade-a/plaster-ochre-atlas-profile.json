@@ -1,0 +1,44 @@
+{
+  "image": "public/assets/textures/rubble/TEX_Plaster_Facade.png",
+  "sha256": "9e5204180eff5edf24abb9bafdbd9b49f48a776e70e38bfccad32cf92eb3a9f2",
+  "width": 1024,
+  "height": 1024,
+  "edgeMeanAbsoluteRGB255": {
+    "leftRight": 4.601236979166667,
+    "topBottom": 5.227864583333333
+  },
+  "spectral": {
+    "bands": 16,
+    "frequencyRange": [
+      3,
+      24
+    ],
+    "periodsPx": [
+      120.5769846410703,
+      161.52062150121125,
+      164.25360975961536,
+      266.7024475582546,
+      112.71643549627343,
+      247.3257075248472,
+      145.81999610817797,
+      101.22718113746433,
+      146.15551062069065,
+      204.93980163302987,
+      311.297505811252,
+      125.98272455823405,
+      126.58728744971793,
+      181.75085425928663,
+      296.1207755074648,
+      98.82882742437727
+    ],
+    "slopePixelsPerImageHeight": 7.442171017107335,
+    "relativeDrift": 0.04837665480115131,
+    "permutationP": 0.9045643153526971,
+    "permutations": 4096,
+    "pLimit": 0.01,
+    "relativeDriftLimit": 0.1
+  },
+  "seamless": true,
+  "noSpectralPeriodSlope": true,
+  "accepted": true
+}

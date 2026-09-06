@@ -1,0 +1,120 @@
+{
+  "method": "Playwright: load index, force all original images eager, wait for positive native dimensions.",
+  "images": [
+    {
+      "src": "/design/references/env-facade-b/hero.png",
+      "width": 1354,
+      "height": 1161
+    },
+    {
+      "src": "../env-facade-b/hero-model.png",
+      "width": 1100,
+      "height": 1100
+    },
+    {
+      "src": "/design/reviews/env-facade-b/front.png",
+      "width": 1440,
+      "height": 900
+    },
+    {
+      "src": "/design/reviews/env-facade-b/three-quarter.png",
+      "width": 1440,
+      "height": 900
+    },
+    {
+      "src": "/design/reviews/env-facade-b/side.png",
+      "width": 1440,
+      "height": 900
+    },
+    {
+      "src": "/design/reviews/env-facade-b/game-camera.png",
+      "width": 1440,
+      "height": 900
+    },
+    {
+      "src": "/design/reviews/env-facade-b/silhouette.png",
+      "width": 1440,
+      "height": 900
+    },
+    {
+      "src": "/design/reviews/env-facade-b/collider-overlay.png",
+      "width": 1440,
+      "height": 900
+    },
+    {
+      "src": "/design/references/env-facade-c/hero.png",
+      "width": 1024,
+      "height": 1536
+    },
+    {
+      "src": "../env-facade-c/hero-model.png",
+      "width": 1100,
+      "height": 1100
+    },
+    {
+      "src": "/design/reviews/env-facade-c/front.png",
+      "width": 1440,
+      "height": 900
+    },
+    {
+      "src": "/design/reviews/env-facade-c/three-quarter.png",
+      "width": 1440,
+      "height": 900
+    },
+    {
+      "src": "/design/reviews/env-facade-c/side.png",
+      "width": 1440,
+      "height": 900
+    },
+    {
+      "src": "/design/reviews/env-facade-c/game-camera.png",
+      "width": 1440,
+      "height": 900
+    },
+    {
+      "src": "/design/reviews/env-facade-c/silhouette.png",
+      "width": 1440,
+      "height": 900
+    },
+    {
+      "src": "/design/reviews/env-facade-c/collider-overlay.png",
+      "width": 1440,
+      "height": 900
+    },
+    {
+      "src": "../env-facade-c/eye-height-day.png",
+      "width": 1280,
+      "height": 720
+    },
+    {
+      "src": "../env-facade-c/eye-height-dusk.png",
+      "width": 1280,
+      "height": 720
+    },
+    {
+      "src": "../env-facade-c/eye-height-trial.png",
+      "width": 1280,
+      "height": 720
+    },
+    {
+      "src": "/design/concepts/rubble/day-queue-notice-board.png",
+      "width": 1280,
+      "height": 720
+    },
+    {
+      "src": "/design/concepts/rubble/square-dusk-rubble.png",
+      "width": 1280,
+      "height": 720
+    },
+    {
+      "src": "/design/concepts/rubble/night-tribunal-searchlight.png",
+      "width": 1280,
+      "height": 720
+    },
+    {
+      "src": "/design/concepts/rubble/citizens-lineup-1946.png",
+      "width": 1024,
+      "height": 1024
+    }
+  ]
+}

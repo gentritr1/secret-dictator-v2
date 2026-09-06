@@ -1,0 +1,57 @@
+{
+  "asset": "env-rubble-large",
+  "method": "Native blue-dark object-edge bounds against authored guide. No resampling or relayout. Internal part counts inspected separately.",
+  "pixelsPerMetre": 512,
+  "tolerancePixels": 2,
+  "views": [
+    {
+      "view": "front",
+      "template": [
+        92,
+        393,
+        419,
+        850
+      ],
+      "generated": [
+        89,
+        381,
+        426,
+        852
+      ],
+      "maxError": 12
+    },
+    {
+      "view": "side",
+      "template": [
+        595,
+        393,
+        940,
+        850
+      ],
+      "generated": [
+        591,
+        387,
+        942,
+        850
+      ],
+      "maxError": 6
+    },
+    {
+      "view": "top",
+      "template": [
+        1116,
+        367,
+        1443,
+        712
+      ],
+      "generated": [
+        1116,
+        367,
+        1443,
+        711
+      ],
+      "maxError": 1
+    }
+  ],
+  "passes": false
+}

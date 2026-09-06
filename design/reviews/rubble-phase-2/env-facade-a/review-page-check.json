@@ -1,0 +1,108 @@
+{
+  "images": [
+    {
+      "src": "/design/references/env-facade-a/hero.png",
+      "loaded": true
+    },
+    {
+      "src": "hero-model.png",
+      "loaded": true
+    },
+    {
+      "src": "cold-candidate/hero-model.png",
+      "loaded": true
+    },
+    {
+      "src": "hero-model.png",
+      "loaded": true
+    },
+    {
+      "src": "/assets/textures/rubble/TEX_Plaster_Facade.png",
+      "loaded": true
+    },
+    {
+      "src": "/design/concepts/rubble/square-dusk-rubble.png",
+      "loaded": true
+    },
+    {
+      "src": "/design/concepts/rubble/night-tribunal-searchlight.png",
+      "loaded": true
+    },
+    {
+      "src": "/design/concepts/rubble/day-queue-notice-board.png",
+      "loaded": true
+    },
+    {
+      "src": "/design/concepts/rubble/citizens-lineup-1946.png",
+      "loaded": true
+    },
+    {
+      "src": "/design/references/env-facade-a/sheet.png",
+      "loaded": true
+    },
+    {
+      "src": "/design/references/env-facade-a/material-id.png",
+      "loaded": true
+    },
+    {
+      "src": "/design/reviews/env-facade-a/front.png",
+      "loaded": true
+    },
+    {
+      "src": "/design/reviews/env-facade-a/three-quarter.png",
+      "loaded": true
+    },
+    {
+      "src": "/design/reviews/env-facade-a/side.png",
+      "loaded": true
+    },
+    {
+      "src": "/design/reviews/env-facade-a/game-camera.png",
+      "loaded": true
+    },
+    {
+      "src": "/design/reviews/env-facade-a/silhouette.png",
+      "loaded": true
+    },
+    {
+      "src": "/design/reviews/env-facade-a/collider-overlay.png",
+      "loaded": true
+    },
+    {
+      "src": "before/day-no-hud.png",
+      "loaded": true
+    },
+    {
+      "src": "after/day-no-hud.png",
+      "loaded": true
+    },
+    {
+      "src": "before/dusk-no-hud.png",
+      "loaded": true
+    },
+    {
+      "src": "after/dusk-no-hud.png",
+      "loaded": true
+    },
+    {
+      "src": "before/trial-no-hud.png",
+      "loaded": true
+    },
+    {
+      "src": "after/trial-no-hud.png",
+      "loaded": true
+    },
+    {
+      "src": "eye-height-day.png",
+      "loaded": true
+    },
+    {
+      "src": "eye-height-dusk.png",
+      "loaded": true
+    },
+    {
+      "src": "eye-height-trial.png",
+      "loaded": true
+    }
+  ]
+}

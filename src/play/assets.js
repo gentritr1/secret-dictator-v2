@@ -228,7 +228,8 @@ export const ENVIRONMENT = [
    * opposite sides so the space is not symmetrical. */
   { id: 'env-well-a', category: 'environment',
     place: { x: -7.6, y: 0, z: 1.4, yaw: Math.PI / 7 },
-    requiredNodes: ['COL_well'],
+    requiredNodes: ['COL_well', 'VIS_plaster', 'VIS_metal'],
+    sockets: {},
     fallback: 'capsule' },
   { id: 'env-tree-a', category: 'environment',
     place: { x: 8.2, y: 0, z: -1.2, yaw: -Math.PI / 5 },
@@ -307,20 +308,29 @@ const rows = [];
 const put = (id, x, z, yaw) => rows.push({
   id, category: 'environment',
   place: { x, y: 0, z, yaw },
-  requiredNodes: [id === 'env-barrel-a' ? 'COL_barrel' : 'COL_crate'],
+  requiredNodes: id === 'env-rubble-small'
+    ? ['COL_crate', 'VIS_brick', 'VIS_plaster', 'VIS_timbersoot']
+    : id === 'env-rubble-large'
+      ? ['COL_barrel', 'VIS_brick', 'VIS_plaster', 'VIS_timbersoot']
+      : id === 'env-brick-stack'
+        ? ['COL_crate', 'VIS_brick']
+        : id === 'env-rubble-cart'
+          ? ['COL_crate', 'VIS_brick', 'VIS_timbersoot', 'VIS_metal']
+          : ['COL_crate'],
+  sockets: {},
   fallback: 'capsule'
 });
 /* west wall, beside the well */
-put('env-barrel-a', -11.4,  5.2, 0.4);
-put('env-barrel-a', -10.8,  6.1, 1.9);
-put('env-crate-a',  -11.6,  4.1, 0.2);
+put('env-rubble-large', -11.4,  5.2, 0.4);
+put('env-rubble-large', -10.8,  6.1, 1.9);
+put('env-rubble-small', -11.6, 4.1, 0.2);
 /* north-east corner, behind the lantern line */
-put('env-crate-a',   11.2,  9.8, -0.5);
-put('env-crate-a',   11.9, 10.5, 0.3);
-put('env-barrel-a',  10.4, 10.2, 0.0);
+put('env-brick-stack',   11.2,  9.8, -0.5);
+put('env-brick-stack',   11.9, 10.5, 0.3);
+put('env-rubble-large',  10.4, 10.2, 0.0);
 /* south, near the approach, so the gate lantern has something to light */
-put('env-barrel-a',  -2.6, -9.4, 0.8);
-put('env-crate-a',    2.9, -9.8, -0.3);
+put('env-rubble-large',  -2.6, -9.4, 0.8);
+put('env-rubble-cart',    2.9, -9.8, -0.3);
 return rows;
 }
 
@@ -408,16 +418,22 @@ function facadeRow() {
   const BAY = 4.5;              // bay width plus its own frame
   const WALL = 13.6;            // just outside the kerb at 13
   const rows = [];
-  const add = (x, z, yaw) => rows.push({
-    id: 'env-facade-a', category: 'environment',
+  const add = (x, z, yaw, id = 'env-facade-a') => rows.push({
+    id, category: 'environment',
     place: { x, y: 0, z, yaw },
-    requiredNodes: ['COL_wall'],
+    requiredNodes: ['COL_wall', 'SOCKET_lamp', 'VIS_plaster', 'VIS_brick', 'VIS_joinery'],
+    sockets: {}, // Repeated lamp anchors are preserved but not logically claimed.
     fallback: 'capsule'
   });
   /* North: the backdrop behind the dais, the wall the crowd faces. */
-  for (const i of [-1, 0, 1]) add(i * BAY, WALL, Math.PI);
+  add(-BAY, WALL, Math.PI, 'env-facade-b');
+  add(0, WALL, Math.PI);
+  add(BAY, WALL, Math.PI, 'env-facade-c');
   /* East and west: enough to close the frame, not a full street. */
-  for (const i of [-1, 1]) { add(WALL, i * BAY, -Math.PI / 2); add(-WALL, i * BAY, Math.PI / 2); }
+  add(WALL, -BAY, -Math.PI / 2);
+  add(-WALL, -BAY, Math.PI / 2, 'env-facade-c');
+  add(WALL, BAY, -Math.PI / 2, 'env-facade-b');
+  add(-WALL, BAY, Math.PI / 2);
   /*
    * The four corners, where the north wall and the side walls meet at a right
    * angle and used to simply stop. A bay is one flat face; two of them turning

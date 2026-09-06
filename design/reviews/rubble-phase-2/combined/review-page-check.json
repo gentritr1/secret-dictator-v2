@@ -1,0 +1,222 @@
+{
+  "images": [
+    {
+      "src": "/design/references/env-facade-a/hero.png",
+      "ok": true
+    },
+    {
+      "src": "env-facade-a/hero-model.png",
+      "ok": true
+    },
+    {
+      "src": "/design/references/env-facade-b/hero.png",
+      "ok": true
+    },
+    {
+      "src": "env-facade-b/hero-model.png",
+      "ok": true
+    },
+    {
+      "src": "/design/references/env-facade-c/hero.png",
+      "ok": true
+    },
+    {
+      "src": "env-facade-c/hero-model.png",
+      "ok": true
+    },
+    {
+      "src": "/design/references/env-rubble-small/hero.png",
+      "ok": true
+    },
+    {
+      "src": "env-rubble-small/browser-01/hero-model.png",
+      "ok": true
+    },
+    {
+      "src": "/design/references/env-rubble-large/hero.png",
+      "ok": true
+    },
+    {
+      "src": "env-rubble-large/browser-01/hero-model.png",
+      "ok": true
+    },
+    {
+      "src": "/design/references/env-brick-stack/hero.png",
+      "ok": true
+    },
+    {
+      "src": "env-brick-stack/browser-02/hero-model.png",
+      "ok": true
+    },
+    {
+      "src": "/design/references/env-rubble-cart/hero.png",
+      "ok": true
+    },
+    {
+      "src": "env-rubble-cart/browser-01/hero-model.png",
+      "ok": true
+    },
+    {
+      "src": "/design/references/env-well-a/hero.png",
+      "ok": true
+    },
+    {
+      "src": "env-well-a/browser-01/hero-model.png",
+      "ok": true
+    },
+    {
+      "src": "env-well-a/after/day-no-hud.png",
+      "ok": true
+    },
+    {
+      "src": "env-well-a/after/dusk-no-hud.png",
+      "ok": true
+    },
+    {
+      "src": "env-well-a/after/trial-no-hud.png",
+      "ok": true
+    },
+    {
+      "src": "/design/concepts/rubble/day-queue-notice-board.png",
+      "ok": true
+    },
+    {
+      "src": "/design/concepts/rubble/square-dusk-rubble.png",
+      "ok": true
+    },
+    {
+      "src": "/design/concepts/rubble/night-tribunal-searchlight.png",
+      "ok": true
+    },
+    {
+      "src": "/design/concepts/rubble/citizens-lineup-1946.png",
+      "ok": true
+    }
+  ],
+  "links": [
+    "http://127.0.0.1:5184/design/reviews/rubble-phase-2/README.md",
+    "http://127.0.0.1:5184/design/reviews/rubble-phase-2/WARM-BUDGETS.md",
+    "http://127.0.0.1:5184/design/reviews/rubble-phase-2/combined/measurements.json",
+    "http://127.0.0.1:5184/design/reviews/rubble-phase-2/combined/asset-audit.json",
+    "http://127.0.0.1:5184/play.html",
+    "http://127.0.0.1:5184/design/reviews/rubble-phase-2/env-facade-a/README.md",
+    "http://127.0.0.1:5184/design/references/env-facade-a/sheet.png",
+    "http://127.0.0.1:5184/design/references/env-facade-a/material-id.png",
+    "http://127.0.0.1:5184/asset-lab.html?asset=environment/env-facade-a.glb",
+    "http://127.0.0.1:5184/design/references/env-facade-a/hero.png",
+    "http://127.0.0.1:5184/design/reviews/rubble-phase-2/env-facade-a/hero-model.png",
+    "http://127.0.0.1:5184/design/reviews/env-facade-a/front.png",
+    "http://127.0.0.1:5184/design/reviews/env-facade-a/three-quarter.png",
+    "http://127.0.0.1:5184/design/reviews/env-facade-a/side.png",
+    "http://127.0.0.1:5184/design/reviews/env-facade-a/game-camera.png",
+    "http://127.0.0.1:5184/design/reviews/env-facade-a/silhouette.png",
+    "http://127.0.0.1:5184/design/reviews/env-facade-a/collider-overlay.png",
+    "http://127.0.0.1:5184/design/reviews/rubble-phase-2/env-facade-b/README.md",
+    "http://127.0.0.1:5184/design/references/env-facade-b/sheet.png",
+    "http://127.0.0.1:5184/design/references/env-facade-b/material-id.png",
+    "http://127.0.0.1:5184/asset-lab.html?asset=environment/env-facade-b.glb",
+    "http://127.0.0.1:5184/design/references/env-facade-b/hero.png",
+    "http://127.0.0.1:5184/design/reviews/rubble-phase-2/env-facade-b/hero-model.png",
+    "http://127.0.0.1:5184/design/reviews/env-facade-b/front.png",
+    "http://127.0.0.1:5184/design/reviews/env-facade-b/three-quarter.png",
+    "http://127.0.0.1:5184/design/reviews/env-facade-b/side.png",
+    "http://127.0.0.1:5184/design/reviews/env-facade-b/game-camera.png",
+    "http://127.0.0.1:5184/design/reviews/env-facade-b/silhouette.png",
+    "http://127.0.0.1:5184/design/reviews/env-facade-b/collider-overlay.png",
+    "http://127.0.0.1:5184/design/reviews/rubble-phase-2/env-facade-c/README.md",
+    "http://127.0.0.1:5184/design/references/env-facade-c/sheet.png",
+    "http://127.0.0.1:5184/design/references/env-facade-c/material-id.png",
+    "http://127.0.0.1:5184/asset-lab.html?asset=environment/env-facade-c.glb",
+    "http://127.0.0.1:5184/design/references/env-facade-c/hero.png",
+    "http://127.0.0.1:5184/design/reviews/rubble-phase-2/env-facade-c/hero-model.png",
+    "http://127.0.0.1:5184/design/reviews/env-facade-c/front.png",
+    "http://127.0.0.1:5184/design/reviews/env-facade-c/three-quarter.png",
+    "http://127.0.0.1:5184/design/reviews/env-facade-c/side.png",
+    "http://127.0.0.1:5184/design/reviews/env-facade-c/game-camera.png",
+    "http://127.0.0.1:5184/design/reviews/env-facade-c/silhouette.png",
+    "http://127.0.0.1:5184/design/reviews/env-facade-c/collider-overlay.png",
+    "http://127.0.0.1:5184/design/reviews/rubble-phase-2/env-rubble-small/README.md",
+    "http://127.0.0.1:5184/design/references/env-rubble-small/sheet.png",
+    "http://127.0.0.1:5184/design/references/env-rubble-small/material-id.png",
+    "http://127.0.0.1:5184/asset-lab.html?asset=environment/env-rubble-small.glb",
+    "http://127.0.0.1:5184/design/references/env-rubble-small/hero.png",
+    "http://127.0.0.1:5184/design/reviews/rubble-phase-2/env-rubble-small/browser-01/hero-model.png",
+    "http://127.0.0.1:5184/design/reviews/env-rubble-small/front.png",
+    "http://127.0.0.1:5184/design/reviews/env-rubble-small/three-quarter.png",
+    "http://127.0.0.1:5184/design/reviews/env-rubble-small/side.png",
+    "http://127.0.0.1:5184/design/reviews/env-rubble-small/game-camera.png",
+    "http://127.0.0.1:5184/design/reviews/env-rubble-small/silhouette.png",
+    "http://127.0.0.1:5184/design/reviews/env-rubble-small/collider-overlay.png",
+    "http://127.0.0.1:5184/design/reviews/rubble-phase-2/env-rubble-small/browser-01/eye-height-day.png",
+    "http://127.0.0.1:5184/design/reviews/rubble-phase-2/env-rubble-small/browser-01/eye-height-dusk.png",
+    "http://127.0.0.1:5184/design/reviews/rubble-phase-2/env-rubble-small/browser-01/eye-height-trial.png",
+    "http://127.0.0.1:5184/design/reviews/rubble-phase-2/env-rubble-large/README.md",
+    "http://127.0.0.1:5184/design/references/env-rubble-large/sheet.png",
+    "http://127.0.0.1:5184/design/references/env-rubble-large/material-id.png",
+    "http://127.0.0.1:5184/asset-lab.html?asset=environment/env-rubble-large.glb",
+    "http://127.0.0.1:5184/design/references/env-rubble-large/hero.png",
+    "http://127.0.0.1:5184/design/reviews/rubble-phase-2/env-rubble-large/browser-01/hero-model.png",
+    "http://127.0.0.1:5184/design/reviews/env-rubble-large/front.png",
+    "http://127.0.0.1:5184/design/reviews/env-rubble-large/three-quarter.png",
+    "http://127.0.0.1:5184/design/reviews/env-rubble-large/side.png",
+    "http://127.0.0.1:5184/design/reviews/env-rubble-large/game-camera.png",
+    "http://127.0.0.1:5184/design/reviews/env-rubble-large/silhouette.png",
+    "http://127.0.0.1:5184/design/reviews/env-rubble-large/collider-overlay.png",
+    "http://127.0.0.1:5184/design/reviews/rubble-phase-2/env-rubble-large/browser-01/eye-height-day.png",
+    "http://127.0.0.1:5184/design/reviews/rubble-phase-2/env-rubble-large/browser-01/eye-height-dusk.png",
+    "http://127.0.0.1:5184/design/reviews/rubble-phase-2/env-rubble-large/browser-01/eye-height-trial.png",
+    "http://127.0.0.1:5184/design/reviews/rubble-phase-2/env-brick-stack/README.md",
+    "http://127.0.0.1:5184/design/references/env-brick-stack/sheet.png",
+    "http://127.0.0.1:5184/design/references/env-brick-stack/material-id.png",
+    "http://127.0.0.1:5184/asset-lab.html?asset=environment/env-brick-stack.glb",
+    "http://127.0.0.1:5184/design/references/env-brick-stack/hero.png",
+    "http://127.0.0.1:5184/design/reviews/rubble-phase-2/env-brick-stack/browser-02/hero-model.png",
+    "http://127.0.0.1:5184/design/reviews/env-brick-stack/front.png",
+    "http://127.0.0.1:5184/design/reviews/env-brick-stack/three-quarter.png",
+    "http://127.0.0.1:5184/design/reviews/env-brick-stack/side.png",
+    "http://127.0.0.1:5184/design/reviews/env-brick-stack/game-camera.png",
+    "http://127.0.0.1:5184/design/reviews/env-brick-stack/silhouette.png",
+    "http://127.0.0.1:5184/design/reviews/env-brick-stack/collider-overlay.png",
+    "http://127.0.0.1:5184/design/reviews/rubble-phase-2/env-brick-stack/browser-02/eye-height-day.png",
+    "http://127.0.0.1:5184/design/reviews/rubble-phase-2/env-brick-stack/browser-02/eye-height-dusk.png",
+    "http://127.0.0.1:5184/design/reviews/rubble-phase-2/env-brick-stack/browser-02/eye-height-trial.png",
+    "http://127.0.0.1:5184/design/reviews/rubble-phase-2/env-rubble-cart/README.md",
+    "http://127.0.0.1:5184/design/references/env-rubble-cart/sheet.png",
+    "http://127.0.0.1:5184/design/references/env-rubble-cart/material-id.png",
+    "http://127.0.0.1:5184/asset-lab.html?asset=environment/env-rubble-cart.glb",
+    "http://127.0.0.1:5184/design/references/env-rubble-cart/hero.png",
+    "http://127.0.0.1:5184/design/reviews/rubble-phase-2/env-rubble-cart/browser-01/hero-model.png",
+    "http://127.0.0.1:5184/design/reviews/env-rubble-cart/front.png",
+    "http://127.0.0.1:5184/design/reviews/env-rubble-cart/three-quarter.png",
+    "http://127.0.0.1:5184/design/reviews/env-rubble-cart/side.png",
+    "http://127.0.0.1:5184/design/reviews/env-rubble-cart/game-camera.png",
+    "http://127.0.0.1:5184/design/reviews/env-rubble-cart/silhouette.png",
+    "http://127.0.0.1:5184/design/reviews/env-rubble-cart/collider-overlay.png",
+    "http://127.0.0.1:5184/design/reviews/rubble-phase-2/env-rubble-cart/browser-01/eye-height-day.png",
+    "http://127.0.0.1:5184/design/reviews/rubble-phase-2/env-rubble-cart/browser-01/eye-height-dusk.png",
+    "http://127.0.0.1:5184/design/reviews/rubble-phase-2/env-rubble-cart/browser-01/eye-height-trial.png",
+    "http://127.0.0.1:5184/design/reviews/rubble-phase-2/env-well-a/README.md",
+    "http://127.0.0.1:5184/design/references/env-well-a/sheet.png",
+    "http://127.0.0.1:5184/design/references/env-well-a/material-id.png",
+    "http://127.0.0.1:5184/asset-lab.html?asset=environment/env-well-a.glb",
+    "http://127.0.0.1:5184/design/references/env-well-a/hero.png",
+    "http://127.0.0.1:5184/design/reviews/rubble-phase-2/env-well-a/browser-01/hero-model.png",
+    "http://127.0.0.1:5184/design/reviews/env-well-a/front.png",
+    "http://127.0.0.1:5184/design/reviews/env-well-a/three-quarter.png",
+    "http://127.0.0.1:5184/design/reviews/env-well-a/side.png",
+    "http://127.0.0.1:5184/design/reviews/env-well-a/game-camera.png",
+    "http://127.0.0.1:5184/design/reviews/env-well-a/silhouette.png",
+    "http://127.0.0.1:5184/design/reviews/env-well-a/collider-overlay.png",
+    "http://127.0.0.1:5184/design/reviews/rubble-phase-2/env-well-a/browser-01/eye-height-day.png",
+    "http://127.0.0.1:5184/design/reviews/rubble-phase-2/env-well-a/browser-01/eye-height-dusk.png",
+    "http://127.0.0.1:5184/design/reviews/rubble-phase-2/env-well-a/browser-01/eye-height-trial.png",
+    "http://127.0.0.1:5184/design/reviews/rubble-phase-2/env-well-a/after/day-no-hud.png",
+    "http://127.0.0.1:5184/design/reviews/rubble-phase-2/env-well-a/after/dusk-no-hud.png",
+    "http://127.0.0.1:5184/design/reviews/rubble-phase-2/env-well-a/after/trial-no-hud.png",
+    "http://127.0.0.1:5184/design/concepts/rubble/day-queue-notice-board.png",
+    "http://127.0.0.1:5184/design/concepts/rubble/square-dusk-rubble.png",
+    "http://127.0.0.1:5184/design/concepts/rubble/night-tribunal-searchlight.png",
+    "http://127.0.0.1:5184/design/concepts/rubble/citizens-lineup-1946.png"
+  ],
+  "linkFailures": []
+}

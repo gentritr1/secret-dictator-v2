@@ -1,0 +1,34 @@
+
+env-dais-a and the cast — the GLB contract
+
+  file          87.6 KiB · Khronos glTF Blender I/O v5.2.39 · glTF 2.0
+  materials     SlateStone, TimberOchre, TimberShadow — all single-sided, metallic 0
+  bounds        6 × 1.27 × 3.4 m, ground contact 0, 1212 tris
+  COL_dais      closed, outward, volume 4.488 m³, walkable 20.400001 m²
+  COL_lectern   closed, outward, volume 0.99225 m³, walkable 0.945 m²
+  SOCKET_podium asset-local (0, 0.22, 0.35)
+  socket        world (0, 0.22, 8.65) — behind the lectern (z 7.75..8.45), facing the crowd at -Z
+  refusals      renamed collider, renamed socket, no scene, 404 — all ok:false, one warning
+  step onto     y 0.22 at z 9.571296, 3.5 m/s of 3.5, grounded — the 0.22 m step survived
+  control       without the GLB colliders the same walk ends at y 0, so the proof is measuring the asset
+  lectern       the same walk down the middle stops at z 7.3999 (desk face 7.75), never climbed
+  reach         standing mark to socket 2.25 m, inside the 3.0 m radius
+  ground        28 triangles; one 1024 albedo; branch-point collision bytes preserved
+  backdrop      163 triangles; sixteen flats; one 1024 albedo; no gameplay geometry
+  facade        2548 triangles; three painted roles; collider bytes and lamp socket preserved
+  facade        1602 triangles; three painted roles; collider bytes and lamp socket preserved
+  facade        2440 triangles; three painted roles; collider bytes and lamp socket preserved
+  env-rubble-small 312 triangles; 3 painted roles; unchanged collider bytes
+  env-rubble-large 604 triangles; 3 painted roles; unchanged collider bytes
+  env-brick-stack 1420 triangles; 1 painted roles; unchanged collider bytes
+  env-rubble-cart 1496 triangles; 3 painted roles; unchanged collider bytes
+  
+  base      0.860528 × 1.725 × 0.527726 m, ground 0, 1392 tris, 2 material, label 1.95
+  stout     1.101515 × 1.565 × 0.806548 m, ground 0, 1308 tris, 2 material, label 1.8
+  tall      0.696725 × 2.067 × 0.5092 m, ground 0, 1256 tris, 2 material, label 2.297
+  hunched   0.860528 × 1.481 × 0.679492 m, ground 0, 1476 tris, 2 material, label 1.62
+  merge         4 variants, one draw call each, 5432 tris total — ten of them cost 10 calls instead of 80
+  refusals      renamed socket, no VIS_ meshes, no scene, 404 — all ok:false, one warning each; one bad file costs one variant
+  mapping       seat n -> variant n mod 4, total over 60 seats, stable, every variant used, no randomness of any kind; the human's own seat takes the same mapping, with no special case
+
+OK — 2117 checks passed

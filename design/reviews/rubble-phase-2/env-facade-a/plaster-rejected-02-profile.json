@@ -1,0 +1,44 @@
+{
+  "image": "design/references/env-facade-a/plaster-source.png",
+  "sha256": "97188758c1bb5f755e138ce3018e267ffb27ef5776e7f2979af9541a9240020a",
+  "width": 1254,
+  "height": 1254,
+  "edgeMeanAbsoluteRGB255": {
+    "leftRight": 2.967304625199362,
+    "topBottom": 2.962254120148857
+  },
+  "spectral": {
+    "bands": 16,
+    "frequencyRange": [
+      3,
+      24
+    ],
+    "periodsPx": [
+      164.24943506459235,
+      299.6030926257574,
+      239.82207896294705,
+      182.863827554983,
+      259.3923222968362,
+      202.52284425081706,
+      309.7851631970443,
+      147.989616952601,
+      191.7955007828309,
+      259.4138796949906,
+      269.9971008514191,
+      175.7300685386897,
+      239.2046593712738,
+      207.61587568983185,
+      396.4132782412146,
+      313.7752834486024
+    ],
+    "slopePixelsPerImageHeight": 65.36837471482858,
+    "relativeDrift": 0.2729216116083296,
+    "permutationP": 0.2989992677568953,
+    "permutations": 4096,
+    "pLimit": 0.01,
+    "relativeDriftLimit": 0.1
+  },
+  "seamless": true,
+  "noSpectralPeriodSlope": false,
+  "accepted": false
+}

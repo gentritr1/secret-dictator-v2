@@ -1,0 +1,57 @@
+{
+  "asset": "env-brick-stack",
+  "method": "Native blue-dark object-edge bounds against authored guide. No resampling or relayout. Internal part counts inspected separately.",
+  "pixelsPerMetre": 512,
+  "tolerancePixels": 2,
+  "views": [
+    {
+      "view": "front",
+      "template": [
+        82,
+        531,
+        429,
+        850
+      ],
+      "generated": [
+        82,
+        532,
+        429,
+        852
+      ],
+      "maxError": 2
+    },
+    {
+      "view": "side",
+      "template": [
+        594,
+        531,
+        941,
+        850
+      ],
+      "generated": [
+        565,
+        532,
+        974,
+        852
+      ],
+      "maxError": 33
+    },
+    {
+      "view": "top",
+      "template": [
+        1106,
+        366,
+        1453,
+        713
+      ],
+      "generated": [
+        1105,
+        367,
+        1452,
+        715
+      ],
+      "maxError": 2
+    }
+  ],
+  "passes": false
+}

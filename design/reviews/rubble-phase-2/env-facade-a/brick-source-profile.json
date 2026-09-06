@@ -1,0 +1,44 @@
+{
+  "image": "design/references/env-facade-a/brick-source.png",
+  "sha256": "4ba9d1c5a12da00a3ccbcf134bed46d614b24a16614fca33c97b3fecbd2d97e9",
+  "width": 1254,
+  "height": 1254,
+  "edgeMeanAbsoluteRGB255": {
+    "leftRight": 3.4146730462519934,
+    "topBottom": 4.124136097820308
+  },
+  "spectral": {
+    "bands": 16,
+    "frequencyRange": [
+      3,
+      24
+    ],
+    "periodsPx": [
+      297.7631314793297,
+      154.0638290578313,
+      299.82600077125744,
+      337.3708874782201,
+      315.93582186994547,
+      78.28528761373599,
+      306.68091904765635,
+      326.2801552675987,
+      317.97913445627654,
+      62.35716200663029,
+      314.7930941399622,
+      78.5763286861737,
+      322.5508212788408,
+      157.74118147236845,
+      324.1799689907114,
+      295.8518771689404
+    ],
+    "slopePixelsPerImageHeight": 9.940515018885671,
+    "relativeDrift": 0.032779560114016955,
+    "permutationP": 0.7102758115694411,
+    "permutations": 4096,
+    "pLimit": 0.01,
+    "relativeDriftLimit": 0.1
+  },
+  "seamless": true,
+  "noSpectralPeriodSlope": true,
+  "accepted": true
+}

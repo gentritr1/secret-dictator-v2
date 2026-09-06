@@ -1,0 +1,61 @@
+{
+  "source": "design/references/env-facade-a/sheet.png",
+  "size": [
+    1536,
+    1024
+  ],
+  "pixelsPerMetre": 80,
+  "panelWidth": 512,
+  "edgeTolerancePixels": 2,
+  "method": "Bounding blue-dark outline pixels: mean RGB <95 and B>R inside fixed view regions. Native image; no transforms.",
+  "views": [
+    {
+      "name": "front",
+      "bounds": [
+        75,
+        225,
+        436,
+        852
+      ],
+      "expected": [
+        76,
+        226,
+        436,
+        850
+      ],
+      "maxEdgeError": 2
+    },
+    {
+      "name": "side",
+      "bounds": [
+        707,
+        225,
+        828,
+        850
+      ],
+      "expected": [
+        708,
+        226,
+        828,
+        850
+      ],
+      "maxEdgeError": 1
+    },
+    {
+      "name": "top",
+      "bounds": [
+        1099,
+        429,
+        1459,
+        550
+      ],
+      "expected": [
+        1100,
+        430,
+        1460,
+        550
+      ],
+      "maxEdgeError": 1
+    }
+  ]
+}

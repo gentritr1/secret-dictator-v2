@@ -1,0 +1,195 @@
+{
+  "asset": "env-facade-c",
+  "states": {
+    "day": {
+      "hud": 5.841796875,
+      "scene": 5.242947048611111,
+      "ceiling": 100,
+      "calls": 380,
+      "triangles": 70140,
+      "callsBaseline": 473,
+      "trianglesBaseline": 68875,
+      "callsRatio": 0.8033826638477801,
+      "trianglesRatio": 1.018366606170599
+    },
+    "dusk": {
+      "hud": 18.41742621527778,
+      "scene": 19.45290798611111,
+      "ceiling": 45,
+      "calls": 380,
+      "triangles": 70140,
+      "callsBaseline": 473,
+      "trianglesBaseline": 68875,
+      "callsRatio": 0.8033826638477801,
+      "trianglesRatio": 1.018366606170599
+    },
+    "trial": {
+      "hud": 9.695421006944445,
+      "scene": 9.039171006944445,
+      "ceiling": 10,
+      "calls": 388,
+      "triangles": 73428,
+      "callsBaseline": 481,
+      "trianglesBaseline": 72163,
+      "callsRatio": 0.8066528066528067,
+      "trianglesRatio": 1.0175297590177792
+    }
+  },
+  "pairResolutionPp": 0.001,
+  "pairPasses": true,
+  "trialPairs": [
+    {
+      "index": 2,
+      "deltaPp": {
+        "hud": 0,
+        "scene": 0
+      },
+      "after": {
+        "hud": {
+          "warm": 88721,
+          "warmPct": 9.626844618055555,
+          "total": 921600,
+          "stats": {
+            "calls": 388,
+            "triangles": 73428
+          }
+        },
+        "scene": {
+          "warm": 83245,
+          "warmPct": 9.032660590277777,
+          "total": 921600,
+          "stats": {
+            "calls": 388,
+            "triangles": 73428
+          }
+        }
+      }
+    },
+    {
+      "index": 3,
+      "deltaPp": {
+        "hud": 0,
+        "scene": 0
+      },
+      "after": {
+        "hud": {
+          "warm": 89574,
+          "warmPct": 9.719401041666668,
+          "total": 921600,
+          "stats": {
+            "calls": 388,
+            "triangles": 73428
+          }
+        },
+        "scene": {
+          "warm": 84098,
+          "warmPct": 9.12521701388889,
+          "total": 921600,
+          "stats": {
+            "calls": 388,
+            "triangles": 73428
+          }
+        }
+      }
+    },
+    {
+      "index": 4,
+      "deltaPp": {
+        "hud": 0,
+        "scene": 0
+      },
+      "after": {
+        "hud": {
+          "warm": 87971,
+          "warmPct": 9.545464409722221,
+          "total": 921600,
+          "stats": {
+            "calls": 388,
+            "triangles": 73428
+          }
+        },
+        "scene": {
+          "warm": 82494,
+          "warmPct": 8.951171875,
+          "total": 921600,
+          "stats": {
+            "calls": 388,
+            "triangles": 73428
+          }
+        }
+      }
+    }
+  ],
+  "ground": {
+    "method": "Ground VIS ID render with all other meshes occluding, eroded one pixel, sampled against the unmodified 1280x720 trial screenshot at the podium mark facing (0,9), seed 1000 / 7 players, HUD hidden.",
+    "pixels": 264931,
+    "p1": 1.2166,
+    "p5": 2.4332,
+    "p50": 17.02,
+    "pctBelowLuma4": 7.743525672722332,
+    "pctBelowLuma8": 22.237110794886217,
+    "p5BandMeanRgb": [
+      0.9345462781216971,
+      1.5941416276611808,
+      6.0529971312094215
+    ],
+    "p5BandBlueOverRed": true,
+    "darkest": {
+      "rgb": [
+        0,
+        1,
+        2
+      ],
+      "luma": 0.8595999999999999,
+      "x": 569,
+      "y": 708
+    },
+    "channelMinima": [
+      0,
+      1,
+      1
+    ]
+  },
+  "groundBaseline": {
+    "method": "Ground VIS ID render with all other meshes occluding, eroded one pixel, sampled against the unmodified 1280x720 trial screenshot at the podium mark facing (0,9), seed 1000 / 7 players, HUD hidden.",
+    "pixels": 257223,
+    "p1": 1.0762,
+    "p5": 2.0802,
+    "p50": 11.438400000000001,
+    "pctBelowLuma4": 10.508002783576895,
+    "pctBelowLuma8": 36.106024733402535,
+    "p5BandMeanRgb": [
+      0.006920146178368712,
+      1.6697768447243604,
+      6.932664645050929
+    ],
+    "p5BandBlueOverRed": true,
+    "darkest": {
+      "rgb": [
+        0,
+        1,
+        4
+      ],
+      "luma": 1.004,
+      "x": 806,
+      "y": 371
+    },
+    "channelMinima": [
+      0,
+      1,
+      4
+    ]
+  },
+  "p5JitterLuma": 0.35,
+  "walkEqual": true,
+  "placementsEqual": 32,
+  "comparison": "Facade IDs change; all world collider and socket records, tuning and anchors are equal.",
+  "fingerprintByteIdentical": true,
+  "replayByteIdentical": true,
+  "sha256": {
+    "art/blender/environment/env-facade-c/env-facade-c.blend": "99a081ae42d1a0f200dec92fdfaf732b362877d85542fba4af79580bd55768dd",
+    "public/assets/models/environment/env-facade-c.glb": "d19006ff78dc5b0128547f44fc709500fec05761c907f5969f885461cbbfcdad",
+    "src/play/assets.js": "ee4fd0bcbc2d1eb3ed0e3938849783f26938e2abd18059d4688f1cb04ffc90d5",
+    "test/glb.test.js": "f4d86b559fb7a75d438cc71a5f8737c3f924450f8b3d294e5ca4727dbc2dc972"
+  }
+}

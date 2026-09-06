@@ -1,0 +1,32 @@
+{
+  "asset": "env-facade-b",
+  "parts": {
+    "roofFragments": 1,
+    "floors": 2,
+    "joists": 6,
+    "windows": 2,
+    "mullions": 2,
+    "panes": 4,
+    "doorBoards": 5,
+    "doorFramePieces": 3,
+    "brickExposures": 3
+  },
+  "collisionSocketEqual": true,
+  "objects": [
+    {
+      "name": "VIS_plaster",
+      "triangles": 193,
+      "vertices": 357
+    },
+    {
+      "name": "VIS_brick",
+      "triangles": 33,
+      "vertices": 39
+    },
+    {
+      "name": "VIS_joinery",
+      "triangles": 1364,
+      "vertices": 704
+    }
+  ]
+}

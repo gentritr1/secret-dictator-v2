@@ -1,0 +1,3 @@
+day {"warmHud":5.841796875,"warmScene":5.242947048611111,"stats":{"calls":373,"triangles":69600,"lines":250,"geometries":242,"textures":20,"programs":9},"darkest":{"rgb":[1,1,1],"luma":1,"x":113,"y":185}}
+dusk {"warmHud":18.51312934027778,"warmScene":19.4814453125,"stats":{"calls":373,"triangles":69600,"lines":250,"geometries":242,"textures":21,"programs":21},"darkest":{"rgb":[2,2,5],"luma":2.2165999999999997,"x":573,"y":246}}
+trial {"warmHud":9.664496527777777,"warmScene":9.118706597222221,"stats":{"calls":381,"triangles":72888,"lines":250,"geometries":242,"textures":21,"programs":33},"darkest":{"rgb":[0,0,1],"luma":0.0722,"x":130,"y":173}}

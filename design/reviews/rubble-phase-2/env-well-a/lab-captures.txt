@@ -1,0 +1,7 @@
+front.png              camera=front         mood=day        collider=false  calls=15 tris=4584
+three-quarter.png      camera=three-quarter mood=day        collider=false  calls=15 tris=4584
+side.png               camera=side          mood=day        collider=false  calls=15 tris=4584
+game-camera.png        camera=game          mood=day        collider=false  calls=15 tris=4584
+silhouette.png         camera=front         mood=silhouette collider=false  calls=2 tris=1564
+collider-overlay.png   camera=three-quarter mood=day        collider=true  calls=16 tris=4584
+report: {"file":"environment/env-well-a.glb","bounds":"1.650 × 2.541 × 1.718 m","ground":"0.0000 m","vis":"2 (1564 tris)","col":"1 (28 tris)","sockets":"none","materials":"MAT_Metal, MAT_Plaster","doubleSided":"none","unnamed":"none"}

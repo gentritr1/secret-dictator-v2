@@ -1,0 +1,18 @@
+{
+  "allAccessorBytesEqual": true,
+  "accessorCount": 19,
+  "nodesMeshesMaterialsTexturesSamplersScenesEqual": true,
+  "changedImages": [
+    "TEX_Plaster_Facade"
+  ],
+  "beforeImages": {
+    "TEX_Brick": "b704aa1cb0079d0b6bb34f4df2c242aed86cf52a9dbb80c45a7ede1a2ccf2058",
+    "TEX_TimberSoot_Backdrop": "9c6e67b4216173efa1fd86f4873aeb76c761adb1e1eda07c6035280fc4ef7d8c",
+    "TEX_Plaster_Facade": "353d5117aca711087c88ae93ed32c8c274a985351c02cfaccf6834d91bc42ae8"
+  },
+  "afterImages": {
+    "TEX_Brick": "b704aa1cb0079d0b6bb34f4df2c242aed86cf52a9dbb80c45a7ede1a2ccf2058",
+    "TEX_TimberSoot_Backdrop": "9c6e67b4216173efa1fd86f4873aeb76c761adb1e1eda07c6035280fc4ef7d8c",
+    "TEX_Plaster_Facade": "9e5204180eff5edf24abb9bafdbd9b49f48a776e70e38bfccad32cf92eb3a9f2"
+  }
+}

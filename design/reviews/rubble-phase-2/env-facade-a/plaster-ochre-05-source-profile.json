@@ -1,0 +1,44 @@
+{
+  "image": "design/references/env-facade-a/plaster-ochre-source.png",
+  "sha256": "c5f1542390a35246091b0b17ec171f36dded8a87ea1820e64723221ae125af86",
+  "width": 1254,
+  "height": 1254,
+  "edgeMeanAbsoluteRGB255": {
+    "leftRight": 5.690855927698033,
+    "topBottom": 5.171185539606593
+  },
+  "spectral": {
+    "bands": 16,
+    "frequencyRange": [
+      3,
+      24
+    ],
+    "periodsPx": [
+      394.20526294435916,
+      115.08366897266005,
+      396.5616820707838,
+      219.67098361435,
+      221.28048451433682,
+      154.50215302425698,
+      187.21709882763685,
+      181.769964994662,
+      254.87890833867377,
+      215.48294661443825,
+      260.1861155540104,
+      298.6394744911449,
+      167.1583136225887,
+      270.5037965571062,
+      244.4229129020674,
+      192.26356804916026
+    ],
+    "slopePixelsPerImageHeight": 18.674324587684417,
+    "relativeDrift": 0.08470013567223013,
+    "permutationP": 0.7988772272394435,
+    "permutations": 4096,
+    "pLimit": 0.01,
+    "relativeDriftLimit": 0.1
+  },
+  "seamless": true,
+  "noSpectralPeriodSlope": true,
+  "accepted": true
+}

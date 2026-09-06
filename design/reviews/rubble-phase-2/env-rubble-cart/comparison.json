@@ -1,0 +1,130 @@
+{
+  "asset": "env-rubble-cart",
+  "states": {
+    "day": {
+      "hud": 5.841796875,
+      "scene": 5.242947048611111,
+      "calls": 360,
+      "triangles": 71956,
+      "callsBaseline": 473,
+      "trianglesBaseline": 68875,
+      "callsRatio": 0.7610993657505285,
+      "trianglesRatio": 1.0447332123411979
+    },
+    "dusk": {
+      "hud": 18.502495659722225,
+      "scene": 19.532118055555557,
+      "calls": 360,
+      "triangles": 71956,
+      "callsBaseline": 473,
+      "trianglesBaseline": 68875,
+      "callsRatio": 0.7610993657505285,
+      "trianglesRatio": 1.0447332123411979
+    },
+    "trial": {
+      "hud": 9.678819444444445,
+      "scene": 9.121961805555557,
+      "calls": 368,
+      "triangles": 75244,
+      "callsBaseline": 481,
+      "trianglesBaseline": 72163,
+      "callsRatio": 0.7650727650727651,
+      "trianglesRatio": 1.0426950099081247
+    }
+  },
+  "ground": {
+    "method": "Ground VIS ID render with all other meshes occluding, eroded one pixel, sampled against the unmodified 1280x720 trial screenshot at the podium mark facing (0,9), seed 1000 / 7 players, HUD hidden.",
+    "pixels": 264931,
+    "p1": 1.2166,
+    "p5": 2.7874000000000003,
+    "p50": 17.2166,
+    "pctBelowLuma4": 7.597827358821731,
+    "pctBelowLuma8": 21.87928177525469,
+    "p5BandMeanRgb": [
+      0.9596104484372641,
+      1.6044843726407971,
+      6.105314812018722
+    ],
+    "p5BandBlueOverRed": true,
+    "darkest": {
+      "rgb": [
+        0,
+        1,
+        2
+      ],
+      "luma": 0.8595999999999999,
+      "x": 569,
+      "y": 708
+    },
+    "channelMinima": [
+      0,
+      1,
+      1
+    ]
+  },
+  "groundBaseline": {
+    "method": "Ground VIS ID render with all other meshes occluding, eroded one pixel, sampled against the unmodified 1280x720 trial screenshot at the podium mark facing (0,9), seed 1000 / 7 players, HUD hidden.",
+    "pixels": 257223,
+    "p1": 1.0762,
+    "p5": 2.0802,
+    "p50": 11.438400000000001,
+    "pctBelowLuma4": 10.508002783576895,
+    "pctBelowLuma8": 36.106024733402535,
+    "p5BandMeanRgb": [
+      0.006920146178368712,
+      1.6697768447243604,
+      6.932664645050929
+    ],
+    "p5BandBlueOverRed": true,
+    "darkest": {
+      "rgb": [
+        0,
+        1,
+        4
+      ],
+      "luma": 1.004,
+      "x": 806,
+      "y": 371
+    },
+    "channelMinima": [
+      0,
+      1,
+      4
+    ]
+  },
+  "p5JitterLuma": 0.35,
+  "walkEqual": true,
+  "placementsEqual": 32,
+  "fingerprintByteIdentical": true,
+  "replayByteIdentical": true,
+  "pairPass": true,
+  "trialPairDeltas": [
+    {
+      "index": 2,
+      "deltaPp": {
+        "hud": 0,
+        "scene": 0
+      },
+      "hudPixels": 0,
+      "scenePixels": 0
+    },
+    {
+      "index": 3,
+      "deltaPp": {
+        "hud": 0,
+        "scene": 0
+      },
+      "hudPixels": 0,
+      "scenePixels": 0
+    },
+    {
+      "index": 4,
+      "deltaPp": {
+        "hud": 0,
+        "scene": 0
+      },
+      "hudPixels": 0,
+      "scenePixels": 0
+    }
+  ]
+}

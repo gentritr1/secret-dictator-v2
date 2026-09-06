@@ -1,0 +1,58 @@
+{
+  "asset": "env-facade-b",
+  "pixelsPerMetre": 80,
+  "panelWidth": 512,
+  "tolerancePixels": 2,
+  "method": "Native blue-dark outline bounding boxes against authored template, including stroke width. No transforms.",
+  "views": [
+    {
+      "view": "front",
+      "template": [
+        75,
+        336,
+        436,
+        851
+      ],
+      "generated": [
+        75,
+        336,
+        436,
+        851
+      ],
+      "maxError": 0
+    },
+    {
+      "view": "side",
+      "template": [
+        707,
+        337,
+        828,
+        850
+      ],
+      "generated": [
+        707,
+        337,
+        828,
+        850
+      ],
+      "maxError": 0
+    },
+    {
+      "view": "top",
+      "template": [
+        1099,
+        426,
+        1463,
+        553
+      ],
+      "generated": [
+        1099,
+        426,
+        1463,
+        553
+      ],
+      "maxError": 0
+    }
+  ],
+  "passes": true
+}

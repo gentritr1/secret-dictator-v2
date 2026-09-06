@@ -1,0 +1,268 @@
+{
+  "method": "Same frozen scene, lights, camera and animation instant. Toggle all seven facades between the immutable 73a154c GLB and candidate; redraw shadows. Same rubble-pixels classifier, 1280x720, seed1000/7, podium camera. Three independent trial instants retained. Supplemental isolation measurement, not a replacement for full-scene captures.",
+  "allowancePp": 0,
+  "errors": [],
+  "pairs": [
+    {
+      "state": "day",
+      "index": 0,
+      "count": {
+        "current": 7,
+        "previous": 7
+      },
+      "before": {
+        "hud": {
+          "warm": 56548,
+          "warmPct": 6.135850694444445,
+          "total": 921600,
+          "stats": {
+            "calls": 475,
+            "triangles": 53865
+          }
+        },
+        "scene": {
+          "warm": 51340,
+          "warmPct": 5.570746527777778,
+          "total": 921600,
+          "stats": {
+            "calls": 475,
+            "triangles": 53865
+          }
+        }
+      },
+      "after": {
+        "hud": {
+          "warm": 53774,
+          "warmPct": 5.834852430555556,
+          "total": 921600,
+          "stats": {
+            "calls": 381,
+            "triangles": 74389
+          }
+        },
+        "scene": {
+          "warm": 48249,
+          "warmPct": 5.2353515625,
+          "total": 921600,
+          "stats": {
+            "calls": 381,
+            "triangles": 74389
+          }
+        }
+      },
+      "deltaPp": {
+        "hud": -0.3009982638888884,
+        "scene": -0.3353949652777777
+      }
+    },
+    {
+      "state": "dusk",
+      "index": 1,
+      "count": {
+        "current": 7,
+        "previous": 7
+      },
+      "before": {
+        "hud": {
+          "warm": 148754,
+          "warmPct": 16.14084201388889,
+          "total": 921600,
+          "stats": {
+            "calls": 476,
+            "triangles": 53973
+          }
+        },
+        "scene": {
+          "warm": 156826,
+          "warmPct": 17.016710069444443,
+          "total": 921600,
+          "stats": {
+            "calls": 476,
+            "triangles": 53973
+          }
+        }
+      },
+      "after": {
+        "hud": {
+          "warm": 41552,
+          "warmPct": 4.508680555555555,
+          "total": 921600,
+          "stats": {
+            "calls": 382,
+            "triangles": 74497
+          }
+        },
+        "scene": {
+          "warm": 37911,
+          "warmPct": 4.113606770833334,
+          "total": 921600,
+          "stats": {
+            "calls": 382,
+            "triangles": 74497
+          }
+        }
+      },
+      "deltaPp": {
+        "hud": -11.632161458333334,
+        "scene": -12.903103298611109
+      }
+    },
+    {
+      "state": "trial",
+      "index": 2,
+      "count": {
+        "current": 7,
+        "previous": 7
+      },
+      "before": {
+        "hud": {
+          "warm": 72789,
+          "warmPct": 7.898111979166666,
+          "total": 921600,
+          "stats": {
+            "calls": 484,
+            "triangles": 57261
+          }
+        },
+        "scene": {
+          "warm": 67311,
+          "warmPct": 7.303710937500001,
+          "total": 921600,
+          "stats": {
+            "calls": 484,
+            "triangles": 57261
+          }
+        }
+      },
+      "after": {
+        "hud": {
+          "warm": 72783,
+          "warmPct": 7.8974609375,
+          "total": 921600,
+          "stats": {
+            "calls": 390,
+            "triangles": 77785
+          }
+        },
+        "scene": {
+          "warm": 67311,
+          "warmPct": 7.303710937500001,
+          "total": 921600,
+          "stats": {
+            "calls": 390,
+            "triangles": 77785
+          }
+        }
+      },
+      "deltaPp": {
+        "hud": -0.0006510416666660745,
+        "scene": 0
+      }
+    },
+    {
+      "state": "trial",
+      "index": 3,
+      "count": {
+        "current": 7,
+        "previous": 7
+      },
+      "before": {
+        "hud": {
+          "warm": 72792,
+          "warmPct": 7.8984375,
+          "total": 921600,
+          "stats": {
+            "calls": 484,
+            "triangles": 57261
+          }
+        },
+        "scene": {
+          "warm": 67314,
+          "warmPct": 7.304036458333334,
+          "total": 921600,
+          "stats": {
+            "calls": 484,
+            "triangles": 57261
+          }
+        }
+      },
+      "after": {
+        "hud": {
+          "warm": 72786,
+          "warmPct": 7.897786458333334,
+          "total": 921600,
+          "stats": {
+            "calls": 390,
+            "triangles": 77785
+          }
+        },
+        "scene": {
+          "warm": 67314,
+          "warmPct": 7.304036458333334,
+          "total": 921600,
+          "stats": {
+            "calls": 390,
+            "triangles": 77785
+          }
+        }
+      },
+      "deltaPp": {
+        "hud": -0.0006510416666660745,
+        "scene": 0
+      }
+    },
+    {
+      "state": "trial",
+      "index": 4,
+      "count": {
+        "current": 7,
+        "previous": 7
+      },
+      "before": {
+        "hud": {
+          "warm": 69068,
+          "warmPct": 7.494357638888889,
+          "total": 921600,
+          "stats": {
+            "calls": 486,
+            "triangles": 57477
+          }
+        },
+        "scene": {
+          "warm": 63587,
+          "warmPct": 6.899631076388888,
+          "total": 921600,
+          "stats": {
+            "calls": 486,
+            "triangles": 57477
+          }
+        }
+      },
+      "after": {
+        "hud": {
+          "warm": 69061,
+          "warmPct": 7.493598090277779,
+          "total": 921600,
+          "stats": {
+            "calls": 392,
+            "triangles": 78001
+          }
+        },
+        "scene": {
+          "warm": 63587,
+          "warmPct": 6.899631076388888,
+          "total": 921600,
+          "stats": {
+            "calls": 392,
+            "triangles": 78001
+          }
+        }
+      },
+      "deltaPp": {
+        "hud": -0.0007595486111107164,
+        "scene": 0
+      }
+    }
+  ],
+  "passesZeroAllowance": true
+}

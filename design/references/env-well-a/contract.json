@@ -1,0 +1,31 @@
+{
+  "asset": "env-well-a",
+  "previous": "env-well-a",
+  "placements": [
+    {
+      "x": -7.6,
+      "y": 0,
+      "z": 1.4,
+      "yaw": 0.4487989505128276
+    }
+  ],
+  "visualBounds": [
+    1.649999976158142,
+    2.5408389568328857,
+    1.7176417112350464
+  ],
+  "parts": "nine pieces: one stone plinth, one stone pedestal, one stone basin, one iron foot flange, one iron body, one iron cap, one iron spout, one iron lever bracket, one raised iron lever",
+  "collider": "COL_well",
+  "triangleLimit": 3000,
+  "warmAllowancePp": 0,
+  "pairResolutionPp": 0.001,
+  "materialRoles": [
+    "Plaster",
+    "Metal"
+  ],
+  "heroCameraPosition": [
+    2.2,
+    1.7,
+    4.8
+  ]
+}

@@ -1,0 +1,44 @@
+{
+  "image": "public/assets/textures/rubble/TEX_Brick.png",
+  "sha256": "b704aa1cb0079d0b6bb34f4df2c242aed86cf52a9dbb80c45a7ede1a2ccf2058",
+  "width": 1024,
+  "height": 1024,
+  "edgeMeanAbsoluteRGB255": {
+    "leftRight": 3.5563151041666665,
+    "topBottom": 4.0185546875
+  },
+  "spectral": {
+    "bands": 16,
+    "frequencyRange": [
+      3,
+      24
+    ],
+    "periodsPx": [
+      243.0639105223476,
+      125.71461433837693,
+      244.08429105788088,
+      274.68228203172976,
+      258.7007293736104,
+      63.85775605761435,
+      249.41458240276987,
+      145.5667437147136,
+      261.125761620646,
+      50.924247884977284,
+      255.10243554784316,
+      64.30655828292154,
+      262.93652667493967,
+      128.63701624446307,
+      265.0959954452018,
+      241.52174093693685
+    ],
+    "slopePixelsPerImageHeight": 7.797486978245941,
+    "relativeDrift": 0.03201279180730701,
+    "permutationP": 0.7693434220161094,
+    "permutations": 4096,
+    "pLimit": 0.01,
+    "relativeDriftLimit": 0.1
+  },
+  "seamless": true,
+  "noSpectralPeriodSlope": true,
+  "accepted": true
+}

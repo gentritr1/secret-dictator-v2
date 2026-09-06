@@ -1,0 +1,7 @@
+front.png              camera=front         mood=day        collider=false  calls=17 tris=2056
+three-quarter.png      camera=three-quarter mood=day        collider=false  calls=17 tris=2056
+side.png               camera=side          mood=day        collider=false  calls=17 tris=2056
+game-camera.png        camera=game          mood=day        collider=false  calls=17 tris=2056
+silhouette.png         camera=front         mood=silhouette collider=false  calls=3 tris=300
+collider-overlay.png   camera=three-quarter mood=day        collider=true  calls=18 tris=2056
+report: {"file":"environment/env-rubble-small.glb","bounds":"0.675 × 0.620 × 0.675 m","ground":"0.0000 m","vis":"3 (300 tris)","col":"1 (12 tris)","sockets":"none","materials":"MAT_Brick, MAT_Plaster, MAT_TimberSoot","doubleSided":"none","unnamed":"none"}

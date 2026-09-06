@@ -1,0 +1,1 @@
+{"placements":32,"replaySha256":"9313643a2934c2c74eeb64eb79eeeaaf75ab2e31744502b0bb6307e1f2c459a7","output":"design/reviews/rubble-phase-2/env-brick-stack/contract-after.json"}

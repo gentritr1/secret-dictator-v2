@@ -1,0 +1,33 @@
+{
+  "sourcePixels": [
+    1254,
+    1254
+  ],
+  "atlasPixels": [
+    1024,
+    1024
+  ],
+  "unchangedGeometryTransformsUvsTints": true,
+  "before": {
+    "COL_wall": "aef5fda85a85f504b734a66f8ec7bfe101c3f9f2864a0a6495ffd4374585ca02",
+    "env-facade-a": "9c81a11256381ec857eaaf7b02514d9dba236afdb7fb5be1a70b1f1e5f7b1df7",
+    "GUIDE_Calibration": "5806ae5292a107f3ef04779e722d229636f4648f2d3cd6d1a96abb25fc48d826",
+    "REVIEW_Game": "a4c0b4682d2c0cc78a3f98c752ab1f3157ed18468d747eaee9ba5153e65a53b1",
+    "REVIEW_Softbox": "4a7fad7bedd41059a1c4c308a28831acc852f3cae9b850b34d59574e6d0cd3d3",
+    "SOCKET_lamp": "6f8f8c9f3e486aab44fe4c24326727330ccd385035f697413cea3ab5f419e6cb",
+    "VIS_brick": "821732e5a4a0311814a49133e296d45ef7d6ed6f929d371a751a081c61ff67f1",
+    "VIS_joinery": "5b2b7aa9ccccca6d04f3744600fdcb8fbb7c1450a32c62323947026ee547f2da",
+    "VIS_plaster": "e8a61686e3de0b2816c85883a6cd0626a3b6e6f96602b0967884d8a982b8d91f"
+  },
+  "after": {
+    "COL_wall": "aef5fda85a85f504b734a66f8ec7bfe101c3f9f2864a0a6495ffd4374585ca02",
+    "env-facade-a": "9c81a11256381ec857eaaf7b02514d9dba236afdb7fb5be1a70b1f1e5f7b1df7",
+    "GUIDE_Calibration": "5806ae5292a107f3ef04779e722d229636f4648f2d3cd6d1a96abb25fc48d826",
+    "REVIEW_Game": "a4c0b4682d2c0cc78a3f98c752ab1f3157ed18468d747eaee9ba5153e65a53b1",
+    "REVIEW_Softbox": "4a7fad7bedd41059a1c4c308a28831acc852f3cae9b850b34d59574e6d0cd3d3",
+    "SOCKET_lamp": "6f8f8c9f3e486aab44fe4c24326727330ccd385035f697413cea3ab5f419e6cb",
+    "VIS_brick": "821732e5a4a0311814a49133e296d45ef7d6ed6f929d371a751a081c61ff67f1",
+    "VIS_joinery": "5b2b7aa9ccccca6d04f3744600fdcb8fbb7c1450a32c62323947026ee547f2da",
+    "VIS_plaster": "e8a61686e3de0b2816c85883a6cd0626a3b6e6f96602b0967884d8a982b8d91f"
+  }
+}

@@ -1,0 +1,17 @@
+node:internal/modules/run_main:123
+    triggerUncaughtException(
+    ^
+
+AssertionError [ERR_ASSERTION]: The expression evaluated to a falsy value:
+
+  assert.ok(after.walks.filter(w=>w.id.startsWith('main-passage')).every(w=>w.position.z>6.8))
+
+    at file:///private/tmp/rubble-square-art/scripts/measure-facade-walk.mjs:57:10 {
+  generatedMessage: true,
+  code: 'ERR_ASSERTION',
+  actual: false,
+  expected: true,
+  operator: '=='
+}
+
+Node.js v20.19.4

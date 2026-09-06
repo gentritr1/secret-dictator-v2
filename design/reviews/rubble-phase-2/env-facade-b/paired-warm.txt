@@ -1,0 +1,5 @@
+{"state":"day","index":0,"deltaPp":{"hud":-0.027235243055556246,"scene":-0.027560763888888395}}
+{"state":"dusk","index":1,"deltaPp":{"hud":-0.8666449652777786,"scene":-1.3498263888888893}}
+{"state":"trial","index":2,"deltaPp":{"hud":-0.00021701388888928363,"scene":0}}
+{"state":"trial","index":3,"deltaPp":{"hud":-0.00021701388888750728,"scene":0}}
+{"state":"trial","index":4,"deltaPp":{"hud":-0.00021701388888928363,"scene":0}}
